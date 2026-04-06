@@ -1,0 +1,8 @@
+node_modules
+.git
+.expo
+.expo-shared
+Libary
+*.log
+.idea
+.vscode
