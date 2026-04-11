@@ -4,13 +4,13 @@
     "slug": "awroadside-fire",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "icon": "./assets/images/icon.png",
-    "scheme": "awroadside-fire",
+    "scheme": "com.awobemedia.awroadsidefire",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.awroadsidefire"
+      "bundleIdentifier": "com.awobemedia.awroadsidefire"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +21,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.awroadsidefire"
+      "package": "com.awobemedia.awroadsidefire"
     },
     "web": {
       "bundler": "metro",
