@@ -1,0 +1,21 @@
+{
+  "name": "untitled-local-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local-first runtime app with backend, static frontend, and build output for later deployment.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node backend/server.mjs",
+    "dev:mock-service": "node backend/mock-request-service.mjs",
+    "dev:with-mock": "REQUEST_SERVICE_API_BASE_URL=http://127.0.0.1:3100 node backend/server.mjs",
+    "start": "NODE_ENV=production node backend/server.mjs",
+    "build": "node scripts/build.mjs",
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "watchdog": "node scripts/watchdog.mjs",
+    "watchdog:refresh": "node scripts/watchdog-refresh.mjs",
+    "audit": "npm audit --audit-level=moderate"
+  }
+}
