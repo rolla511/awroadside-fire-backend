@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const webRoot = path.join(projectRoot, "web");
 const appRoot = path.join(projectRoot, "app");
-const runtimeRoot = resolveRuntimeRoot();
+const runtimeRoot = path.join(appRoot, "runtime");
 const reportsRoot = path.join(runtimeRoot, "reports");
 const logsRoot = path.join(runtimeRoot, "logs");
 const paymentsRoot = path.join(runtimeRoot, "payments");
@@ -655,17 +655,6 @@ function resolvePublicBaseUrl() {
 
   const fallbackHost = host === "0.0.0.0" ? "127.0.0.1" : host;
   return `http://${fallbackHost}:${port}`;
-}
-
-function resolveRuntimeRoot() {
-  const configuredRuntimeRoot = (process.env.RUNTIME_ROOT || "").trim();
-  if (!configuredRuntimeRoot) {
-    return path.join(appRoot, "runtime");
-  }
-
-  return path.isAbsolute(configuredRuntimeRoot)
-    ? configuredRuntimeRoot
-    : path.resolve(projectRoot, configuredRuntimeRoot);
 }
 
 async function getPaypalAccessToken() {
