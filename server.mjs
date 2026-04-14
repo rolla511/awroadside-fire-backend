@@ -10,13 +10,14 @@ import { createLocalWatchdog } from "./local-watchdog.mjs";
 import { createRequestServiceController } from "./request-service-controller.mjs";
 import { createRuntimeRepository } from "./runtime-repository.mjs";
 import { createSubscriptionController } from "./subscription-controller.mjs";
+import { createUniversalBridgeController } from "./universal-bridge-controller.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const webRoot = path.join(projectRoot, "web");
 const appRoot = path.join(projectRoot, "app");
-const runtimeRoot = path.join(appRoot, "runtime");
+const runtimeRoot = resolveRuntimeRoot();
 const reportsRoot = path.join(runtimeRoot, "reports");
 const logsRoot = path.join(runtimeRoot, "logs");
 const paymentsRoot = path.join(runtimeRoot, "payments");
@@ -54,6 +55,7 @@ const localWatchdog = createLocalWatchdog({
   projectRoot,
   runtimeRoot
 });
+const universalBridgeController = createUniversalBridgeController();
 const runtimeRepository = createRuntimeRepository({
   runtimeRoot
 });
@@ -92,6 +94,8 @@ const server = http.createServer(async (req, res) => {
       readUsers,
       writeUsers,
       allocateUserId,
+      readPaymentLog,
+      updateRequestRecord,
       readCacheJson,
       writeCacheJson,
       deleteFile,
@@ -100,11 +104,16 @@ const server = http.createServer(async (req, res) => {
       normalizeServiceRequest,
       normalizeServicePaymentRequest,
       createServicePaymentQuote,
+      createServiceRequest,
       createPaypalOrder,
       capturePaypalOrder,
       resolveUserSession,
+      revokeUserSession,
       issueUserSession,
       getUserProfile,
+      readRequestLog,
+      writeRequestLog,
+      applyLocalRequestAction,
       getHealthPayload,
       getPaymentConfigPayload,
       getFrontendConfigPayload: (request) => getFrontendConfigPayload(request),
@@ -121,7 +130,6 @@ const server = http.createServer(async (req, res) => {
 
     const adminHandled = await adminController.handle(req, res, pathname, {
       ...commonHelpers,
-      readRequestLog,
       paymentsConfigured: () => Boolean(paypalClientId && paypalClientSecret),
       startedAt: startedAt.toISOString()
     });
@@ -143,6 +151,13 @@ const server = http.createServer(async (req, res) => {
       ...commonHelpers
     });
     if (requestServiceHandled) {
+      return;
+    }
+
+    const universalBridgeHandled = await universalBridgeController.handle(req, res, pathname, {
+      ...commonHelpers
+    });
+    if (universalBridgeHandled) {
       return;
     }
 
@@ -236,6 +251,14 @@ const server = http.createServer(async (req, res) => {
         status: order.status,
         createdAt: new Date().toISOString()
       });
+      if (normalizedRequest.requestId) {
+        await updateRequestRecord(normalizedRequest.requestId, (request) => ({
+          ...request,
+          amountCharged: Number(normalizedRequest.amount?.value || 0),
+          paymentStatus: "ORDER_CREATED",
+          lastPaymentOrderId: order.id
+        }));
+      }
 
       sendJson(res, 201, {
         orderId: order.id,
@@ -276,11 +299,41 @@ const server = http.createServer(async (req, res) => {
         capturedAt: new Date().toISOString(),
         capture
       });
+      if (typeof payload.requestId === "string" && payload.requestId.trim()) {
+        await updateRequestRecord(payload.requestId, (request) => ({
+          ...request,
+          paymentStatus: "CAPTURED",
+          amountCollected: Number(request.amountCharged || request.amountCollected || 0),
+          lastPaymentOrderId: orderId
+        }));
+      }
 
       sendJson(res, 200, {
         status: capture.status,
         orderId,
         capture
+      });
+      return;
+    }
+
+    const requestActionMatch = pathname.match(/^\/api\/requests\/([^/]+)\/([^/]+)$/);
+    if (requestActionMatch) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      const payload = await readJsonBody(req);
+      const requestId = decodeURIComponent(requestActionMatch[1]);
+      const action = decodeURIComponent(requestActionMatch[2]);
+      const updatedRequest = await applyLocalRequestAction(requestId, action, payload);
+      sendJson(res, 200, {
+        requestId: updatedRequest.id,
+        action,
+        accepted: true,
+        committed: true,
+        status: updatedRequest.status,
+        request: updatedRequest
       });
       return;
     }
@@ -425,7 +478,10 @@ async function walk(rootDir, currentDir, output) {
 function applyHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Authorization, Content-Type, X-Location-Zone, X-2FA-Verified, X-WP-Nonce"
+  );
 }
 
 function sendJson(res, statusCode, payload) {
@@ -468,13 +524,23 @@ function normalizeServiceRequest(payload) {
   const serviceType = readRequiredString(payload.serviceType, "serviceType");
   const location = readRequiredString(payload.location, "location");
   const notes = readOptionalString(payload.notes);
+  const requestId = readOptionalString(payload.requestId);
+  const vehicleInfo = readOptionalString(payload.vehicleInfo);
+  const assignedProviderId = readOptionalString(payload.assignedProviderId);
+  const userId = Number.isInteger(payload.userId) ? payload.userId : null;
+  const roles = Array.isArray(payload.roles) ? payload.roles.filter((value) => typeof value === "string") : [];
 
   return {
+    ...(requestId ? { requestId } : {}),
+    ...(userId !== null ? { userId } : {}),
+    ...(roles.length ? { roles } : {}),
     fullName,
     phoneNumber,
     serviceType,
     location,
     notes,
+    ...(vehicleInfo ? { vehicleInfo } : {}),
+    ...(assignedProviderId ? { assignedProviderId } : {}),
     amount: {
       currency_code: "USD",
       value: priorityServicePrice.toFixed(2)
@@ -525,6 +591,7 @@ async function getUserProfile(userId) {
     fullName: user.fullName || "",
     username: user.username || "",
     email: user.email || "",
+    phoneNumber: user.phoneNumber || "",
     roles: Array.isArray(user.roles) ? user.roles : [],
     providerStatus: user.providerStatus || null,
     providerProfile: user.providerProfile || null,
@@ -534,6 +601,14 @@ async function getUserProfile(userId) {
     activeShiftId: user.activeShiftId || null,
     subscriberActive: Boolean(user.subscriberActive),
     subscriberProfile: user.subscriberProfile || null,
+    savedVehicles: Array.isArray(user.subscriberProfile?.savedVehicles)
+      ? user.subscriberProfile.savedVehicles
+      : user.subscriberProfile?.vehicle
+        ? [user.subscriberProfile.vehicle]
+        : [],
+    accountState: user.accountState || "ACTIVE",
+    nextBillingDate: user.nextBillingDate || null,
+    signUpDate: user.signUpDate || user.createdAt || null,
     trustedZone: user.trustedZone || null,
     createdAt: user.createdAt || null
   };
@@ -657,6 +732,17 @@ function resolvePublicBaseUrl() {
   return `http://${fallbackHost}:${port}`;
 }
 
+function resolveRuntimeRoot() {
+  const configuredRuntimeRoot = (process.env.RUNTIME_ROOT || "").trim();
+  if (!configuredRuntimeRoot) {
+    return path.join(appRoot, "runtime");
+  }
+
+  return path.isAbsolute(configuredRuntimeRoot)
+    ? configuredRuntimeRoot
+    : path.resolve(projectRoot, configuredRuntimeRoot);
+}
+
 async function getPaypalAccessToken() {
   const credentials = Buffer.from(`${paypalClientId}:${paypalClientSecret}`).toString("base64");
   const response = await fetch(`${paypalApiBase}/v1/oauth2/token`, {
@@ -744,6 +830,22 @@ async function appendPaymentLog(entry) {
   await fs.appendFile(paymentLogPath, `${JSON.stringify(entry)}\n`);
 }
 
+async function readPaymentLog() {
+  try {
+    const raw = await fs.readFile(paymentLogPath, "utf8");
+    return raw
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .reverse();
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
 function issueUserSession({ userId, email, roles }) {
   const sessionId = crypto.randomUUID();
   const expiresAt = Date.now() + sessionTtlMs;
@@ -797,6 +899,13 @@ function resolveUserSession(req) {
     roles: Array.isArray(payload.roles) ? payload.roles : [],
     expiresAt: payload.expiresAt
   };
+}
+
+function revokeUserSession(sessionId) {
+  if (!sessionId) {
+    return false;
+  }
+  return userSessions.delete(sessionId);
 }
 
 function signSessionBody(body) {
@@ -862,11 +971,28 @@ async function listCacheFiles(dirPath) {
 }
 
 async function createServiceRequest(serviceRequest) {
+  const now = new Date().toISOString();
+  const requestId = `req_${Date.now()}`;
+  const customerType = Array.isArray(serviceRequest.roles) && serviceRequest.roles.includes("SUBSCRIBER")
+    ? "SUBSCRIBER"
+    : "GUEST";
   const savedRequest = {
-    id: `req_${Date.now()}`,
-    status: "submitted",
-    paymentStatus: "not-required",
-    submittedAt: new Date().toISOString(),
+    id: requestId,
+    requestId,
+    status: "SUBMITTED",
+    completionStatus: "OPEN",
+    paymentStatus: "NOT_PAID",
+    customerType,
+    providerPayoutStatus: "UNASSIGNED",
+    amountCharged: 0,
+    amountCollected: 0,
+    refundIssued: false,
+    refundFlag: false,
+    disputeFlag: false,
+    lastPaymentOrderId: null,
+    submittedAt: now,
+    createdAt: now,
+    updatedAt: now,
     ...serviceRequest
   };
 
@@ -890,6 +1016,85 @@ async function readRequestLog() {
     }
     throw error;
   }
+}
+
+async function writeRequestLog(requests) {
+  await fs.mkdir(requestsRoot, { recursive: true });
+  const serialized = requests
+    .slice()
+    .reverse()
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  await fs.writeFile(requestLogPath, serialized ? `${serialized}\n` : "");
+}
+
+async function updateRequestRecord(requestId, updater) {
+  const requests = await readRequestLog();
+  const index = requests.findIndex((entry) => String(entry.id || entry.requestId) === String(requestId));
+  if (index === -1) {
+    throw new Error(`Request ${requestId} was not found.`);
+  }
+
+  const current = requests[index];
+  requests[index] = {
+    ...current,
+    ...updater(current),
+    id: current.id || current.requestId,
+    requestId: current.requestId || current.id,
+    updatedAt: new Date().toISOString()
+  };
+  await writeRequestLog(requests);
+  return requests[index];
+}
+
+async function applyLocalRequestAction(requestId, action, payload) {
+  const normalizedAction = typeof action === "string" ? action.trim().toLowerCase() : "";
+  const now = new Date().toISOString();
+
+  return updateRequestRecord(requestId, (request) => {
+    const providerActions = Array.isArray(request.providerActions) ? [...request.providerActions] : [];
+    const next = {
+      ...request
+    };
+
+    if (normalizedAction === "accept") {
+      next.status = "ASSIGNED";
+      next.assignedProviderId = payload.providerUserId ?? request.assignedProviderId ?? null;
+      next.acceptedAt = now;
+      next.providerPayoutStatus = request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus;
+    } else if (normalizedAction === "eta") {
+      next.status = "EN_ROUTE";
+      next.etaMinutes = Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : request.etaMinutes ?? null;
+      next.etaUpdatedAt = now;
+    } else if (normalizedAction === "soft-contact") {
+      next.softContactedAt = now;
+      next.status = request.status === "SUBMITTED" ? "ASSIGNED" : request.status;
+    } else if (normalizedAction === "hard-contact") {
+      next.hardContactedAt = now;
+      next.status = "EN_ROUTE";
+    } else if (normalizedAction === "arrived") {
+      next.status = "ARRIVED";
+      next.arrivedAt = now;
+    } else if (normalizedAction === "completed") {
+      next.status = "COMPLETED";
+      next.completionStatus = "COMPLETED";
+      next.completedAt = now;
+      next.providerPayoutStatus =
+        request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus || "PENDING";
+    } else {
+      throw new Error(`Unsupported provider action: ${action}`);
+    }
+
+    providerActions.unshift({
+      action: normalizedAction,
+      providerUserId: Number.isInteger(payload.providerUserId) ? payload.providerUserId : null,
+      etaMinutes: Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : null,
+      note: readOptionalString(payload.note),
+      createdAt: now
+    });
+    next.providerActions = providerActions.slice(0, 20);
+    return next;
+  });
 }
 
 function contentType(filePath) {

@@ -264,6 +264,14 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           createdAt: new Date().toISOString(),
           route: "aw-roadside-security"
         });
+        if (normalizedRequest.requestId && typeof helpers.updateRequestRecord === "function") {
+          await helpers.updateRequestRecord(normalizedRequest.requestId, (request) => ({
+            ...request,
+            amountCharged: Number(normalizedRequest.amount?.value || 0),
+            paymentStatus: "ORDER_CREATED",
+            lastPaymentOrderId: order.id
+          }));
+        }
         helpers.sendJson(res, 201, {
           orderId: order.id,
           status: order.status
@@ -310,6 +318,14 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           route: "aw-roadside-security",
           capture
         });
+        if (typeof payload.requestId === "string" && payload.requestId.trim() && typeof helpers.updateRequestRecord === "function") {
+          await helpers.updateRequestRecord(payload.requestId, (request) => ({
+            ...request,
+            paymentStatus: "CAPTURED",
+            amountCollected: Number(request.amountCharged || request.amountCollected || 0),
+            lastPaymentOrderId: orderId
+          }));
+        }
         helpers.sendJson(res, 200, {
           status: capture.status,
           orderId,
@@ -364,13 +380,16 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
 }
 
 function attachSession(payload, helpers) {
+  const sessionToken = helpers.issueUserSession({
+    userId: payload.userId,
+    email: payload.email || null,
+    roles: payload.roles || []
+  });
+
   return {
     ...payload,
-    sessionToken: helpers.issueUserSession({
-      userId: payload.userId,
-      email: payload.email || null,
-      roles: payload.roles || []
-    })
+    sessionToken,
+    token: sessionToken
   };
 }
 

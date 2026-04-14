@@ -83,8 +83,10 @@ export async function createSignup(payload, helpers) {
   const username = normalizeUsername(requireString(payload.username, "username"));
   const email = requireString(payload.email, "email").toLowerCase();
   const password = requireString(payload.password, "password");
+  const phoneNumber = optionalString(payload.phoneNumber);
   const role = requireString(payload.role, "role").toUpperCase();
   const termsAccepted = payload.termsAccepted === true;
+  const createdAt = new Date().toISOString();
 
   if (!["SUBSCRIBER", "PROVIDER"].includes(role)) {
     throw new Error('Role must be "SUBSCRIBER" or "PROVIDER".');
@@ -107,6 +109,7 @@ export async function createSignup(payload, helpers) {
     fullName,
     username,
     email,
+    phoneNumber,
     passwordHash: await hashPassword(password),
     roles: [role],
     subscriberActive: false,
@@ -118,7 +121,10 @@ export async function createSignup(payload, helpers) {
     services: [],
     available: false,
     activeShiftId: null,
-    createdAt: new Date().toISOString()
+    accountState: "ACTIVE",
+    nextBillingDate: role === "SUBSCRIBER" ? addDays(createdAt, 30) : null,
+    createdAt,
+    signUpDate: createdAt
   };
 
   users.push(newUser);
@@ -170,9 +176,12 @@ export async function setupSubscriber(payload, helpers, session = null) {
   }
 
   user.subscriberActive = true;
+  user.accountState = user.accountState || "ACTIVE";
+  user.nextBillingDate = user.nextBillingDate || addDays(new Date().toISOString(), 30);
   user.subscriberProfile = {
     membershipPrice: 5,
     vehicle: { make, model, year, color },
+    savedVehicles: [{ make, model, year, color }],
     paymentMethodMasked
   };
 
@@ -194,6 +203,7 @@ export async function applyProvider(payload, helpers, session = null) {
   const documents = payload.documents || {};
 
   user.providerStatus = "PENDING_APPROVAL";
+  user.accountState = user.accountState || "ACTIVE";
   user.providerProfile = {
     vehicleInfo: {
       make: requireString(vehicleInfo.make, "vehicleInfo.make"),
@@ -221,8 +231,10 @@ function buildLoginPayload(user) {
     userId: user.id,
     email: user.email,
     roles: user.roles,
+    phoneNumber: user.phoneNumber || "",
     providerStatus: user.providerStatus,
-    subscriberActive: user.subscriberActive
+    subscriberActive: user.subscriberActive,
+    accountState: user.accountState || "ACTIVE"
   };
 }
 
@@ -257,18 +269,30 @@ function optionalString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function addDays(value, days) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
+}
+
 function withSession(payload, helpers) {
   if (!helpers.issueUserSession) {
     return payload;
   }
 
+  const sessionToken = helpers.issueUserSession({
+    userId: payload.userId,
+    email: payload.email || null,
+    roles: payload.roles || []
+  });
+
   return {
     ...payload,
-    sessionToken: helpers.issueUserSession({
-      userId: payload.userId,
-      email: payload.email || null,
-      roles: payload.roles || []
-    })
+    sessionToken,
+    token: sessionToken
   };
 }
 
