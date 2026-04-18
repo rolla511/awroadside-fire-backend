@@ -1,0 +1,46 @@
+AW Roadside next-session handoff
+Date: 2026-04-09
+
+Current authority paths
+- Backend/web runtime: /Users/user/IdeaProjects/untitled
+- Active Expo mobile app: /Users/user/awroadside-fire
+
+What is now in place
+- Protected backend routes for request, provider action, payment quote, payment create/capture
+- Compatibility gateway with status, resolve, repository, manifest, and acknowledge endpoints
+- Runtime repository with request counts, stale timestamps, and acknowledged variants
+- Website runtime now displays variant handshake state
+
+New endpoints to use next
+- GET /api/compat/status
+- GET /api/compat/resolve
+- GET /api/compat/repository
+- GET /api/compat/manifest
+- POST /api/compat/acknowledge
+
+Main unresolved product work
+- Mobile UI in awroadside-fire still needs:
+  - service quote / agree flow
+  - provider fee display
+  - provider work and payout history
+  - visible terms text for guest, subscriber, provider
+- Backend still needs:
+  - guest vs subscriber service pricing rule
+  - tax applicability by service type
+  - provider fee deduction ledger
+  - payout calculation and payout history
+  - dispatch scoring / coverage / shift rules
+
+Android verification status
+- Remote EAS Android AAB passed previously
+- Local Gradle bundle did not complete and did not produce a local artifact
+- Next local verification should target APK first, then AAB if needed
+
+iOS status
+- iOS/TestFlight path was not completed in this session
+- awroadside-fire remains the only mobile authority path for iOS work
+
+Do not do next
+- Do not create a new Expo project name just to continue the same product
+- Do not activate Desktop Expo 53 or other legacy variants as live authority
+- Do not move pricing or financial rules into UI-only logic

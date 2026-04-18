@@ -1,0 +1,8 @@
+.gcloudignore
+.git
+.gitignore
+.idea
+node_modules
+out
+src
+untitled.iml

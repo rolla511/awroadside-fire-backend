@@ -1,0 +1,9 @@
+Local Runtime Startup Report
+Started: 4/18/2026, 5:29:15 PM
+UI: http://127.0.0.1:3000/
+API: http://127.0.0.1:3000/api/aw-roadside/frontend-config
+Protected API: http://127.0.0.1:3000/api/aw-roadside
+Runtime Folder: /Users/user/IdeaProjects/untitled/app/runtime
+Watchdog Status: /Users/user/IdeaProjects/untitled/app/runtime/security/latest-status.json
+PayPal Mode: sandbox
+PayPal Configured: no
