@@ -1,4 +1,4 @@
 // Admin Controller
-export function adminController(req, res) {
+import function adminController(req, res) {
     // Admin logic
 }
