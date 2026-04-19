@@ -308,7 +308,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!paypalClientId || !paypalClientSecret) {
+      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
@@ -349,7 +349,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!paypalClientId || !paypalClientSecret) {
+      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
