@@ -316,30 +316,38 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const payload = await readJsonBody(req);
-      const normalizedRequest = normalizeServiceRequest(payload);
-      const order = await createPaypalOrder(normalizedRequest);
+      try {
+        const payload = await readJsonBody(req);
+        const normalizedRequest = normalizeServiceRequest(payload);
+        const order = await createPaypalOrder(normalizedRequest);
 
-      await appendPaymentLog({
-        event: "order-created",
-        request: normalizedRequest,
-        paypalOrderId: order.id,
-        status: order.status,
-        createdAt: new Date().toISOString()
-      });
-      if (normalizedRequest.requestId) {
-        await updateRequestRecord(normalizedRequest.requestId, (request) => ({
-          ...request,
-          amountCharged: Number(normalizedRequest.amount?.value || 0),
-          paymentStatus: "ORDER_CREATED",
-          lastPaymentOrderId: order.id
-        }));
+        await appendPaymentLog({
+          event: "order-created",
+          request: normalizedRequest,
+          paypalOrderId: order.id,
+          status: order.status,
+          createdAt: new Date().toISOString()
+        });
+        if (normalizedRequest.requestId) {
+          await updateRequestRecord(normalizedRequest.requestId, (request) => ({
+            ...request,
+            amountCharged: Number(normalizedRequest.amount?.value || 0),
+            paymentStatus: "ORDER_CREATED",
+            lastPaymentOrderId: order.id
+          }));
+        }
+
+        sendJson(res, 201, {
+          orderId: order.id,
+          status: order.status
+        });
+      } catch (error) {
+        console.error('[ERROR] Create Order Route Failed:', error);
+        sendJson(res, 500, {
+          error: "paypal-create-failed",
+          message: error.message
+        });
       }
-
-      sendJson(res, 201, {
-        orderId: order.id,
-        status: order.status
-      });
       return;
     }
 
@@ -357,38 +365,46 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      const payload = await readJsonBody(req);
-      const orderId = typeof payload.orderId === "string" ? payload.orderId.trim() : "";
-      if (!orderId) {
-        sendJson(res, 400, {
-          error: "invalid-order-id",
-          message: "A PayPal orderId is required."
+      try {
+        const payload = await readJsonBody(req);
+        const orderId = typeof payload.orderId === "string" ? payload.orderId.trim() : "";
+        if (!orderId) {
+          sendJson(res, 400, {
+            error: "invalid-order-id",
+            message: "A PayPal orderId is required."
+          });
+          return;
+        }
+
+        const capture = await capturePaypalOrder(orderId);
+        await appendPaymentLog({
+          event: "order-captured",
+          paypalOrderId: orderId,
+          status: capture.status,
+          capturedAt: new Date().toISOString(),
+          capture
         });
-        return;
-      }
+        if (typeof payload.requestId === "string" && payload.requestId.trim()) {
+          await updateRequestRecord(payload.requestId, (request) => ({
+            ...request,
+            paymentStatus: "CAPTURED",
+            amountCollected: Number(request.amountCharged || request.amountCollected || 0),
+            lastPaymentOrderId: orderId
+          }));
+        }
 
-      const capture = await capturePaypalOrder(orderId);
-      await appendPaymentLog({
-        event: "order-captured",
-        paypalOrderId: orderId,
-        status: capture.status,
-        capturedAt: new Date().toISOString(),
-        capture
-      });
-      if (typeof payload.requestId === "string" && payload.requestId.trim()) {
-        await updateRequestRecord(payload.requestId, (request) => ({
-          ...request,
-          paymentStatus: "CAPTURED",
-          amountCollected: Number(request.amountCharged || request.amountCollected || 0),
-          lastPaymentOrderId: orderId
-        }));
+        sendJson(res, 200, {
+          status: capture.status,
+          orderId,
+          capture
+        });
+      } catch (error) {
+        console.error('[ERROR] Capture Order Route Failed:', error);
+        sendJson(res, 500, {
+          error: "paypal-capture-failed",
+          message: error.message
+        });
       }
-
-      sendJson(res, 200, {
-        status: capture.status,
-        orderId,
-        capture
-      });
       return;
     }
 
