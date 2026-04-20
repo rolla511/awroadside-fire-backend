@@ -19,25 +19,29 @@ const platformId = process.env.PAYPAL_PLATFORM_ID; // The numeric Platform/Partn
  * Get OAuth2 Access Token from PayPal
  */
 export const getAccessToken = async () => {
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-    const headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${auth}`
-    };
+    // Trim credentials to prevent whitespace-related "invalid_client" errors
+    const cleanId = (clientId || '').trim();
+    const cleanSecret = (clientSecret || '').trim();
     
-    if (platformId) {
-        headers['PayPal-Partner-Attribution-Id'] = platformId;
+    if (!cleanId || !cleanSecret) {
+        throw new Error('Missing PayPal Credentials: PAYPAL_CLIENT_ID or PAYPAL_CLIENT_SECRET is not set.');
     }
 
+    const auth = Buffer.from(`${cleanId}:${cleanSecret}`).toString('base64');
+    
     const response = await fetch(`${PAYPAL_API_URL}/v1/oauth2/token`, {
         method: 'POST',
-        headers: headers,
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Authorization': `Basic ${auth}`
+        },
         body: 'grant_type=client_credentials'
     });
     
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(`PayPal Auth Failed: ${JSON.stringify(error)}`);
+        console.error('[ERROR] PayPal Auth Failed:', JSON.stringify(error));
+        throw new Error(`PayPal Auth Failed: ${error.error_description || error.error || response.statusText}`);
     }
     
     const data = await response.json();
