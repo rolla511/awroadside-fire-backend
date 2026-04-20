@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as paypal from "./paypal-client.mjs";
 import { createAdminController } from "./admin-controller.mjs";
 import { createAwRoadsideSecurityController } from "./aw-roadside-security.mjs";
 import { createCompatibilityGateway } from "./compatibility-gateway.mjs";
@@ -100,11 +101,6 @@ const host = process.env.HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const startedAt = new Date();
 const publicBaseUrl = resolvePublicBaseUrl();
-const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
-const paypalApiBase =
-  paypalMode === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
-const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
-const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
 const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
 const guestServicePrice = Number.parseFloat(process.env.GUEST_SERVICE_PRICE || `${serviceBasePrice}`);
@@ -312,7 +308,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!paypalClientId || !paypalClientSecret) {
+      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
@@ -353,7 +349,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!paypalClientId || !paypalClientSecret) {
+      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
@@ -1153,78 +1149,17 @@ function validateProviderDocumentFormat(fileName, contentType, fallbackContentTy
   }
 }
 
-async function getPaypalAccessToken() {
-  const credentials = Buffer.from(`${paypalClientId}:${paypalClientSecret}`).toString("base64");
-  const response = await fetch(`${paypalApiBase}/v1/oauth2/token`, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${credentials}`,
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: "grant_type=client_credentials"
-  });
-
-  if (!response.ok) {
-    throw new Error(`PayPal token request failed with ${response.status}.`);
-  }
-
-  const payload = await response.json();
-  return payload.access_token;
-}
 
 async function createPaypalOrder(serviceRequest) {
-  const accessToken = await getPaypalAccessToken();
-  const response = await fetch(`${paypalApiBase}/v2/checkout/orders`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      intent: "CAPTURE",
-      purchase_units: [
-        {
-          description: `${serviceRequest.paymentKind === "service" ? "Roadside service payment" : "Priority roadside service"} - ${serviceRequest.serviceType}`,
-          amount: serviceRequest.amount,
-          custom_id: `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`,
-          soft_descriptor: "ADUBROADSIDE"
-        }
-      ],
-      application_context: {
-        shipping_preference: "NO_SHIPPING",
-        user_action: "PAY_NOW"
-      }
-    })
+  return paypal.createOrder({
+    description: `${serviceRequest.paymentKind === "service" ? "Roadside service payment" : "Priority roadside service"} - ${serviceRequest.serviceType}`,
+    amount: serviceRequest.amount,
+    customId: `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
   });
-
-  if (!response.ok) {
-    const errorBody = await safeJson(response);
-    throw new Error(
-      `PayPal create order failed with ${response.status}: ${JSON.stringify(errorBody)}`
-    );
-  }
-
-  return response.json();
 }
 
 async function capturePaypalOrder(orderId) {
-  const accessToken = await getPaypalAccessToken();
-  const response = await fetch(`${paypalApiBase}/v2/checkout/orders/${orderId}/capture`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json"
-    }
-  });
-
-  if (!response.ok) {
-    const errorBody = await safeJson(response);
-    throw new Error(
-      `PayPal capture failed with ${response.status}: ${JSON.stringify(errorBody)}`
-    );
-  }
-
-  return response.json();
+  return paypal.captureOrder(orderId);
 }
 
 async function safeJson(response) {
