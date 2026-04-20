@@ -56,13 +56,8 @@ export const createOrder = async (orderDetails) => {
                 description: orderDetails.description || 'AW Roadside Service',
                 amount: orderDetails.amount, // { currency_code: 'USD', value: '55.00' }
                 custom_id: orderDetails.customId,
-                soft_descriptor: 'AWROADSIDE',
-                note_to_payee: 'Provider is a Customer Partner - Independent Service Contactor'
+                soft_descriptor: 'AWROADSIDE'
             }],
-            payment_instruction: {
-                disbursement_mode: 'INSTANT',
-                payee_receivable_fx_rate_id: null
-            },
             application_context: {
                 shipping_preference: 'NO_SHIPPING',
                 user_action: 'PAY_NOW',
