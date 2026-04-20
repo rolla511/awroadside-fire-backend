@@ -43,6 +43,7 @@ export const getAccessToken = async () => {
  */
 export const createOrder = async (orderDetails) => {
     const token = await getAccessToken();
+    console.log('[DEBUG_LOG] Creating PayPal Order:', JSON.stringify(orderDetails));
     const response = await fetch(`${PAYPAL_API_URL}/v2/checkout/orders`, {
         method: 'POST',
         headers: {
@@ -63,7 +64,14 @@ export const createOrder = async (orderDetails) => {
             }
         })
     });
-    return response.json();
+    
+    const data = await response.json();
+    if (!response.ok) {
+        console.error('[ERROR] PayPal Create Order Failed:', JSON.stringify(data));
+        throw new Error(`PayPal Create Order Failed: ${data.message || response.statusText}`);
+    }
+    console.log('[DEBUG_LOG] PayPal Order Created:', data.id);
+    return data;
 };
 
 /**
@@ -71,6 +79,7 @@ export const createOrder = async (orderDetails) => {
  */
 export const captureOrder = async (orderId) => {
     const token = await getAccessToken();
+    console.log('[DEBUG_LOG] Capturing PayPal Order:', orderId);
     const response = await fetch(`${PAYPAL_API_URL}/v2/checkout/orders/${orderId}/capture`, {
         method: 'POST',
         headers: {
@@ -78,7 +87,14 @@ export const captureOrder = async (orderId) => {
             'Authorization': `Bearer ${token}`
         }
     });
-    return response.json();
+    
+    const data = await response.json();
+    if (!response.ok) {
+        console.error('[ERROR] PayPal Capture Order Failed:', JSON.stringify(data));
+        throw new Error(`PayPal Capture Order Failed: ${data.message || response.statusText}`);
+    }
+    console.log('[DEBUG_LOG] PayPal Order Captured:', orderId, 'Status:', data.status);
+    return data;
 };
 
 /**
