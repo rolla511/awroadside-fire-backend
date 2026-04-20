@@ -1,7 +1,7 @@
 {
   "layer": "aw-roadside-local-watchdog",
   "active": true,
-  "scannedAt": "2026-04-18T22:16:39.503Z",
+  "scannedAt": "2026-04-20T00:10:20.923Z",
   "baselineCreatedAt": "2026-04-02T18:36:13.771Z",
   "watchedFiles": 10,
   "integrityOk": false,
@@ -10,7 +10,7 @@
       "path": "backend/server.mjs",
       "status": "modified",
       "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-      "currentSha256": "8265fdd6ce38ace1f9f9a0fa070933bb36ce793308275253c964e20359e1edb6"
+      "currentSha256": "8ed846829c20f661c55a810b3863fcf7a7a5e932cb148fcb1191e746b4c9a345"
     },
     {
       "path": "backend/aw-roadside-security.mjs",
@@ -75,7 +75,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "8265fdd6ce38ace1f9f9a0fa070933bb36ce793308275253c964e20359e1edb6"
+          "currentSha256": "8ed846829c20f661c55a810b3863fcf7a7a5e932cb148fcb1191e746b4c9a345"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -132,7 +132,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:16:39.504Z"
+      "timestamp": "2026-04-20T00:10:20.925Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -141,7 +141,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "8265fdd6ce38ace1f9f9a0fa070933bb36ce793308275253c964e20359e1edb6"
+          "currentSha256": "8ed846829c20f661c55a810b3863fcf7a7a5e932cb148fcb1191e746b4c9a345"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -198,7 +198,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:16:28.606Z"
+      "timestamp": "2026-04-20T00:05:32.112Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -207,7 +207,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "a942a91cf4d863c20eb70bbe4fb0dacfd9a674352eab10b2a608ea5d4f548c02"
+          "currentSha256": "8ed846829c20f661c55a810b3863fcf7a7a5e932cb148fcb1191e746b4c9a345"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -264,7 +264,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:11:39.513Z"
+      "timestamp": "2026-04-20T00:05:20.935Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -273,7 +273,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "a942a91cf4d863c20eb70bbe4fb0dacfd9a674352eab10b2a608ea5d4f548c02"
+          "currentSha256": "8ed846829c20f661c55a810b3863fcf7a7a5e932cb148fcb1191e746b4c9a345"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -330,7 +330,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:11:28.617Z"
+      "timestamp": "2026-04-20T00:00:32.067Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -339,7 +339,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "22995d0d40ba95386b81997adecaa55e99a70d3fcccd29a343b2d015cf6f0f0b"
+          "currentSha256": "8ed846829c20f661c55a810b3863fcf7a7a5e932cb148fcb1191e746b4c9a345"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -363,7 +363,7 @@
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "e441340d03b2c4d3a76fd11af908fde378275cd25439547e9f3c630f58b3f8c4"
+          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
         },
         {
           "path": "web/app.js",
@@ -396,7 +396,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:06:39.103Z"
+      "timestamp": "2026-04-20T00:00:20.914Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -405,7 +405,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "22995d0d40ba95386b81997adecaa55e99a70d3fcccd29a343b2d015cf6f0f0b"
+          "currentSha256": "a6a0f68278c5998894a7c26ca08ee9773de66692523f27e42f6d40740b9131ca"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -429,7 +429,7 @@
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "e441340d03b2c4d3a76fd11af908fde378275cd25439547e9f3c630f58b3f8c4"
+          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
         },
         {
           "path": "web/app.js",
@@ -462,7 +462,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:06:28.152Z"
+      "timestamp": "2026-04-19T23:55:32.061Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -471,7 +471,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "22995d0d40ba95386b81997adecaa55e99a70d3fcccd29a343b2d015cf6f0f0b"
+          "currentSha256": "a6a0f68278c5998894a7c26ca08ee9773de66692523f27e42f6d40740b9131ca"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -495,7 +495,7 @@
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "e441340d03b2c4d3a76fd11af908fde378275cd25439547e9f3c630f58b3f8c4"
+          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
         },
         {
           "path": "web/app.js",
@@ -528,7 +528,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:01:39.056Z"
+      "timestamp": "2026-04-19T23:55:20.923Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -537,7 +537,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "22995d0d40ba95386b81997adecaa55e99a70d3fcccd29a343b2d015cf6f0f0b"
+          "currentSha256": "a6a0f68278c5998894a7c26ca08ee9773de66692523f27e42f6d40740b9131ca"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -561,7 +561,7 @@
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "e441340d03b2c4d3a76fd11af908fde378275cd25439547e9f3c630f58b3f8c4"
+          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
         },
         {
           "path": "web/app.js",
@@ -594,7 +594,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T22:01:28.154Z"
+      "timestamp": "2026-04-19T23:50:32.092Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -603,7 +603,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "22995d0d40ba95386b81997adecaa55e99a70d3fcccd29a343b2d015cf6f0f0b"
+          "currentSha256": "a6a0f68278c5998894a7c26ca08ee9773de66692523f27e42f6d40740b9131ca"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -627,7 +627,7 @@
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "e441340d03b2c4d3a76fd11af908fde378275cd25439547e9f3c630f58b3f8c4"
+          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
         },
         {
           "path": "web/app.js",
@@ -660,7 +660,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T21:56:39.072Z"
+      "timestamp": "2026-04-19T23:50:20.927Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -669,7 +669,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "22995d0d40ba95386b81997adecaa55e99a70d3fcccd29a343b2d015cf6f0f0b"
+          "currentSha256": "a6a0f68278c5998894a7c26ca08ee9773de66692523f27e42f6d40740b9131ca"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
@@ -693,7 +693,7 @@
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "e441340d03b2c4d3a76fd11af908fde378275cd25439547e9f3c630f58b3f8c4"
+          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
         },
         {
           "path": "web/app.js",
@@ -726,7 +726,7 @@
           "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
         }
       ],
-      "timestamp": "2026-04-18T21:56:28.159Z"
+      "timestamp": "2026-04-19T23:45:32.031Z"
     }
   ]
 }

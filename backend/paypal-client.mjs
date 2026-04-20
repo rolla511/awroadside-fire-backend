@@ -2,8 +2,8 @@
 import { Buffer } from 'node:buffer';
 
 /**
- * PayPal API Client for A-Dub Roadside
- * Configured for v2 Checkout Orders API as per A-Dub Roadside Method
+ * PayPal API Client for AW Roadside
+ * Configured for v2 Checkout Orders API as per AW Roadside Method
  */
 
 const PAYPAL_ENV = (process.env.PAYPAL_ENV || 'sandbox').toLowerCase();
@@ -52,10 +52,10 @@ export const createOrder = async (orderDetails) => {
         body: JSON.stringify({
             intent: 'CAPTURE',
             purchase_units: [{
-                description: orderDetails.description || 'A-Dub Roadside Service',
+                description: orderDetails.description || 'AW Roadside Service',
                 amount: orderDetails.amount, // { currency_code: 'USD', value: '55.00' }
                 custom_id: orderDetails.customId,
-                soft_descriptor: 'ADUBROADSIDE'
+                soft_descriptor: 'AWROADSIDE'
             }],
             application_context: {
                 shipping_preference: 'NO_SHIPPING',
