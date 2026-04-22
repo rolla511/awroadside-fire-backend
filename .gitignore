@@ -37,7 +37,7 @@ npm-debug.log*
 *.iml
 
 ### Local packaging / backups ###
-awroadside-fire-work/
+# awroadside-fire-work/
 awroadside-fire-wp/
 *.zip
 2026-04-03/

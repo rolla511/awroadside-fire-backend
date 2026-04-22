@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "awroadside-fire",
+    "slug": "awroadside-fire",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./assets/images/icon.png",
+    "scheme": "com.awobemedia.awroadsidefire",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.awobemedia.awroadsidefire"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0d10",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.awobemedia.awroadsidefire"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "838ef0d6-d610-4494-a9ae-3a1ad481547e"
+      }
+    }
+  }
+}
