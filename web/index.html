@@ -121,7 +121,7 @@
             </div>
             <span class="badge">Events: <strong id="processing-count">0</strong></span>
           </div>
-          <p class="muted">Route attempts, request references, payment events, and staged provider work remain available before the backend finalizes the record.</p>
+          <p class="muted">Route attempts, request references, payment events, and staged provider work remain available before the service record is finalized.</p>
           <div class="ledger-grid">
             <div>
               <h4>Route Log</h4>
@@ -168,12 +168,12 @@
               </select>
             </label>
             <label>
-              <span>Location / Address</span>
-              <input class="field" id="location" name="location" placeholder="Street, city, landmark" required/>
+              <span>Exact Service Address</span>
+              <input class="field" id="location" name="location" placeholder="Street address, city, landmark" required/>
             </label>
             <label class="full-span">
-              <span>Notes</span>
-              <textarea class="field area" id="notes" name="notes" placeholder="Vehicle color, parking spot, issue details"></textarea>
+              <span>Notes / Nearest Cross Street</span>
+              <textarea class="field area" id="notes" name="notes" placeholder="Nearest cross street, vehicle color, parking spot, issue details"></textarea>
             </label>
             <button class="glow-button wide full-span" type="submit">Submit Request</button>
             <div class="feedback-box full-span" id="submit-status" style="display:none"></div>
@@ -195,7 +195,7 @@
             <div class="panel detail-panel">
               <p class="eyebrow">Payment Ledger</p>
               <h3>Priority payment path</h3>
-              <p class="muted">Priority is optional. Service payment stays locked until the backend returns a hard ETA quote.</p>
+              <p class="muted">Priority is optional. Service payment stays locked until the arrival estimate and service price are confirmed.</p>
               <div class="button-pair">
                 <button class="glow-button compact" id="service-payment-quote-button" type="button">Check Service Quote</button>
                 <button class="glow-button alt compact" id="service-payment-agree-button" type="button">Agree To Service Price</button>
@@ -213,7 +213,11 @@
             <p class="eyebrow">Provider Access</p>
             <h2>Provider sign-in and status</h2>
           </div>
-          <span class="badge" id="provider-identity-role">None</span>
+          <div class="header-badges">
+            <span class="badge" id="provider-identity-role">None</span>
+            <a class="glow-button alt compact" href="#customer" data-nav="customer">Customer Screen</a>
+            <a class="glow-button alt compact" href="#home" data-nav="home">Home</a>
+          </div>
         </div>
         <div class="provider-grid">
           <form class="panel signin-panel" id="provider-signin-form">
@@ -232,9 +236,30 @@
             <p class="eyebrow">Provider State</p>
             <h3>Secure provider flow</h3>
             <p class="muted" id="provider-identity-state">Use Home to create a provider account or sign in here.</p>
-            <p class="muted" id="provider-admin-status">Provider state will appear after backend response.</p>
+            <p class="muted" id="provider-admin-status">Provider status will appear after sign-in.</p>
             <p class="muted" id="provider-service-list">Services: not loaded.</p>
             <p class="muted" id="provider-vehicle-summary">Vehicle profile: not loaded.</p>
+          </div>
+          <div class="panel detail-panel" id="provider-documents-panel" hidden>
+            <p class="eyebrow">Verification</p>
+            <h3>Required Documents</h3>
+            <p class="muted">Upload your documents for physical verification.</p>
+            <form id="provider-documents-form" class="form-stack">
+              <label>
+                <span>Valid License (Base64)</span>
+                <input class="field" name="license" placeholder="Paste Base64 or text for license verification" required/>
+              </label>
+              <label>
+                <span>Insurance Card (Base64)</span>
+                <input class="field" name="insurance" placeholder="Paste Base64 or text for insurance verification" required/>
+              </label>
+              <label>
+                <span>Registration Card (Base64)</span>
+                <input class="field" name="registration" placeholder="Paste Base64 or text for registration verification" required/>
+              </label>
+              <button class="glow-button wide" type="submit">Upload Documents</button>
+            </form>
+            <div class="feedback-box" id="provider-documents-status" style="display:none"></div>
           </div>
         </div>
         <div class="panel provider-work-panel">
@@ -245,7 +270,7 @@
             </div>
             <button class="glow-button alt compact" id="provider-queue-refresh" type="button">Load Queue</button>
           </div>
-          <p class="muted">Provider actions remain queued until matching backend action routes are added.</p>
+          <p class="muted">Provider actions stay in the dispatch queue until the matching service step is confirmed.</p>
           <div class="feedback-box" id="provider-work-status" style="display:none"></div>
           <div class="provider-work-list" id="provider-work-list"></div>
           <h4>Staged Provider Actions</h4>
@@ -259,7 +284,11 @@
             <p class="eyebrow">Admin</p>
             <h2>Login and dashboard status</h2>
           </div>
-          <span class="badge" id="admin-status-badge">Pending</span>
+          <div class="header-badges">
+            <span class="badge" id="admin-status-badge">Pending</span>
+            <a class="glow-button alt compact" href="#customer" data-nav="customer">Customer Screen</a>
+            <a class="glow-button alt compact" href="#home" data-nav="home">Home</a>
+          </div>
         </div>
         <div class="admin-grid">
           <form class="panel form-stack" id="admin-login-form">
@@ -285,7 +314,7 @@
             <div class="panel stat-panel">
               <span class="status-label">Roles</span>
               <strong id="admin-roles">None</strong>
-              <small>Backend-provided admin roles</small>
+              <small>Admin access roles</small>
             </div>
             <div class="panel stat-panel">
               <span class="status-label">Request Count</span>
@@ -295,7 +324,7 @@
             <div class="panel stat-panel">
               <span class="status-label">Payments</span>
               <strong id="admin-payment-configured">Unknown</strong>
-              <small>PayPal backend configuration</small>
+              <small>PayPal service configuration</small>
             </div>
             <div class="panel stat-panel">
               <span class="status-label">Subscribers</span>
@@ -328,7 +357,7 @@
             </div>
             <button class="glow-button alt compact" id="admin-refresh-button" type="button">Refresh Admin Data</button>
           </div>
-          <p class="muted">Use the admin commands below for manual customer and provider support. These controls write through backend admin routes, not direct database edits.</p>
+          <p class="muted">Use the admin commands below for manual customer and provider support. These controls run through admin service routes, not direct database edits.</p>
           <div class="feedback-box" id="admin-action-status" style="display:none"></div>
         </div>
 
@@ -374,6 +403,7 @@
               <div>
                 <p class="eyebrow">Financials</p>
                 <h3>Refund and payout controls</h3>
+                <p class="muted" id="admin-financial-policy">Financial record terms will appear after login.</p>
               </div>
             </div>
             <div class="admin-list" id="admin-financial-list">

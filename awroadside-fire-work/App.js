@@ -168,7 +168,7 @@ export default function App() {
 
   useEffect(() => {
     if (!backendUrl.trim()) {
-      setStatusMessage('Set the backend URL for this build before refreshing runtime config.');
+      setStatusMessage('Set the service URL for this build before refreshing runtime config.');
       return;
     }
     loadBootstrap().catch((error) => {
@@ -183,16 +183,18 @@ export default function App() {
     (request) => String(request.assignedProviderId || '') === String(auth?.userId || '')
   );
   const providerWallet = summarizeProviderWallet(providerOwnedRequests, profile?.providerProfile?.paypal);
+  const subscriberRequestHistory = mergeRequestCollections(profile?.requestHistory, sessionRequests);
   const activeSessionRequest = latestRequest || sessionRequests[0] || null;
   const activeRequestId = activeSessionRequest?.requestId || activeSessionRequest?.id || null;
   const adminFinancials = Array.isArray(adminDashboard?.financials) ? adminDashboard.financials : [];
   const adminProviders = Array.isArray(adminDashboard?.providers) ? adminDashboard.providers : [];
   const adminSubscribers = Array.isArray(adminDashboard?.subscribers) ? adminDashboard.subscribers : [];
+  const uiEventMap = frontendConfig?.uiEventMap || paymentConfig?.uiEventMap || adminDashboard?.policy?.uiEventMap || null;
 
   async function loadBootstrap() {
     if (!backendUrl.trim()) {
       clearMessages();
-      setStatusMessage('Set the backend URL for this build before refreshing runtime config.');
+      setStatusMessage('Set the service URL for this build before refreshing runtime config.');
       return;
     }
     setLoading(true);
@@ -209,7 +211,7 @@ export default function App() {
       setPaymentConfig(payments);
       setSecurityStatus(security);
       await syncCompatibilityHandshake(manifestPayload?.manifest || null);
-      setStatusMessage('Backend connected.');
+      setStatusMessage('Service connected.');
       if (auth?.sessionToken) {
         await loadProfile(config, auth.sessionToken);
       }
@@ -387,6 +389,9 @@ export default function App() {
         await loadRequestQueue(frontendConfig, auth.sessionToken);
       }
       if (auth?.roles?.includes('SUBSCRIBER')) {
+        await loadProfile(frontendConfig, auth.sessionToken);
+      }
+      if (auth?.roles?.includes('SUBSCRIBER')) {
         setSection('subscriber');
         setSubscriberView('status');
       } else {
@@ -412,7 +417,7 @@ export default function App() {
       const payload = await api.getServicePaymentQuote({ requestId });
       setServicePaymentQuote(payload);
       setServiceQuoteAccepted(false);
-      setStatusMessage(`Backend quote ready: ${payload.amount?.value || '0.00'} ${payload.amount?.currency_code || 'USD'}.`);
+      setStatusMessage(`Service price ready: ${payload.amount?.value || '0.00'} ${payload.amount?.currency_code || 'USD'}.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -422,7 +427,7 @@ export default function App() {
 
   function handleAgreeServiceQuote() {
     if (!servicePaymentQuote?.quoteId) {
-      setErrorMessage('Backend service quote is required before agreement.');
+      setErrorMessage('The current service price is required before agreement.');
       return;
     }
     clearMessages();
@@ -494,7 +499,7 @@ export default function App() {
           lastPaymentOrderId: orderId,
         });
       }
-      setStatusMessage(payload.message || `Payment captured for order ${orderId}.`);
+      setStatusMessage(formatUserFacingMessage(payload.message || `Payment captured for order ${orderId}.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -524,7 +529,7 @@ export default function App() {
         setSection('admin');
         setAdminView('work');
       } else {
-        setStatusMessage(payload.message || '2FA required.');
+        setStatusMessage(formatUserFacingMessage(payload.message || '2FA required.'));
       }
     } catch (error) {
       setErrorMessage(error.message);
@@ -600,7 +605,7 @@ export default function App() {
         upsertSessionRequest(result.request);
       }
       await loadRequestQueue(frontendConfig, auth.sessionToken);
-      setStatusMessage(result?.message || `${labelProviderAction(action)} accepted for ${requestId}.`);
+      setStatusMessage(formatUserFacingMessage(result?.message || `${labelProviderAction(action)} accepted for ${requestId}.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -624,7 +629,8 @@ export default function App() {
       if (result?.request) {
         upsertSessionRequest(result.request);
       }
-      setStatusMessage(result?.message || `${labelProviderAction(action)} confirmed for ${activeRequestId}.`);
+      await loadProfile(frontendConfig, auth.sessionToken);
+      setStatusMessage(formatUserFacingMessage(result?.message || `${labelProviderAction(action)} confirmed for ${activeRequestId}.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -649,7 +655,7 @@ export default function App() {
         createAdminHeaders()
       );
       await loadAdminDashboard(frontendConfig, adminSession);
-      setStatusMessage(payload.message || `Provider ${providerId} approved.`);
+      setStatusMessage(formatUserFacingMessage(payload.message || `Provider ${providerId} approved.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -674,7 +680,7 @@ export default function App() {
         createAdminHeaders()
       );
       await loadAdminDashboard(frontendConfig, adminSession);
-      setStatusMessage(payload.message || `Refund recorded for ${requestId}.`);
+      setStatusMessage(formatUserFacingMessage(payload.message || `Refund recorded for ${requestId}.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -699,7 +705,7 @@ export default function App() {
         createAdminHeaders()
       );
       await loadAdminDashboard(frontendConfig, adminSession);
-      setStatusMessage(payload.message || `Payout completed for ${requestId}.`);
+      setStatusMessage(formatUserFacingMessage(payload.message || `Payout completed for ${requestId}.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -724,7 +730,7 @@ export default function App() {
         createAdminHeaders()
       );
       await loadAdminDashboard(frontendConfig, adminSession);
-      setStatusMessage(payload.message || `Request ${requestId} reset.`);
+      setStatusMessage(formatUserFacingMessage(payload.message || `Request ${requestId} reset.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -848,24 +854,24 @@ export default function App() {
           <Image source={homeGraphic} style={styles.heroImage} resizeMode="cover" />
           <View style={styles.heroCopy}>
             <Text style={styles.eyebrow}>AW Roadside Fire</Text>
-            <Text style={styles.title}>Role-based Expo variant mapped to the current backend chain.</Text>
+            <Text style={styles.title}>Role-based Expo variant mapped to live service flows.</Text>
             <Text style={styles.subtitle}>
-              Guest request and payment, subscriber profile and request status, provider dispatch and payout view, and admin work surfaces now align with the protected AW backend routes.
+              Guest request and payment, subscriber profile and request status, provider dispatch and payout view, and admin work surfaces now align with the live AW service routes.
             </Text>
           </View>
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Backend Runtime</Text>
+          <Text style={styles.sectionTitle}>Service Runtime</Text>
           <InputField
-            label="Backend URL"
+            label="Service URL"
             autoCapitalize="none"
             value={backendUrl}
             onChangeText={setBackendUrl}
             placeholder="https://api.your-domain.com"
           />
           <View style={styles.buttonGrid}>
-            <Button label="Refresh Backend Config" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} />
+            <Button label="Refresh Service Config" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} />
           </View>
           <Text style={styles.mutedText}>Variant mode: {compatibilityVariant?.mode || compatibilityManifest?.mode || 'Unverified'}</Text>
           <Text style={styles.mutedText}>Active authority: {compatibilityManifest?.activeVariantId || 'Unknown'}</Text>
@@ -874,7 +880,7 @@ export default function App() {
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Backend Event Chain</Text>
+          <Text style={styles.sectionTitle}>Service Flow</Text>
           <Text style={styles.mutedText}>Guest: request create -> quote -> order create -> capture -> local request status.</Text>
           <Text style={styles.mutedText}>Subscriber: signup/login -> profile -> request -> ETA / arrival / completion confirmations.</Text>
           <Text style={styles.mutedText}>Provider: signup/apply -> approval state -> request queue -> dispatch actions -> payout state.</Text>
@@ -904,13 +910,13 @@ export default function App() {
         {renderTabBar(guestTabs, guestView, setGuestView)}
         {guestView === 'request' ? (
           <>
-            {renderRequestComposer('Guest Request', 'Guest dispatch requests move into the protected backend before payment.')}
+            {renderRequestComposer('Guest Request', 'Guest dispatch requests move into the service queue before payment.')}
             <View style={styles.graphicPanel}>
               <Image source={subscriberGraphic} style={styles.secondaryGraphic} resizeMode="cover" />
               <View style={styles.graphicCopy}>
                 <Text style={styles.sectionTitle}>Guest Service Terms</Text>
                 <Text style={styles.mutedText}>
-                  Guest requests use the current backend priority and service pricing. Capture only after the backend quote and order are ready.
+                  Guest requests use the current service pricing. Capture only after the service price and order are ready.
                 </Text>
               </View>
             </View>
@@ -968,6 +974,7 @@ export default function App() {
           <Text style={styles.mutedText}>Name: {profile?.fullName || 'No subscriber profile loaded.'}</Text>
           <Text style={styles.mutedText}>Subscriber active: {profile?.subscriberActive || auth?.subscriberActive ? 'Yes' : 'No'}</Text>
           <Text style={styles.mutedText}>Next billing date: {formatDate(profile?.nextBillingDate)}</Text>
+          <Text style={styles.mutedText}>Requests in past year: {profile?.requestHistoryCount ?? subscriberRequestHistory.length}</Text>
           <Text style={styles.mutedText}>
             Vehicle: {profile?.subscriberProfile?.vehicle ? formatVehicle(profile.subscriberProfile.vehicle) : 'No subscriber vehicle loaded.'}
           </Text>
@@ -989,13 +996,13 @@ export default function App() {
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Subscriber Request</Text>
           <Text style={styles.mutedText}>
-            Subscriber requests stay on the backend request chain and unlock ETA / arrival / completion confirmations.
+            Subscriber requests stay in the live service flow and unlock ETA, arrival, and completion confirmations.
           </Text>
           <View style={styles.buttonGrid}>
             <Button label="Prefill From Profile" onPress={prefillRequestFromSubscriber} kind="secondary" />
           </View>
         </View>
-        {renderRequestComposer('Subscriber Service Request', 'Use your member profile, then submit the request into the protected backend queue.')}
+        {renderRequestComposer('Subscriber Service Request', 'Use your member profile, then submit the request into the service queue.')}
       </>
     );
   }
@@ -1007,7 +1014,7 @@ export default function App() {
 
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Subscriber Confirmation Actions</Text>
-          <Text style={styles.mutedText}>These buttons map to the subscriber-only backend confirmations for the active request in this app session.</Text>
+          <Text style={styles.mutedText}>These buttons map to subscriber confirmation steps for the active request in this app session.</Text>
           <View style={styles.buttonGrid}>
             <Button label="Accept ETA" onPress={() => runSubscriberAction('subscriber-accept-eta')} kind="secondary" />
             <Button label="Confirm Arrival" onPress={() => runSubscriberAction('confirm-arrived')} kind="secondary" />
@@ -1023,6 +1030,21 @@ export default function App() {
   function renderProviderScreen() {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.panel}>
+          <Text style={styles.sectionTitle}>Quick Navigation</Text>
+          <Text style={styles.mutedText}>Use these buttons if you opened the provider screens by mistake and need to get back to customer flow without restarting.</Text>
+          <View style={styles.buttonGrid}>
+            <Button
+              label="Guest Request"
+              kind="secondary"
+              onPress={() => {
+                setSection('guest');
+                setGuestView('request');
+              }}
+            />
+            <Button label="Overview" kind="secondary" onPress={() => setSection('overview')} />
+          </View>
+        </View>
         {renderTabBar(providerTabs, providerView, setProviderView)}
 
         {providerView === 'access' ? renderProviderAccessScreen() : null}
@@ -1063,10 +1085,10 @@ export default function App() {
       <>
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Provider Profile</Text>
-          <Text style={styles.mutedText}>Status: {profile?.providerStatus || auth?.providerStatus || 'Not signed in'}</Text>
+          <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'providerStatus', profile?.providerStatus || auth?.providerStatus || 'Not signed in')}</Text>
           <Text style={styles.mutedText}>Monthly fee: {formatMoney(profile?.providerMonthly || paymentConfig?.providerMonthlyFee || 5.99)}</Text>
           <Text style={styles.mutedText}>
-            Services: {Array.isArray(profile?.services) && profile.services.length ? profile.services.join(', ') : 'None loaded'}
+            Services: {Array.isArray(profile?.services) && profile.services.length ? profile.services.map((service) => labelServiceType(uiEventMap, service)).join(', ') : 'None loaded'}
           </Text>
           <Text style={styles.mutedText}>
             Vehicle: {profile?.providerProfile?.vehicleInfo ? formatVehicle(profile.providerProfile.vehicleInfo) : 'No provider vehicle loaded'}
@@ -1124,7 +1146,7 @@ export default function App() {
       <>
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Provider Log</Text>
-          <Text style={styles.mutedText}>This screen focuses on requests assigned to the signed-in provider and the backend note / payout state attached to them.</Text>
+          <Text style={styles.mutedText}>This screen focuses on requests assigned to the signed-in provider and the dispatch note and payout state attached to them.</Text>
         </View>
 
         {providerOwnedRequests.length === 0 ? (
@@ -1138,10 +1160,10 @@ export default function App() {
             const notes = Array.isArray(request.noteExchange) ? request.noteExchange : [];
             return (
               <View key={requestId} style={styles.panel}>
-                <Text style={styles.sectionTitle}>{request.serviceType || 'Service'} Log</Text>
+                <Text style={styles.sectionTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} Log</Text>
                 <Text style={styles.mutedText}>Request: {requestId}</Text>
-                <Text style={styles.mutedText}>Status: {request.status}</Text>
-                <Text style={styles.mutedText}>Payout status: {request.providerPayoutStatus || 'Unknown'}</Text>
+                <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', request.status)}</Text>
+                <Text style={styles.mutedText}>Payout status: {labelUiStatus(uiEventMap, 'payoutStatus', request.providerPayoutStatus || 'Unknown')}</Text>
                 <Text style={styles.mutedText}>Completed: {formatDate(request.completedAt)}</Text>
                 <InputField
                   label="Provider Note"
@@ -1175,6 +1197,8 @@ export default function App() {
     if (!auth?.roles?.includes('PROVIDER')) {
       return renderRoleGate('Provider wallet screen requires a provider session.');
     }
+
+    const walletTerms = paymentConfig?.walletDisplayTerms || frontendConfig?.walletDisplayTerms || null;
 
     return (
       <>
@@ -1211,6 +1235,16 @@ export default function App() {
           <Text style={styles.mutedText}>Last item: {profile?.providerProfile?.paypal?.payouts?.lastItemId || 'None'}</Text>
         </View>
 
+        {walletTerms ? (
+          <View style={styles.panel}>
+            <Text style={styles.sectionTitle}>{walletTerms.title || 'Wallet Display Terms'}</Text>
+            <Text style={styles.mutedText}>{walletTerms.summary}</Text>
+            <Text style={styles.mutedText}>{walletTerms.thirdPartyResponsibility}</Text>
+            <Text style={styles.mutedText}>{walletTerms.expectedParity}</Text>
+            <Text style={styles.mutedText}>{walletTerms.discrepancyProcess}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Request Payout Lines</Text>
           {providerOwnedRequests.length === 0 ? (
@@ -1218,9 +1252,9 @@ export default function App() {
           ) : (
             providerOwnedRequests.map((request) => (
               <View key={`wallet-${request.requestId || request.id}`} style={styles.queueCard}>
-                <Text style={styles.queueTitle}>{request.serviceType || 'Service'} · {request.requestId || request.id}</Text>
-                <Text style={styles.mutedText}>Request status: {request.status}</Text>
-                <Text style={styles.mutedText}>Payout status: {request.providerPayoutStatus || 'Unknown'}</Text>
+                <Text style={styles.queueTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {request.requestId || request.id}</Text>
+                <Text style={styles.mutedText}>Request status: {labelUiStatus(uiEventMap, 'requestStatus', request.status)}</Text>
+                <Text style={styles.mutedText}>Payout status: {labelUiStatus(uiEventMap, 'payoutStatus', request.providerPayoutStatus || 'Unknown')}</Text>
                 <Text style={styles.mutedText}>Payout amount: {formatMoney(request.providerPayoutAmount || 0)}</Text>
               </View>
             ))
@@ -1233,6 +1267,21 @@ export default function App() {
   function renderAdminScreen() {
     return (
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.panel}>
+          <Text style={styles.sectionTitle}>Quick Navigation</Text>
+          <Text style={styles.mutedText}>Use these buttons to return to the customer flow without restarting the app.</Text>
+          <View style={styles.buttonGrid}>
+            <Button
+              label="Guest Request"
+              kind="secondary"
+              onPress={() => {
+                setSection('guest');
+                setGuestView('request');
+              }}
+            />
+            <Button label="Overview" kind="secondary" onPress={() => setSection('overview')} />
+          </View>
+        </View>
         {renderTabBar(adminTabs, adminView, setAdminView)}
 
         {adminView === 'access' ? renderAdminAccessScreen() : null}
@@ -1299,9 +1348,9 @@ export default function App() {
           {Array.isArray(adminDashboard?.queue) && adminDashboard.queue.length ? (
             adminDashboard.queue.slice(0, 4).map((request) => (
               <View key={`queue-${request.requestId}`} style={styles.queueCard}>
-                <Text style={styles.queueTitle}>{request.serviceType || 'Service'} · {request.requestId}</Text>
+                <Text style={styles.queueTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {request.requestId}</Text>
                 <Text style={styles.mutedText}>{request.fullName || 'Unknown customer'} · {request.location || 'No location'}</Text>
-                <Text style={styles.mutedText}>Status: {request.completionStatus || request.status}</Text>
+                <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', request.completionStatus || request.status)}</Text>
               </View>
             ))
           ) : (
@@ -1311,6 +1360,14 @@ export default function App() {
 
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Financial Controls</Text>
+          {adminDashboard?.policy?.financial?.walletDisplayTerms ? (
+            <>
+              <Text style={styles.mutedText}>{adminDashboard.policy.financial.walletDisplayTerms.summary}</Text>
+              <Text style={styles.mutedText}>{adminDashboard.policy.financial.walletDisplayTerms.thirdPartyResponsibility}</Text>
+              <Text style={styles.mutedText}>{adminDashboard.policy.financial.walletDisplayTerms.expectedParity}</Text>
+              <Text style={styles.mutedText}>{adminDashboard.policy.financial.walletDisplayTerms.discrepancyProcess}</Text>
+            </>
+          ) : null}
           {adminFinancials.length === 0 ? (
             <Text style={styles.mutedText}>No financial records are loaded.</Text>
           ) : (
@@ -1321,7 +1378,7 @@ export default function App() {
                 <Text style={styles.mutedText}>Charged: {formatMoney(entry.amountCharged)}</Text>
                 <Text style={styles.mutedText}>Collected: {formatMoney(entry.amountCollected)}</Text>
                 <Text style={styles.mutedText}>Provider payout: {formatMoney(entry.providerPayoutAmount)}</Text>
-                <Text style={styles.mutedText}>Payout status: {entry.providerPayoutStatus}</Text>
+                <Text style={styles.mutedText}>Payout status: {labelUiStatus(uiEventMap, 'payoutStatus', entry.providerPayoutStatus)}</Text>
                 <InputField
                   label="Refund Reason"
                   value={adminNotes.refunds[String(entry.requestId)] || ''}
@@ -1370,9 +1427,9 @@ export default function App() {
           adminProviders.map((provider) => (
             <View key={`provider-${provider.id}`} style={styles.panel}>
               <Text style={styles.sectionTitle}>{provider.fullName || provider.email || `Provider ${provider.id}`}</Text>
-              <Text style={styles.mutedText}>Status: {provider.providerStatus}</Text>
+              <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'providerStatus', provider.providerStatus)}</Text>
               <Text style={styles.mutedText}>Account: {provider.accountState}</Text>
-              <Text style={styles.mutedText}>Services: {Array.isArray(provider.services) && provider.services.length ? provider.services.join(', ') : 'None'}</Text>
+              <Text style={styles.mutedText}>Services: {Array.isArray(provider.services) && provider.services.length ? provider.services.map((service) => labelServiceType(uiEventMap, service)).join(', ') : 'None'}</Text>
               <Text style={styles.mutedText}>Document readiness: {provider.documentStatus?.meetsMinimumRequirements ? 'Ready' : 'Missing items'}</Text>
               <Text style={styles.mutedText}>PayPal email: {provider.paypal?.email || 'Not linked'}</Text>
               <Text style={styles.mutedText}>Last payout event: {provider.paypal?.payouts?.lastEventType || 'None'}</Text>
@@ -1471,7 +1528,7 @@ export default function App() {
         <Text style={styles.sectionTitle}>{title}</Text>
         <Text style={styles.mutedText}>{description}</Text>
         <Text style={styles.mutedText}>
-          Priority fee from backend: {formatMoney(paymentConfig?.priorityServicePrice || frontendConfig?.priorityServicePrice || 25)}
+          Current priority fee: {formatMoney(paymentConfig?.priorityServicePrice || frontendConfig?.priorityServicePrice || 25)}
         </Text>
         <View style={styles.serviceGrid}>
           {serviceOptions.map((service) => (
@@ -1487,8 +1544,8 @@ export default function App() {
         </View>
         <InputField label="Full Name" value={requestForm.fullName} onChangeText={(value) => setRequestForm((current) => ({ ...current, fullName: value }))} />
         <InputField label="Phone Number" value={requestForm.phoneNumber} onChangeText={(value) => setRequestForm((current) => ({ ...current, phoneNumber: value }))} />
-        <InputField label="Location" value={requestForm.location} onChangeText={(value) => setRequestForm((current) => ({ ...current, location: value }))} />
-        <InputField label="Notes" multiline value={requestForm.notes} onChangeText={(value) => setRequestForm((current) => ({ ...current, notes: value }))} />
+        <InputField label="Exact Service Address" value={requestForm.location} onChangeText={(value) => setRequestForm((current) => ({ ...current, location: value }))} />
+        <InputField label="Notes / Nearest Cross Street" multiline value={requestForm.notes} onChangeText={(value) => setRequestForm((current) => ({ ...current, notes: value }))} />
         <Button label="Submit Request" onPress={handleCreateRequest} />
         <Text style={styles.mutedText}>
           Active request: {activeRequestId ? activeRequestId : 'Not submitted yet'}
@@ -1503,13 +1560,15 @@ export default function App() {
         <Text style={styles.sectionTitle}>{title}</Text>
         <Text style={styles.mutedText}>
           {subscriberMode
-            ? 'Only requests created in this app session can be confirmed here because the backend does not expose a subscriber request list endpoint yet.'
+            ? 'Subscriber status reads from the subscriber profile history for the past year, with current-session changes merged in.'
             : 'Guest status is session-based in this build and tracks the request created from this app runtime.'}
         </Text>
-        {sessionRequests.length === 0 ? (
-          <Text style={styles.mutedText}>No request has been submitted in this app session.</Text>
+        {(subscriberMode ? subscriberRequestHistory : sessionRequests).length === 0 ? (
+          <Text style={styles.mutedText}>
+            {subscriberMode ? 'No subscriber request history is available for the past year.' : 'No request has been submitted in this app session.'}
+          </Text>
         ) : (
-          sessionRequests.map((request) => renderRequestStatusCard(request))
+          (subscriberMode ? subscriberRequestHistory : sessionRequests).map((request) => renderRequestStatusCard(request))
         )}
       </View>
     );
@@ -1519,11 +1578,11 @@ export default function App() {
     const requestId = request.requestId || request.id;
     return (
       <View key={`session-${requestId}`} style={styles.queueCard}>
-        <Text style={styles.queueTitle}>{request.serviceType || 'Service'} · {requestId}</Text>
+        <Text style={styles.queueTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {requestId}</Text>
         <Text style={styles.mutedText}>Customer: {request.fullName || 'Unknown'}</Text>
         <Text style={styles.mutedText}>Location: {request.location || 'Unknown'}</Text>
-        <Text style={styles.mutedText}>Status: {request.status || request.completionStatus || 'Unknown'}</Text>
-        <Text style={styles.mutedText}>Payment: {request.paymentStatus || 'NOT_PAID'}</Text>
+        <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', request.status || request.completionStatus || 'Unknown')}</Text>
+        <Text style={styles.mutedText}>Payment: {labelUiStatus(uiEventMap, 'paymentStatus', request.paymentStatus || 'NOT_PAID')}</Text>
         <Text style={styles.mutedText}>ETA: {request.etaMinutes ?? 'Not set'}</Text>
         <Text style={styles.mutedText}>Accepted ETA: {formatDate(request.customerEtaAcceptedAt)}</Text>
         <Text style={styles.mutedText}>Arrival confirmed: {formatDate(request.arrivalConfirmedAt)}</Text>
@@ -1541,7 +1600,7 @@ export default function App() {
           Service quote: {servicePaymentQuote?.amount?.value ? `${servicePaymentQuote.amount.value} ${servicePaymentQuote.amount.currency_code}` : 'Not requested'}
         </Text>
         <Text style={styles.mutedText}>Service agreement: {serviceQuoteAccepted ? 'Accepted' : 'Pending'}</Text>
-        <Text style={styles.mutedText}>Order status: {paymentOrder?.status || (paymentOrder?.captured ? 'CAPTURED' : 'No active order')}</Text>
+        <Text style={styles.mutedText}>Order status: {labelUiStatus(uiEventMap, 'paymentStatus', paymentOrder?.status || (paymentOrder?.captured ? 'CAPTURED' : 'No active order'))}</Text>
         <View style={styles.buttonGrid}>
           <Button label="Check Service Quote" onPress={handleFetchServiceQuote} kind="secondary" />
           <Button label="Agree To Service Price" onPress={handleAgreeServiceQuote} kind="secondary" />
@@ -1557,10 +1616,10 @@ export default function App() {
     const requestId = request.requestId || request.id;
     return (
       <View key={requestId} style={styles.panel}>
-        <Text style={styles.sectionTitle}>{request.serviceType || 'Service'} · {request.fullName || 'Unknown customer'}</Text>
+        <Text style={styles.sectionTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {request.fullName || 'Unknown customer'}</Text>
         <Text style={styles.mutedText}>{request.location || 'No location'}</Text>
         <Text style={styles.mutedText}>Phone: {request.phoneNumber || 'No phone number'}</Text>
-        <Text style={styles.mutedText}>Current status: {request.status}</Text>
+        <Text style={styles.mutedText}>Current status: {labelUiStatus(uiEventMap, 'requestStatus', request.status)}</Text>
         <Text style={styles.mutedText}>Assigned provider: {request.assignedProviderId || 'Unassigned'}</Text>
         <Text style={styles.mutedText}>ETA minutes: {request.etaMinutes ?? 'Not set'}</Text>
         <InputField
@@ -1656,7 +1715,7 @@ export default function App() {
                 }
                 style={[styles.pill, active ? styles.pillActive : null]}
               >
-                <Text style={[styles.pillLabel, active ? styles.pillLabelActive : null]}>{service}</Text>
+                <Text style={[styles.pillLabel, active ? styles.pillLabelActive : null]}>{labelServiceType(uiEventMap, service)}</Text>
               </Pressable>
             );
           })}
@@ -1671,7 +1730,7 @@ export default function App() {
       <View style={styles.header}>
         <View>
           <Text style={styles.brand}>A-Dub Roadside Fire</Text>
-          <Text style={styles.headerMeta}>Expo dev build variant mapped to backend role flows.</Text>
+          <Text style={styles.headerMeta}>Expo dev build variant mapped to live role flows.</Text>
         </View>
         <View style={styles.headerActions}>
           {auth?.sessionToken ? <Button label="Logout" onPress={handleUserLogout} kind="secondary" /> : null}
@@ -1721,8 +1780,70 @@ function summarizeProviderWallet(requests, paypalState) {
   };
 }
 
+function mergeRequestCollections(primary, secondary) {
+  const merged = new Map();
+  for (const collection of [primary, secondary]) {
+    for (const entry of Array.isArray(collection) ? collection : []) {
+      const requestId = entry?.requestId || entry?.id;
+      if (!requestId) {
+        continue;
+      }
+      merged.set(String(requestId), {
+        ...merged.get(String(requestId)),
+        ...entry,
+      });
+    }
+  }
+  return Array.from(merged.values()).sort((left, right) => {
+    const leftTime = new Date(left.updatedAt || left.requestDate || left.createdAt || 0).getTime();
+    const rightTime = new Date(right.updatedAt || right.requestDate || right.createdAt || 0).getTime();
+    return rightTime - leftTime;
+  });
+}
+
 function normalizeValue(value) {
   return typeof value === 'string' ? value.trim().toUpperCase() : '';
+}
+
+function labelUiStatus(uiEventMap, group, value) {
+  const normalized = normalizeValue(value);
+  const map = uiEventMap?.[group] || {};
+  return map[normalized] || map[value] || prettifyUiToken(value || 'Unknown');
+}
+
+function labelServiceType(uiEventMap, value) {
+  const normalized = normalizeValue(value);
+  const map = uiEventMap?.serviceTypes || {};
+  return map[value] || map[normalized] || prettifyUiToken(value || 'Service');
+}
+
+function prettifyUiToken(value) {
+  return String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (match) => match.toUpperCase())
+    .trim() || 'Unknown';
+}
+
+function formatUserFacingMessage(message) {
+  const text = typeof message === 'string' ? message.trim() : '';
+  if (!text) {
+    return '';
+  }
+
+  const normalized = text.toLowerCase();
+  if (normalized.includes('backend service quote')) {
+    return 'The current service price is required before continuing.';
+  }
+  if (normalized.includes('backend quote')) {
+    return text.replace(/backend quote/gi, 'service price');
+  }
+  if (normalized.includes('protected backend')) {
+    return text.replace(/protected backend/gi, 'dispatch service');
+  }
+  if (normalized.includes('backend ')) {
+    return text.replace(/backend/gi, 'service');
+  }
+  return text;
 }
 
 function formatVehicle(vehicle) {
@@ -1794,9 +1915,7 @@ function labelProviderAction(action) {
   if (action === 'eta') {
     return 'ETA';
   }
-  return String(action || 'Action')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (value) => value.toUpperCase());
+  return prettifyUiToken(action || 'Action');
 }
 
 const styles = StyleSheet.create({

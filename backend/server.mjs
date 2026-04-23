@@ -27,6 +27,7 @@ const authRoot = path.join(runtimeRoot, "auth");
 const requestServiceCacheRoot = path.join(runtimeRoot, "request-service-cache");
 const providerDocumentsRoot = path.join(runtimeRoot, "provider-documents");
 const paymentLogPath = path.join(paymentsRoot, "paypal-orders.jsonl");
+const webhookLogPath = path.join(paymentsRoot, "paypal-webhooks.jsonl");
 const requestLogPath = path.join(requestsRoot, "service-requests.jsonl");
 const usersPath = path.join(authRoot, "users.json");
 const PROVIDER_DOCUMENT_TYPES = ["license", "registration", "insurance", "helperId"];
@@ -86,7 +87,18 @@ const AW_ROADSIDE_POLICY = Object.freeze({
   financial: {
     noRefundsAfterPayment: true,
     payoutLedgerEnabled: true,
-    platformServiceChargeRate: 0.02
+    platformServiceChargeRate: 0.02,
+    walletDisplayTerms: {
+      title: "Wallet display and financial record",
+      summary:
+        "The site wallet displays provider earnings from completed work logs and payout states as a financial record, not as a separate money-holding account.",
+      thirdPartyResponsibility:
+        "The third-party payment company remains physically responsible for actual account balances, reserves, withholdings, and released funds.",
+      expectedParity:
+        "Displayed wallet totals should match the third-party payout balance for the same completed work and payout events.",
+      discrepancyProcess:
+        "If the third-party balance does not match the site wallet, the user may dispute the discrepancy with the third-party company and use the site wallet record to validate the claim."
+    }
   },
   requestLifecycle: [
     "SUBMITTED",
@@ -94,7 +106,71 @@ const AW_ROADSIDE_POLICY = Object.freeze({
     "EN_ROUTE",
     "ARRIVED",
     "COMPLETED"
-  ]
+  ],
+  uiEventMap: {
+    serviceTypes: {
+      "Jump Start": "Jump Start",
+      Lockout: "Lockout",
+      "Tire Change": "Tire Change",
+      "Gas Delivery": "Gas Delivery",
+      "Battery Install": "Battery Install",
+      JUMP_START: "Jump Start",
+      LOCKOUT: "Lockout",
+      TIRE_CHANGE: "Tire Change",
+      GAS_DELIVERY: "Gas Delivery",
+      BATTERY_INSTALL: "Battery Install"
+    },
+    requestStatus: {
+      SUBMITTED: "Request received",
+      ASSIGNED: "Provider assigned",
+      ACCEPTED: "Provider assigned",
+      EN_ROUTE: "Provider on the way",
+      ARRIVED: "Provider arrived",
+      COMPLETED: "Service completed",
+      OPEN: "Open"
+    },
+    paymentStatus: {
+      NOT_PAID: "Payment not started",
+      ORDER_CREATED: "Payment started",
+      PENDING_CAPTURE: "Payment pending",
+      CAPTURED: "Payment completed",
+      DECLINED: "Payment declined",
+      REFUNDED: "Payment refunded",
+      CANCELLED: "Payment canceled",
+      CREATED: "Payment created",
+      COMPLETED: "Payment completed",
+      DENIED: "Payment denied",
+      PENDING: "Payment pending"
+    },
+    providerStatus: {
+      DRAFT: "Setup in progress",
+      PENDING_APPROVAL: "Pending approval",
+      APPROVED: "Approved",
+      ACTIVE: "Active",
+      SUSPENDED: "Suspended",
+      INACTIVE: "Inactive"
+    },
+    payoutStatus: {
+      UNASSIGNED: "Not ready",
+      PENDING: "Pending payout",
+      PROCESSING: "Payout in progress",
+      COMPLETED: "Paid out",
+      ON_HOLD: "On hold",
+      HELD: "On hold",
+      BLOCKED: "Blocked",
+      FAILED: "Payout failed",
+      UNCLAIMED: "Waiting to be claimed"
+    },
+    providerActions: {
+      accept: "Accept request",
+      eta: "Share ETA",
+      "soft-contact": "Soft contact",
+      "hard-contact": "Direct contact",
+      arrived: "Mark arrived",
+      completed: "Mark completed",
+      note: "Send note"
+    }
+  }
 });
 
 const host = process.env.HOST || "0.0.0.0";
@@ -105,11 +181,14 @@ const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live
 const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
 const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
+const defaultPaypalWebhookId = "4RN22635Y61567938";
+const paypalWebhookId = (process.env.PAYPAL_WEBHOOK_ID || defaultPaypalWebhookId).trim();
+const paypalWebhookPath = "/api/paypal/webhook";
 const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
 const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
 const guestServicePrice = Number.parseFloat(process.env.GUEST_SERVICE_PRICE || `${serviceBasePrice}`);
 const subscriberServicePrice = Number.parseFloat(process.env.SUBSCRIBER_SERVICE_PRICE || "40");
-const assignmentFee = Number.parseFloat(process.env.PROVIDER_ASSIGNMENT_FEE || "2");
+const assignmentFee = Number.parseFloat(process.env.PROVIDER_ASSIGNMENT_FEE || "5.5");
 const guestDispatchFee = Number.parseFloat(process.env.GUEST_DISPATCH_FEE || "10");
 const subscriberDispatchFee = Number.parseFloat(process.env.SUBSCRIBER_DISPATCH_FEE || "0");
 const sessionSecret = process.env.AW_SESSION_SECRET || crypto.randomBytes(32).toString("hex");
@@ -278,6 +357,150 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/payments/config") {
       sendJson(res, 200, await getPaymentConfigPayload());
+      return;
+    }
+
+    if (pathname === paypalWebhookPath) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret || !paypalWebhookId) {
+        sendJson(res, 503, {
+          error: "paypal-webhook-not-configured",
+          message: "Set PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_WEBHOOK_ID before accepting webhooks."
+        });
+        return;
+      }
+
+      try {
+        const rawBody = await readRawBody(req);
+        if (!rawBody.trim()) {
+          sendJson(res, 400, {
+            error: "invalid-webhook-payload",
+            message: "Webhook payload must be valid JSON."
+          });
+          return;
+        }
+
+        let webhookEvent;
+        try {
+          webhookEvent = JSON.parse(rawBody);
+        } catch {
+          sendJson(res, 400, {
+            error: "invalid-webhook-payload",
+            message: "Webhook payload must be valid JSON."
+          });
+          return;
+        }
+
+        const transmissionId = readHeader(req, "paypal-transmission-id");
+        const transmissionTime = readHeader(req, "paypal-transmission-time");
+        const transmissionSig = readHeader(req, "paypal-transmission-sig");
+        const certUrl = readHeader(req, "paypal-cert-url");
+        const authAlgo = readHeader(req, "paypal-auth-algo");
+        const missingHeaders = [
+          ["paypal-transmission-id", transmissionId],
+          ["paypal-transmission-time", transmissionTime],
+          ["paypal-transmission-sig", transmissionSig],
+          ["paypal-cert-url", certUrl],
+          ["paypal-auth-algo", authAlgo]
+        ]
+          .filter(([, value]) => !value)
+          .map(([name]) => name);
+
+        if (missingHeaders.length > 0) {
+          sendJson(res, 400, {
+            error: "missing-webhook-headers",
+            message: `Missing PayPal webhook headers: ${missingHeaders.join(", ")}.`
+          });
+          return;
+        }
+
+        const verification = await paypal.validateWebhook(
+          transmissionId,
+          transmissionTime,
+          certUrl,
+          paypalWebhookId,
+          webhookEvent,
+          authAlgo,
+          transmissionSig
+        );
+        const verificationStatus = readOptionalString(
+          verification.verification_status || verification.status
+        ).toUpperCase();
+        const eventId = readOptionalString(webhookEvent.id) || transmissionId;
+        const eventType = readOptionalString(webhookEvent.event_type).toUpperCase() || "UNKNOWN";
+
+        if (verificationStatus !== "SUCCESS") {
+          await appendPaypalWebhookLog({
+            receivedAt: new Date().toISOString(),
+            deliveryId: transmissionId,
+            eventId,
+            eventType,
+            verificationStatus: verificationStatus || "FAILED",
+            matched: false,
+            applied: false,
+            note: "verification-failed"
+          });
+          sendJson(res, 400, {
+            error: "paypal-webhook-verification-failed",
+            eventId,
+            eventType,
+            verificationStatus: verificationStatus || "FAILED"
+          });
+          return;
+        }
+
+        const duplicate = await hasProcessedPaypalWebhook({
+          deliveryId: transmissionId,
+          eventId
+        });
+        if (duplicate) {
+          sendJson(res, 200, {
+            ok: true,
+            duplicate: true,
+            eventId,
+            eventType
+          });
+          return;
+        }
+
+        const processing = await applyPaypalWebhookEvent(webhookEvent);
+        await appendPaypalWebhookLog({
+          receivedAt: new Date().toISOString(),
+          deliveryId: transmissionId,
+          eventId,
+          eventType,
+          resourceId: readOptionalString(webhookEvent?.resource?.id),
+          verificationStatus,
+          matched: processing.matched,
+          applied: processing.applied,
+          targetType: processing.targetType || null,
+          targetId: processing.targetId || null,
+          note: processing.note || null
+        });
+
+        sendJson(res, 200, {
+          ok: true,
+          duplicate: false,
+          eventId,
+          eventType,
+          verificationStatus,
+          matched: processing.matched,
+          applied: processing.applied,
+          targetType: processing.targetType || null,
+          targetId: processing.targetId || null,
+          note: processing.note || null
+        });
+      } catch (error) {
+        console.error("[ERROR] PayPal Webhook Route Failed:", error);
+        sendJson(res, 500, {
+          error: "paypal-webhook-failed",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
       return;
     }
 
@@ -470,6 +693,7 @@ server.listen(port, host, () => {
   console.log(`Local runtime running at http://${host}:${port}`);
   console.log(`Health endpoint: http://${host}:${port}/api/health`);
   console.log(`Runtime status: http://${host}:${port}/api/runtime/status`);
+  console.log(`PayPal webhook: ${publicBaseUrl}${paypalWebhookPath}`);
   console.log(`Serving static files from ${webRoot}`);
   console.log(`Runtime artifacts in ${runtimeRoot}`);
 });
@@ -509,7 +733,9 @@ async function writeRuntimeArtifacts() {
       `Runtime Folder: ${runtimeRoot}`,
       `Watchdog Status: ${path.join(runtimeRoot, "security", "latest-status.json")}`,
       `PayPal Mode: ${paypalMode}`,
-      `PayPal Configured: ${paypalClientId && paypalClientSecret ? "yes" : "no"}`
+      `PayPal Configured: ${paypalClientId && paypalClientSecret ? "yes" : "no"}`,
+      `PayPal Webhook: ${publicBaseUrl}${paypalWebhookPath}`,
+      `PayPal Webhook ID: ${paypalWebhookId || "not set"}`
     ].join("\n")
   );
 
@@ -544,7 +770,9 @@ async function createRuntimeStatus() {
     payments: {
       provider: "paypal",
       mode: paypalMode,
-      configured: Boolean(paypalClientId && paypalClientSecret)
+      configured: Boolean(paypalClientId && paypalClientSecret),
+      webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
+      webhookPath: paypalWebhookPath
     },
     watchdog: {
       active: true,
@@ -597,6 +825,19 @@ function sendMethodNotAllowed(res, allowedMethod) {
 }
 
 async function readJsonBody(req) {
+  const rawBody = await readRawBody(req);
+  if (!rawBody) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(rawBody);
+  } catch {
+    throw new Error("Request body must be valid JSON.");
+  }
+}
+
+async function readRawBody(req) {
   const chunks = [];
 
   for await (const chunk of req) {
@@ -604,16 +845,18 @@ async function readJsonBody(req) {
   }
 
   if (chunks.length === 0) {
-    return {};
+    return "";
   }
 
-  const rawBody = Buffer.concat(chunks).toString("utf8");
+  return Buffer.concat(chunks).toString("utf8");
+}
 
-  try {
-    return JSON.parse(rawBody);
-  } catch {
-    throw new Error("Request body must be valid JSON.");
+function readHeader(req, name) {
+  const value = req?.headers?.[name];
+  if (Array.isArray(value)) {
+    return typeof value[0] === "string" ? value[0].trim() : "";
   }
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function normalizeServiceRequest(payload) {
@@ -689,12 +932,12 @@ function resolveServicePricing(request) {
   let providerPayout;
 
   if (customerTier === "SUBSCRIBER") {
-    // Subscriber: $40 total - $2 assignment - 2% service rate
+    // Subscriber: $40 total - $5.50 assignment - 2% service rate
     const platformPercentageCharge = Number((serviceCharge * serviceChargeRate).toFixed(2));
     platformShare = assignmentFee + platformPercentageCharge;
     providerPayout = serviceCharge - platformShare;
   } else {
-    // Guest: $55 total - $10 dispatch - $2 assignment = $43 payout
+    // Guest: $55 total - $10 dispatch - $5.50 assignment = $39.50 payout
     platformShare = dispatchFee + assignmentFee;
     providerPayout = serviceCharge - platformShare;
   }
@@ -722,6 +965,14 @@ function readOptionalString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readNumericValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 async function getHealthPayload() {
   return {
     status: "ok",
@@ -736,6 +987,10 @@ async function getPaymentConfigPayload() {
     provider: "paypal",
     enabled: Boolean(paypalClientId && paypalClientSecret),
     clientId: paypalClientId || null,
+    webhookId: paypalWebhookId || null,
+    webhookPath: paypalWebhookPath,
+    webhookUrl: `${publicBaseUrl}${paypalWebhookPath}`,
+    webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
     mode: paypalMode,
@@ -748,12 +1003,14 @@ async function getPaymentConfigPayload() {
     guestDispatchFee,
     subscriberDispatchFee,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
-    dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability
+    dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability,
+    walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
+    uiEventMap: AW_ROADSIDE_POLICY.uiEventMap
   };
 }
 
 async function getUserProfile(userId) {
-  const users = await readUsers();
+  const [users, requests] = await Promise.all([readUsers(), readRequestLog()]);
   const user = users.find((entry) => entry.id === Number(userId));
   if (!user) {
     throw new Error("User not found.");
@@ -761,6 +1018,7 @@ async function getUserProfile(userId) {
 
   const providerRating = calculateProviderRatingSummary(user);
   const providerSelection = calculateProviderSelectionSummary(user);
+  const subscriberRequestHistory = buildSubscriberRequestHistory(user, requests);
 
   return {
     userId: user.id,
@@ -779,6 +1037,8 @@ async function getUserProfile(userId) {
     providerSelection,
     subscriberActive: Boolean(user.subscriberActive),
     subscriberProfile: user.subscriberProfile || null,
+    requestHistory: subscriberRequestHistory,
+    requestHistoryCount: subscriberRequestHistory.length,
     savedVehicles: Array.isArray(user.subscriberProfile?.savedVehicles)
       ? user.subscriberProfile.savedVehicles
       : user.subscriberProfile?.vehicle
@@ -791,6 +1051,52 @@ async function getUserProfile(userId) {
     trustedZone: user.trustedZone || null,
     createdAt: user.createdAt || null
   };
+}
+
+function buildSubscriberRequestHistory(user, requests) {
+  if (!Array.isArray(user?.roles) || !user.roles.includes("SUBSCRIBER")) {
+    return [];
+  }
+
+  const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  return (Array.isArray(requests) ? requests : [])
+    .filter((request) => Number(request?.userId) === Number(user.id))
+    .filter((request) => {
+      const sourceDate = request?.submittedAt || request?.createdAt || request?.updatedAt || null;
+      if (!sourceDate) {
+        return true;
+      }
+      const parsed = new Date(sourceDate).getTime();
+      return Number.isFinite(parsed) ? parsed >= oneYearAgo : true;
+    })
+    .map((request) => ({
+      requestId: request.id || request.requestId || null,
+      requestDate: request.submittedAt || request.createdAt || null,
+      updatedAt: request.updatedAt || null,
+      status: request.status || null,
+      completionStatus: request.completionStatus || null,
+      paymentStatus: request.paymentStatus || null,
+      providerPayoutStatus: request.providerPayoutStatus || null,
+      fullName: request.fullName || "",
+      phoneNumber: request.phoneNumber || "",
+      location: request.location || "",
+      vehicleInfo: request.vehicleInfo || "",
+      serviceType: request.serviceType || "",
+      notes: request.notes || "",
+      etaMinutes: Number.isFinite(Number(request.etaMinutes)) ? Number(request.etaMinutes) : null,
+      assignedProviderId: request.assignedProviderId || null,
+      customerEtaAcceptedAt: request.customerEtaAcceptedAt || null,
+      arrivalConfirmedAt: request.arrivalConfirmedAt || null,
+      completionConfirmedAt: request.completionConfirmedAt || null,
+      paymentPromptedAt: request.paymentPromptedAt || null,
+      amountCharged: Number(request.amountCharged || 0),
+      amountCollected: Number(request.amountCollected || 0)
+    }))
+    .sort((left, right) => {
+      const leftTime = new Date(left.updatedAt || left.requestDate || 0).getTime();
+      const rightTime = new Date(right.updatedAt || right.requestDate || 0).getTime();
+      return rightTime - leftTime;
+    });
 }
 
 async function getFrontendConfigPayload(req = null) {
@@ -813,6 +1119,8 @@ async function getFrontendConfigPayload(req = null) {
     guestDispatchFee,
     subscriberDispatchFee,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
+    walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
+    uiEventMap: AW_ROADSIDE_POLICY.uiEventMap,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion,
     compatibilityGatewayUrl: `${baseUrl}/api/compat/status`,
     compatibilityManifestUrl: `${baseUrl}/api/compat/manifest`,
@@ -827,9 +1135,9 @@ function createServicePaymentQuote(request) {
     throw new Error("A backend requestId is required before service payment.");
   }
 
-  const etaMinutes = Number.isFinite(Number(request?.etaMinutes)) ? Number(request.etaMinutes) : null;
+  const etaMinutes = readNumericValue(request?.etaMinutes);
   const status = readOptionalString(request?.status).toUpperCase();
-  if (etaMinutes === null && !["EN_ROUTE", "ARRIVED", "COMPLETED"].includes(status)) {
+  if (etaMinutes === null) {
     const error = new Error("Service payment is locked until a provider hard ETA is recorded.");
     error.statusCode = 409;
     error.code = "hard-eta-required";
@@ -1174,12 +1482,995 @@ async function createPaypalOrder(serviceRequest) {
   return paypal.createOrder({
     description: `${serviceRequest.paymentKind === "service" ? "Roadside service payment" : "Priority roadside service"} - ${serviceRequest.serviceType}`,
     amount: serviceRequest.amount,
-    customId: `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
+    customId: serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
   });
 }
 
 async function capturePaypalOrder(orderId) {
   return paypal.captureOrder(orderId);
+}
+
+async function applyPaypalWebhookEvent(webhookEvent) {
+  const eventType = readOptionalString(webhookEvent?.event_type).toUpperCase();
+  if (!eventType) {
+    return {
+      matched: false,
+      applied: false,
+      note: "missing-event-type"
+    };
+  }
+
+  if (eventType.startsWith("BILLING.SUBSCRIPTION.")) {
+    return applyPaypalSubscriptionWebhook(webhookEvent, eventType);
+  }
+
+  if (isPaypalProviderWebhookEvent(eventType)) {
+    return applyPaypalProviderWebhook(webhookEvent, eventType);
+  }
+
+  if (
+    eventType.startsWith("PAYMENT.CAPTURE.") ||
+    eventType.startsWith("PAYMENT.REFUND.") ||
+    eventType.startsWith("PAYMENT.SALE.") ||
+    eventType === "PAYMENT.ORDER.CANCELLED"
+  ) {
+    return applyPaypalPaymentWebhook(webhookEvent, eventType);
+  }
+
+  return {
+    matched: false,
+    applied: false,
+    note: "ignored-event-type"
+  };
+}
+
+function isPaypalProviderWebhookEvent(eventType) {
+  return (
+    eventType.startsWith("MERCHANT.") ||
+    eventType.startsWith("CUSTOMER.ACCOUNT-ENTITIES.") ||
+    eventType.startsWith("CUSTOMER.PARTNER-") ||
+    eventType.startsWith("PAYMENT.PAYOUTSBATCH.") ||
+    eventType.startsWith("PAYMENT.PAYOUTS-ITEM.") ||
+    eventType.startsWith("PAYMENTS.CUSTOMER-PAYOUTS.")
+  );
+}
+
+async function applyPaypalSubscriptionWebhook(webhookEvent, eventType) {
+  const resource = normalizePaypalResource(webhookEvent?.resource);
+  const matchedUser = await findUserForPaypalSubscription(resource);
+  if (!matchedUser) {
+    return {
+      matched: false,
+      applied: false,
+      note: "subscriber-not-found"
+    };
+  }
+
+  const now = new Date().toISOString();
+  const subscriptionId = readOptionalString(resource.id);
+  const nextBillingDate = resolvePaypalNextBillingDate(resource);
+  const resourceStatus = readOptionalString(resource.status).toUpperCase();
+  const subscriptionState = mapPaypalSubscriptionState(eventType, resourceStatus);
+
+  const updatedUser = await mutateUsers(async (users) => {
+    const user = users.find((entry) => Number(entry.id) === Number(matchedUser.id));
+    if (!user) {
+      throw new Error(`User ${matchedUser.id} was not found for PayPal webhook processing.`);
+    }
+
+    const existingSubscriberProfile = user.subscriberProfile && typeof user.subscriberProfile === "object"
+      ? user.subscriberProfile
+      : {};
+    const existingPaymentInfo = existingSubscriberProfile.paymentInfo && typeof existingSubscriberProfile.paymentInfo === "object"
+      ? existingSubscriberProfile.paymentInfo
+      : {};
+
+    user.subscriberActive = subscriptionState.active;
+    user.accountState = subscriptionState.accountState;
+    user.nextBillingDate = nextBillingDate || user.nextBillingDate || null;
+    user.subscriberProfile = {
+      ...existingSubscriberProfile,
+      paymentInfo: {
+        ...existingPaymentInfo,
+        paymentProvider: "paypal"
+      },
+      paypalSubscriptionId: subscriptionId || existingSubscriberProfile.paypalSubscriptionId || null,
+      paypalPlanId: readOptionalString(resource.plan_id) || existingSubscriberProfile.paypalPlanId || null,
+      paypalStatus: subscriptionState.profileStatus,
+      paypalSubscriberEmail:
+        readOptionalString(resource?.subscriber?.email_address) ||
+        existingSubscriberProfile.paypalSubscriberEmail ||
+        user.email ||
+        null,
+      lastPaypalWebhookEventId: readOptionalString(webhookEvent.id) || existingSubscriberProfile.lastPaypalWebhookEventId || null,
+      lastPaypalWebhookEventType: eventType,
+      lastPaypalWebhookAt: now,
+      lastPaymentFailureAt:
+        eventType === "BILLING.SUBSCRIPTION.PAYMENT.FAILED"
+          ? now
+          : existingSubscriberProfile.lastPaymentFailureAt || null
+    };
+    user.subscriptionStatus = subscriptionState.profileStatus;
+    return user;
+  });
+
+  return {
+    matched: true,
+    applied: true,
+    targetType: "user",
+    targetId: String(updatedUser.id),
+    note: subscriptionState.profileStatus
+  };
+}
+
+async function applyPaypalProviderWebhook(webhookEvent, eventType) {
+  if (
+    eventType.startsWith("PAYMENT.PAYOUTSBATCH.") ||
+    eventType.startsWith("PAYMENT.PAYOUTS-ITEM.") ||
+    eventType.startsWith("PAYMENTS.CUSTOMER-PAYOUTS.")
+  ) {
+    return applyPaypalProviderPayoutWebhook(webhookEvent, eventType);
+  }
+
+  return applyPaypalProviderAccountWebhook(webhookEvent, eventType);
+}
+
+async function applyPaypalProviderAccountWebhook(webhookEvent, eventType) {
+  const resource = normalizePaypalResource(webhookEvent?.resource);
+  const matchedProvider = await findProviderForPaypalEvent(resource);
+  if (!matchedProvider) {
+    return {
+      matched: false,
+      applied: false,
+      note: "provider-not-found"
+    };
+  }
+
+  const updatedProvider = await mutateUsers(async (users) => {
+    const provider = users.find((entry) => Number(entry.id) === Number(matchedProvider.id));
+    if (!provider) {
+      throw new Error(`Provider ${matchedProvider.id} was not found for PayPal webhook processing.`);
+    }
+
+    const existingProviderProfile = provider.providerProfile && typeof provider.providerProfile === "object"
+      ? provider.providerProfile
+      : {};
+    const paypalState = normalizeProviderPaypalProfile(existingProviderProfile.paypal);
+    const identifiers = extractProviderPaypalIdentifiers(resource);
+    const now = new Date().toISOString();
+
+    const nextPaypal = {
+      ...paypalState,
+      merchantId: identifiers.merchantId || paypalState.merchantId || null,
+      accountId: identifiers.accountId || paypalState.accountId || null,
+      trackingId: identifiers.trackingId || paypalState.trackingId || null,
+      payerId: identifiers.payerId || paypalState.payerId || null,
+      email:
+        identifiers.email ||
+        paypalState.email ||
+        readOptionalString(provider?.providerProfile?.providerInfo?.email) ||
+        readOptionalString(provider.email) ||
+        null,
+      lastWebhookEventId: readOptionalString(webhookEvent.id) || paypalState.lastWebhookEventId || null,
+      lastWebhookEventType: eventType,
+      lastWebhookAt: now
+    };
+
+    if (eventType === "MERCHANT.ONBOARDING.COMPLETED") {
+      nextPaypal.onboardingStatus = "COMPLETED";
+      nextPaypal.consentStatus = "GRANTED";
+      nextPaypal.onboardingCompletedAt = now;
+    } else if (eventType === "MERCHANT.PARTNER-CONSENT.REVOKED") {
+      nextPaypal.consentStatus = "REVOKED";
+      nextPaypal.partnerConsentRevokedAt = now;
+    } else if (eventType === "CUSTOMER.ACCOUNT-ENTITIES.ACCOUNT-CREATED") {
+      nextPaypal.accountLifecycleStatus = "CREATED";
+      nextPaypal.accountCreatedAt = now;
+    } else if (
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.ACCOUNT-UPDATED" ||
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.ACCOUNT-SETTINGS-UPDATED"
+    ) {
+      nextPaypal.accountLifecycleStatus = "UPDATED";
+      nextPaypal.lastAccountUpdateAt = now;
+    } else if (eventType === "CUSTOMER.ACCOUNT-ENTITIES.ACCOUNT-LIMITS") {
+      nextPaypal.accountLimits = extractPaypalAccountLimits(resource);
+      nextPaypal.lastAccountLimitEventAt = now;
+    } else if (eventType === "CUSTOMER.ACCOUNT-ENTITIES.CAPABILITY-UPDATED") {
+      nextPaypal.capabilities = extractPaypalCapabilities(resource, paypalState.capabilities);
+      nextPaypal.lastCapabilityUpdateAt = now;
+    } else if (eventType === "CUSTOMER.ACCOUNT-ENTITIES.REQUIREMENTS-UPDATED") {
+      nextPaypal.requirements = extractPaypalRequirements(resource, paypalState.requirements);
+      nextPaypal.lastRequirementsUpdateAt = now;
+    } else if (
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.BANK-ACCOUNTS.CREATED" ||
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.BANK-ACCOUNTS.UPDATED" ||
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.BANK-ACCOUNTS.REMOVED"
+    ) {
+      nextPaypal.bankAccounts = extractPaypalBankAccounts(resource, paypalState.bankAccounts, eventType, now);
+    } else if (
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.STAKEHOLDERS.CREATED" ||
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.STAKEHOLDERS.UPDATED" ||
+      eventType === "CUSTOMER.ACCOUNT-ENTITIES.STAKEHOLDERS.REMOVED"
+    ) {
+      nextPaypal.stakeholders = extractPaypalStakeholders(resource, paypalState.stakeholders, eventType, now);
+    } else if (eventType === "CUSTOMER.PARTNER-BALANCE.CHANGED") {
+      nextPaypal.partnerBalance = extractPaypalPartnerBalance(resource, paypalState.partnerBalance, now);
+    } else if (eventType === "CUSTOMER.PARTNER-FINANCIAL-ACCOUNT.DEBITED") {
+      nextPaypal.lastPartnerFinancialDebit = extractPaypalPartnerFinancialDebit(resource, now);
+    }
+
+    nextPaypal.recentEvents = pushProviderPaypalEvent(
+      paypalState.recentEvents,
+      buildProviderPaypalEventSummary(webhookEvent, eventType, resource, now)
+    );
+
+    provider.providerProfile = {
+      ...existingProviderProfile,
+      paypal: nextPaypal
+    };
+
+    if (eventType === "MERCHANT.ONBOARDING.COMPLETED" && !provider.providerStatus) {
+      provider.providerStatus = "PENDING_APPROVAL";
+    }
+
+    return provider;
+  });
+
+  return {
+    matched: true,
+    applied: true,
+    targetType: "user",
+    targetId: String(updatedProvider.id),
+    note: eventType
+  };
+}
+
+async function applyPaypalProviderPayoutWebhook(webhookEvent, eventType) {
+  const resource = normalizePaypalResource(webhookEvent?.resource);
+  const matchedRequest = await findRequestForPaypalPayout(resource);
+  const matchedProvider = await findProviderForPaypalPayout(resource, matchedRequest);
+
+  if (!matchedRequest && !matchedProvider) {
+    return {
+      matched: false,
+      applied: false,
+      note: "provider-payout-not-found"
+    };
+  }
+
+  const payoutStatus = mapPaypalProviderPayoutStatus(eventType);
+  const payoutIdentifiers = extractPaypalPayoutIdentifiers(resource);
+  const now = new Date().toISOString();
+
+  if (matchedRequest) {
+    await updateRequestRecord(matchedRequest.requestId || matchedRequest.id, (request) => {
+      const next = {
+        providerPayoutStatus: payoutStatus.requestStatus,
+        payoutBatchId: payoutIdentifiers.batchId || request.payoutBatchId || null,
+        payoutItemId: payoutIdentifiers.itemId || request.payoutItemId || null,
+        payoutCustomerId: payoutIdentifiers.customerPayoutId || request.payoutCustomerId || null,
+        payoutReference:
+          payoutIdentifiers.itemId ||
+          payoutIdentifiers.batchId ||
+          payoutIdentifiers.customerPayoutId ||
+          request.payoutReference ||
+          null,
+        payoutLastEventId: readOptionalString(webhookEvent.id) || request.payoutLastEventId || null,
+        payoutLastEventType: eventType,
+        payoutLastEventAt: now
+      };
+
+      if (payoutStatus.completed) {
+        next.payoutCompletedAt = now;
+      }
+
+      return next;
+    });
+  }
+
+  let updatedProvider = matchedProvider;
+  if (matchedProvider) {
+    updatedProvider = await mutateUsers(async (users) => {
+      const provider = users.find((entry) => Number(entry.id) === Number(matchedProvider.id));
+      if (!provider) {
+        throw new Error(`Provider ${matchedProvider.id} was not found for PayPal payout webhook processing.`);
+      }
+
+      const existingProviderProfile = provider.providerProfile && typeof provider.providerProfile === "object"
+        ? provider.providerProfile
+        : {};
+      const paypalState = normalizeProviderPaypalProfile(existingProviderProfile.paypal);
+
+      const nextPayoutState = {
+        ...paypalState.payouts,
+        lastStatus: payoutStatus.profileStatus,
+        lastEventType: eventType,
+        lastEventId: readOptionalString(webhookEvent.id) || paypalState.payouts.lastEventId || null,
+        lastEventAt: now,
+        lastRequestId: matchedRequest ? String(matchedRequest.requestId || matchedRequest.id) : paypalState.payouts.lastRequestId || null,
+        lastBatchId: payoutIdentifiers.batchId || paypalState.payouts.lastBatchId || null,
+        lastItemId: payoutIdentifiers.itemId || paypalState.payouts.lastItemId || null,
+        lastCustomerPayoutId: payoutIdentifiers.customerPayoutId || paypalState.payouts.lastCustomerPayoutId || null,
+        succeededCount: paypalState.payouts.succeededCount + (payoutStatus.completed ? 1 : 0),
+        failedCount: paypalState.payouts.failedCount + (payoutStatus.failed ? 1 : 0),
+        heldCount: paypalState.payouts.heldCount + (payoutStatus.held ? 1 : 0)
+      };
+
+      const nextPaypal = {
+        ...paypalState,
+        merchantId: payoutIdentifiers.merchantId || paypalState.merchantId || null,
+        accountId: payoutIdentifiers.accountId || paypalState.accountId || null,
+        email: payoutIdentifiers.email || paypalState.email || readOptionalString(provider.email) || null,
+        lastWebhookEventId: readOptionalString(webhookEvent.id) || paypalState.lastWebhookEventId || null,
+        lastWebhookEventType: eventType,
+        lastWebhookAt: now,
+        payouts: nextPayoutState,
+        recentEvents: pushProviderPaypalEvent(
+          paypalState.recentEvents,
+          buildProviderPaypalEventSummary(webhookEvent, eventType, resource, now, matchedRequest)
+        )
+      };
+
+      provider.providerProfile = {
+        ...existingProviderProfile,
+        paypal: nextPaypal
+      };
+
+      return provider;
+    });
+  }
+
+  return {
+    matched: true,
+    applied: true,
+    targetType: matchedRequest ? "request" : "user",
+    targetId: matchedRequest
+      ? String(matchedRequest.requestId || matchedRequest.id)
+      : String(updatedProvider.id),
+    note: payoutStatus.profileStatus
+  };
+}
+
+async function findProviderForPaypalEvent(resource) {
+  const users = await readUsers();
+  const identifiers = extractProviderPaypalIdentifiers(resource);
+
+  return (
+    users.find((user) => isPaypalProviderMatch(user, identifiers)) ||
+    null
+  );
+}
+
+async function findProviderForPaypalPayout(resource, matchedRequest = null) {
+  if (matchedRequest?.assignedProviderId) {
+    const users = await readUsers();
+    const provider = users.find((user) => Number(user.id) === Number(matchedRequest.assignedProviderId));
+    if (provider) {
+      return provider;
+    }
+  }
+
+  return findProviderForPaypalEvent(resource);
+}
+
+async function findRequestForPaypalPayout(resource) {
+  const requests = await readRequestLog();
+  const requestIdCandidates = [
+    resource.sender_item_id,
+    resource.senderItemId,
+    resource.custom_id,
+    resource.customId,
+    resource.transaction_reference_id,
+    resource.transactionReferenceId,
+    resource.invoice_id,
+    resource.reference_id,
+    resource?.payout_item?.sender_item_id,
+    resource?.payout_item?.senderItemId
+  ]
+    .map((value) => readOptionalString(value))
+    .filter(Boolean);
+
+  for (const candidate of requestIdCandidates) {
+    const request = requests.find((entry) => {
+      const requestId = String(entry.requestId || entry.id || "");
+      return requestId === candidate;
+    });
+    if (request) {
+      return request;
+    }
+  }
+
+  const payoutIdentifiers = extractPaypalPayoutIdentifiers(resource);
+  return (
+    requests.find((entry) => {
+      return (
+        (payoutIdentifiers.batchId && readOptionalString(entry.payoutBatchId) === payoutIdentifiers.batchId) ||
+        (payoutIdentifiers.itemId && readOptionalString(entry.payoutItemId) === payoutIdentifiers.itemId) ||
+        (payoutIdentifiers.customerPayoutId && readOptionalString(entry.payoutCustomerId) === payoutIdentifiers.customerPayoutId)
+      );
+    }) || null
+  );
+}
+
+function isPaypalProviderMatch(user, identifiers) {
+  if (!Array.isArray(user?.roles) || !user.roles.includes("PROVIDER")) {
+    return false;
+  }
+
+  const providerPaypal = normalizeProviderPaypalProfile(user?.providerProfile?.paypal);
+  const providerInfo = user?.providerProfile?.providerInfo && typeof user.providerProfile.providerInfo === "object"
+    ? user.providerProfile.providerInfo
+    : {};
+
+  const candidateEmails = new Set(
+    [readOptionalString(providerPaypal.email), readOptionalString(providerInfo.email), readOptionalString(user.email)]
+      .map((value) => value.toLowerCase())
+      .filter(Boolean)
+  );
+  if (identifiers.email && candidateEmails.has(identifiers.email.toLowerCase())) {
+    return true;
+  }
+
+  const candidateMerchantIds = new Set(
+    [
+      readOptionalString(providerPaypal.merchantId),
+      readOptionalString(providerPaypal.accountId),
+      readOptionalString(providerPaypal.trackingId),
+      readOptionalString(providerPaypal.payerId)
+    ].filter(Boolean)
+  );
+  if (
+    (identifiers.merchantId && candidateMerchantIds.has(identifiers.merchantId)) ||
+    (identifiers.accountId && candidateMerchantIds.has(identifiers.accountId)) ||
+    (identifiers.trackingId && candidateMerchantIds.has(identifiers.trackingId)) ||
+    (identifiers.payerId && candidateMerchantIds.has(identifiers.payerId))
+  ) {
+    return true;
+  }
+
+  const payoutState = providerPaypal.payouts || {};
+  if (
+    (identifiers.batchId && readOptionalString(payoutState.lastBatchId) === identifiers.batchId) ||
+    (identifiers.itemId && readOptionalString(payoutState.lastItemId) === identifiers.itemId) ||
+    (identifiers.customerPayoutId && readOptionalString(payoutState.lastCustomerPayoutId) === identifiers.customerPayoutId)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function extractProviderPaypalIdentifiers(resource) {
+  const parties = [
+    resource,
+    resource?.merchant,
+    resource?.partner,
+    resource?.account,
+    resource?.payee,
+    resource?.seller,
+    resource?.recipient,
+    resource?.payout_item,
+    resource?.payer
+  ].filter((entry) => entry && typeof entry === "object");
+  const payoutIdentifiers = extractPaypalPayoutIdentifiers(resource);
+
+  return {
+    ...payoutIdentifiers,
+    merchantId: firstNonEmptyString([
+      payoutIdentifiers.merchantId,
+      resource.merchant_id,
+      resource.merchantId,
+      resource.merchant_id_in_paypal,
+      resource.merchantIdInPayPal,
+      resource.partner_merchant_id,
+      resource.partnerMerchantId,
+      ...parties.map((entry) => entry.merchant_id),
+      ...parties.map((entry) => entry.merchantId)
+    ]),
+    accountId: firstNonEmptyString([
+      payoutIdentifiers.accountId,
+      resource.account_id,
+      resource.accountId,
+      resource.managed_account_id,
+      resource.managedAccountId,
+      ...parties.map((entry) => entry.account_id),
+      ...parties.map((entry) => entry.accountId)
+    ]),
+    trackingId: firstNonEmptyString([
+      resource.tracking_id,
+      resource.trackingId,
+      ...parties.map((entry) => entry.tracking_id),
+      ...parties.map((entry) => entry.trackingId)
+    ]),
+    payerId: firstNonEmptyString([
+      resource.payer_id,
+      resource.payerId,
+      resource.receiver,
+      resource.receiver_id,
+      ...parties.map((entry) => entry.payer_id),
+      ...parties.map((entry) => entry.payerId)
+    ]),
+    email: firstNonEmptyString([
+      payoutIdentifiers.email,
+      resource.email,
+      resource.email_address,
+      resource.receiver_email,
+      resource.receiver,
+      ...parties.map((entry) => entry.email),
+      ...parties.map((entry) => entry.email_address),
+      ...parties.map((entry) => entry.receiver_email)
+    ])
+  };
+}
+
+function extractPaypalPayoutIdentifiers(resource) {
+  return {
+    batchId: firstNonEmptyString([
+      resource.payout_batch_id,
+      resource.payoutBatchId,
+      resource.sender_batch_id,
+      resource.senderBatchId,
+      resource?.payout_batch?.payout_batch_id,
+      resource?.batch_header?.payout_batch_id,
+      resource?.sender_batch_header?.sender_batch_id
+    ]),
+    itemId: firstNonEmptyString([
+      resource.payout_item_id,
+      resource.payoutItemId,
+      resource.item_id,
+      resource.itemId,
+      resource.transaction_id,
+      resource.transactionId,
+      resource?.payout_item?.payout_item_id,
+      resource?.payout_item?.payoutItemId
+    ]),
+    customerPayoutId: firstNonEmptyString([
+      resource.customer_payout_id,
+      resource.customerPayoutId,
+      resource.payout_id,
+      resource.payoutId,
+      resource.id
+    ]),
+    merchantId: firstNonEmptyString([resource.merchant_id, resource.merchantId, resource?.payee?.merchant_id, resource?.payee?.merchantId]),
+    accountId: firstNonEmptyString([resource.account_id, resource.accountId]),
+    email: firstNonEmptyString([resource.receiver_email, resource.receiver, resource.email, resource.email_address])
+  };
+}
+
+function normalizeProviderPaypalProfile(value) {
+  const paypal = value && typeof value === "object" ? value : {};
+  return {
+    merchantId: readOptionalString(paypal.merchantId) || null,
+    accountId: readOptionalString(paypal.accountId) || null,
+    trackingId: readOptionalString(paypal.trackingId) || null,
+    payerId: readOptionalString(paypal.payerId) || null,
+    email: readOptionalString(paypal.email) || null,
+    onboardingStatus: readOptionalString(paypal.onboardingStatus) || null,
+    consentStatus: readOptionalString(paypal.consentStatus) || null,
+    accountLifecycleStatus: readOptionalString(paypal.accountLifecycleStatus) || null,
+    accountLimits: paypal.accountLimits && typeof paypal.accountLimits === "object" ? paypal.accountLimits : {},
+    capabilities: paypal.capabilities && typeof paypal.capabilities === "object" ? paypal.capabilities : {},
+    requirements: paypal.requirements && typeof paypal.requirements === "object" ? paypal.requirements : {},
+    bankAccounts: paypal.bankAccounts && typeof paypal.bankAccounts === "object" ? paypal.bankAccounts : {},
+    stakeholders: paypal.stakeholders && typeof paypal.stakeholders === "object" ? paypal.stakeholders : {},
+    partnerBalance: paypal.partnerBalance && typeof paypal.partnerBalance === "object" ? paypal.partnerBalance : {},
+    lastPartnerFinancialDebit:
+      paypal.lastPartnerFinancialDebit && typeof paypal.lastPartnerFinancialDebit === "object"
+        ? paypal.lastPartnerFinancialDebit
+        : {},
+    payouts: normalizeProviderPaypalPayoutState(paypal.payouts),
+    recentEvents: Array.isArray(paypal.recentEvents) ? paypal.recentEvents : [],
+    lastWebhookEventId: readOptionalString(paypal.lastWebhookEventId) || null,
+    lastWebhookEventType: readOptionalString(paypal.lastWebhookEventType) || null,
+    lastWebhookAt: optionalIsoString(paypal.lastWebhookAt),
+    onboardingCompletedAt: optionalIsoString(paypal.onboardingCompletedAt),
+    partnerConsentRevokedAt: optionalIsoString(paypal.partnerConsentRevokedAt),
+    accountCreatedAt: optionalIsoString(paypal.accountCreatedAt),
+    lastAccountUpdateAt: optionalIsoString(paypal.lastAccountUpdateAt),
+    lastAccountLimitEventAt: optionalIsoString(paypal.lastAccountLimitEventAt),
+    lastCapabilityUpdateAt: optionalIsoString(paypal.lastCapabilityUpdateAt),
+    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt)
+  };
+}
+
+function normalizeProviderPaypalPayoutState(value) {
+  const payouts = value && typeof value === "object" ? value : {};
+  return {
+    lastStatus: readOptionalString(payouts.lastStatus) || null,
+    lastEventType: readOptionalString(payouts.lastEventType) || null,
+    lastEventId: readOptionalString(payouts.lastEventId) || null,
+    lastEventAt: optionalIsoString(payouts.lastEventAt),
+    lastRequestId: readOptionalString(payouts.lastRequestId) || null,
+    lastBatchId: readOptionalString(payouts.lastBatchId) || null,
+    lastItemId: readOptionalString(payouts.lastItemId) || null,
+    lastCustomerPayoutId: readOptionalString(payouts.lastCustomerPayoutId) || null,
+    succeededCount: Number.isFinite(Number(payouts.succeededCount)) ? Number(payouts.succeededCount) : 0,
+    failedCount: Number.isFinite(Number(payouts.failedCount)) ? Number(payouts.failedCount) : 0,
+    heldCount: Number.isFinite(Number(payouts.heldCount)) ? Number(payouts.heldCount) : 0
+  };
+}
+
+function extractPaypalAccountLimits(resource) {
+  return {
+    status: readOptionalString(resource.status) || null,
+    limits: Array.isArray(resource.limits) ? resource.limits : [],
+    currencyCode: readOptionalString(resource.currency_code || resource.currencyCode) || null,
+    updatedAt: optionalIsoString(resource.updated_at || resource.update_time) || new Date().toISOString()
+  };
+}
+
+function extractPaypalCapabilities(resource, currentCapabilities = {}) {
+  const capabilities = Array.isArray(resource.capabilities) ? resource.capabilities : [];
+  const nextCapabilities = { ...currentCapabilities };
+  for (const capability of capabilities) {
+    if (!capability || typeof capability !== "object") {
+      continue;
+    }
+    const key = readOptionalString(capability.name || capability.type || capability.capability) || crypto.randomUUID();
+    nextCapabilities[key] = {
+      status: readOptionalString(capability.status) || null,
+      details: capability
+    };
+  }
+  return nextCapabilities;
+}
+
+function extractPaypalRequirements(resource, currentRequirements = {}) {
+  return {
+    ...currentRequirements,
+    status: readOptionalString(resource.status) || currentRequirements.status || null,
+    requirements: Array.isArray(resource.requirements) ? resource.requirements : currentRequirements.requirements || [],
+    details: resource
+  };
+}
+
+function extractPaypalBankAccounts(resource, currentBankAccounts = {}, eventType, recordedAt) {
+  return {
+    ...currentBankAccounts,
+    lastEventType: eventType,
+    lastEventAt: recordedAt,
+    count: Array.isArray(resource.bank_accounts) ? resource.bank_accounts.length : currentBankAccounts.count || 0,
+    details: Array.isArray(resource.bank_accounts) ? resource.bank_accounts : currentBankAccounts.details || []
+  };
+}
+
+function extractPaypalStakeholders(resource, currentStakeholders = {}, eventType, recordedAt) {
+  return {
+    ...currentStakeholders,
+    lastEventType: eventType,
+    lastEventAt: recordedAt,
+    count: Array.isArray(resource.stakeholders) ? resource.stakeholders.length : currentStakeholders.count || 0,
+    details: Array.isArray(resource.stakeholders) ? resource.stakeholders : currentStakeholders.details || []
+  };
+}
+
+function extractPaypalPartnerBalance(resource, currentBalance = {}, recordedAt) {
+  const amount = resource.balance || resource.amount || resource.available_balance || {};
+  return {
+    ...currentBalance,
+    currencyCode: readOptionalString(amount.currency_code || amount.currencyCode) || currentBalance.currencyCode || null,
+    value: readOptionalString(amount.value) || currentBalance.value || null,
+    asOf: recordedAt,
+    details: resource
+  };
+}
+
+function extractPaypalPartnerFinancialDebit(resource, recordedAt) {
+  const amount = resource.amount || resource.debit_amount || {};
+  return {
+    amount: readOptionalString(amount.value) || null,
+    currencyCode: readOptionalString(amount.currency_code || amount.currencyCode) || null,
+    reason: readOptionalString(resource.reason || resource.description) || null,
+    debitId: readOptionalString(resource.id) || null,
+    recordedAt,
+    details: resource
+  };
+}
+
+function mapPaypalProviderPayoutStatus(eventType) {
+  switch (eventType) {
+    case "PAYMENT.PAYOUTSBATCH.PROCESSING":
+      return { requestStatus: "PENDING", profileStatus: "PROCESSING", completed: false, failed: false, held: false };
+    case "PAYMENT.PAYOUTSBATCH.SUCCESS":
+      return { requestStatus: "COMPLETED", profileStatus: "SUCCESS", completed: true, failed: false, held: false };
+    case "PAYMENT.PAYOUTSBATCH.DENIED":
+      return { requestStatus: "DENIED", profileStatus: "DENIED", completed: false, failed: true, held: false };
+    case "PAYMENT.PAYOUTS-ITEM.SUCCEEDED":
+      return { requestStatus: "COMPLETED", profileStatus: "SUCCEEDED", completed: true, failed: false, held: false };
+    case "PAYMENT.PAYOUTS-ITEM.HELD":
+      return { requestStatus: "ON_HOLD", profileStatus: "HELD", completed: false, failed: false, held: true };
+    case "PAYMENT.PAYOUTS-ITEM.BLOCKED":
+      return { requestStatus: "BLOCKED", profileStatus: "BLOCKED", completed: false, failed: true, held: true };
+    case "PAYMENT.PAYOUTS-ITEM.UNCLAIMED":
+      return { requestStatus: "UNCLAIMED", profileStatus: "UNCLAIMED", completed: false, failed: false, held: true };
+    case "PAYMENT.PAYOUTS-ITEM.RETURNED":
+      return { requestStatus: "RETURNED", profileStatus: "RETURNED", completed: false, failed: true, held: false };
+    case "PAYMENT.PAYOUTS-ITEM.REFUNDED":
+      return { requestStatus: "REFUNDED", profileStatus: "REFUNDED", completed: false, failed: true, held: false };
+    case "PAYMENT.PAYOUTS-ITEM.CANCELED":
+      return { requestStatus: "CANCELED", profileStatus: "CANCELED", completed: false, failed: true, held: false };
+    case "PAYMENT.PAYOUTS-ITEM.FAILED":
+      return { requestStatus: "FAILED", profileStatus: "FAILED", completed: false, failed: true, held: false };
+    case "PAYMENTS.CUSTOMER-PAYOUTS.CREATED":
+      return { requestStatus: "PENDING", profileStatus: "CREATED", completed: false, failed: false, held: false };
+    case "PAYMENTS.CUSTOMER-PAYOUTS.PENDING":
+      return { requestStatus: "PENDING", profileStatus: "PENDING", completed: false, failed: false, held: false };
+    case "PAYMENTS.CUSTOMER-PAYOUTS.COMPLETED":
+      return { requestStatus: "COMPLETED", profileStatus: "COMPLETED", completed: true, failed: false, held: false };
+    case "PAYMENTS.CUSTOMER-PAYOUTS.CANCELED":
+      return { requestStatus: "CANCELED", profileStatus: "CANCELED", completed: false, failed: true, held: false };
+    case "PAYMENTS.CUSTOMER-PAYOUTS.FAILED":
+      return { requestStatus: "FAILED", profileStatus: "FAILED", completed: false, failed: true, held: false };
+    case "PAYMENTS.CUSTOMER-PAYOUTS.REVERSED":
+      return { requestStatus: "REVERSED", profileStatus: "REVERSED", completed: false, failed: true, held: false };
+    default:
+      return { requestStatus: eventType.split(".").slice(-1)[0] || "UPDATED", profileStatus: eventType, completed: false, failed: false, held: false };
+  }
+}
+
+function buildProviderPaypalEventSummary(webhookEvent, eventType, resource, recordedAt, matchedRequest = null) {
+  return {
+    eventId: readOptionalString(webhookEvent?.id) || null,
+    eventType,
+    resourceId: readOptionalString(resource?.id) || null,
+    requestId: matchedRequest ? String(matchedRequest.requestId || matchedRequest.id) : null,
+    recordedAt
+  };
+}
+
+function pushProviderPaypalEvent(events, entry) {
+  const history = Array.isArray(events) ? events.slice(0, 24) : [];
+  history.unshift(entry);
+  return history;
+}
+
+function firstNonEmptyString(values) {
+  for (const value of values) {
+    const normalized = readOptionalString(value);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return "";
+}
+
+async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
+  const resource = normalizePaypalResource(webhookEvent?.resource);
+  const matchedRequest = await findRequestForPaypalPayment(resource);
+  if (!matchedRequest) {
+    return {
+      matched: false,
+      applied: false,
+      note: "request-not-found"
+    };
+  }
+
+  const amountValue = Number.parseFloat(
+    readOptionalString(resource?.amount?.value) ||
+      readOptionalString(resource?.seller_receivable_breakdown?.gross_amount?.value) ||
+      "0"
+  );
+  const captureId = readOptionalString(resource.id);
+  const orderId =
+    readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
+    readOptionalString(resource?.invoice_id) ||
+    matchedRequest.lastPaymentOrderId ||
+    "";
+
+  const updatedRequest = await updateRequestRecord(matchedRequest.requestId || matchedRequest.id, (request) => {
+    const next = {
+      lastPaymentOrderId: orderId || request.lastPaymentOrderId || null,
+      lastPaymentEventId: readOptionalString(webhookEvent.id) || request.lastPaymentEventId || null,
+      lastPaymentEventType: eventType,
+      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null
+    };
+
+    if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {
+      next.paymentStatus = "CAPTURED";
+      next.amountCollected = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : request.amountCollected || 0;
+      next.refundIssued = false;
+      next.refundFlag = false;
+    } else if (eventType === "PAYMENT.CAPTURE.PENDING" || eventType === "PAYMENT.SALE.PENDING") {
+      next.paymentStatus = "PENDING_CAPTURE";
+    } else if (
+      eventType === "PAYMENT.CAPTURE.DENIED" ||
+      eventType === "PAYMENT.CAPTURE.DECLINED" ||
+      eventType === "PAYMENT.SALE.DENIED"
+    ) {
+      next.paymentStatus = "DECLINED";
+    } else if (
+      eventType === "PAYMENT.CAPTURE.REFUNDED" ||
+      eventType === "PAYMENT.CAPTURE.REVERSED" ||
+      eventType === "PAYMENT.REFUND.COMPLETED" ||
+      eventType === "PAYMENT.SALE.REFUNDED" ||
+      eventType === "PAYMENT.SALE.REVERSED"
+    ) {
+      next.paymentStatus = "REFUNDED";
+      next.refundIssued = true;
+      next.refundFlag = true;
+    } else if (
+      eventType === "PAYMENT.REFUND.PENDING" ||
+      eventType === "PAYMENT.REFUND.FAILED" ||
+      eventType === "PAYMENT.REFUND.DENIED" ||
+      eventType === "PAYMENT.REFUND.CANCELLED"
+    ) {
+      next.paymentStatus = eventType.split(".").slice(-1)[0];
+    } else if (eventType === "PAYMENT.ORDER.CANCELLED") {
+      next.paymentStatus = "CANCELLED";
+    }
+
+    return next;
+  });
+
+  return {
+    matched: true,
+    applied: true,
+    targetType: "request",
+    targetId: String(updatedRequest.requestId || updatedRequest.id),
+    note: updatedRequest.paymentStatus || "updated"
+  };
+}
+
+function normalizePaypalResource(resource) {
+  return resource && typeof resource === "object" ? resource : {};
+}
+
+async function findUserForPaypalSubscription(resource) {
+  const users = await readUsers();
+  const subscriptionId = readOptionalString(resource.id);
+  const email = readOptionalString(resource?.subscriber?.email_address).toLowerCase();
+  const customId = readOptionalString(resource.custom_id);
+  const explicitUserId = readPaypalUserId(customId);
+
+  if (subscriptionId) {
+    const bySubscriptionId = users.find(
+      (user) => readOptionalString(user?.subscriberProfile?.paypalSubscriptionId) === subscriptionId
+    );
+    if (bySubscriptionId) {
+      return bySubscriptionId;
+    }
+  }
+
+  if (explicitUserId !== null) {
+    const byUserId = users.find((user) => Number(user.id) === explicitUserId);
+    if (byUserId) {
+      return byUserId;
+    }
+  }
+
+  if (email) {
+    const byEmail = users.find((user) => readOptionalString(user.email).toLowerCase() === email);
+    if (byEmail) {
+      return byEmail;
+    }
+  }
+
+  return null;
+}
+
+async function findRequestForPaypalPayment(resource) {
+  const requests = await readRequestLog();
+  const explicitRequestId = readOptionalString(resource.custom_id);
+  const orderId =
+    readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
+    readOptionalString(resource?.supplementary_data?.related_ids?.authorization_id) ||
+    readOptionalString(resource.invoice_id) ||
+    readOptionalString(resource.id);
+
+  if (explicitRequestId) {
+    const byRequestId = requests.find((entry) => {
+      const requestId = String(entry.requestId || entry.id || "");
+      return requestId === explicitRequestId;
+    });
+    if (byRequestId) {
+      return byRequestId;
+    }
+  }
+
+  if (orderId) {
+    const byOrderId = requests.find(
+      (entry) => readOptionalString(entry.lastPaymentOrderId) === orderId
+    );
+    if (byOrderId) {
+      return byOrderId;
+    }
+  }
+
+  return null;
+}
+
+function readPaypalUserId(value) {
+  const normalized = readOptionalString(value);
+  if (!normalized) {
+    return null;
+  }
+  if (/^\d+$/.test(normalized)) {
+    return Number(normalized);
+  }
+  const match = normalized.match(/(?:^|:)user:(\d+)$/i);
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]);
+}
+
+function resolvePaypalNextBillingDate(resource) {
+  const candidates = [
+    resource?.billing_info?.next_billing_time,
+    resource?.billing_info?.last_payment?.time,
+    resource?.start_time,
+    resource?.status_update_time
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = optionalIsoString(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
+}
+
+function mapPaypalSubscriptionState(eventType, resourceStatus) {
+  const normalizedStatus = resourceStatus || "";
+  if (
+    eventType === "BILLING.SUBSCRIPTION.ACTIVATED" ||
+    eventType === "BILLING.SUBSCRIPTION.RE-ACTIVATED" ||
+    normalizedStatus === "ACTIVE"
+  ) {
+    return {
+      active: true,
+      accountState: "ACTIVE",
+      profileStatus: "ACTIVE"
+    };
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.CREATED" || normalizedStatus === "APPROVAL_PENDING") {
+    return {
+      active: false,
+      accountState: "ACTIVE",
+      profileStatus: "CREATED"
+    };
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.PAYMENT.FAILED") {
+    return {
+      active: false,
+      accountState: "ACTIVE",
+      profileStatus: "PAYMENT_FAILED"
+    };
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.SUSPENDED" || normalizedStatus === "SUSPENDED") {
+    return {
+      active: false,
+      accountState: "ACTIVE",
+      profileStatus: "SUSPENDED"
+    };
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.CANCELLED" || normalizedStatus === "CANCELLED") {
+    return {
+      active: false,
+      accountState: "ACTIVE",
+      profileStatus: "CANCELLED"
+    };
+  }
+
+  if (eventType === "BILLING.SUBSCRIPTION.EXPIRED" || normalizedStatus === "EXPIRED") {
+    return {
+      active: false,
+      accountState: "ACTIVE",
+      profileStatus: "EXPIRED"
+    };
+  }
+
+  return {
+    active: normalizedStatus === "ACTIVE",
+    accountState: "ACTIVE",
+    profileStatus: normalizedStatus || "UPDATED"
+  };
 }
 
 async function safeJson(response) {
@@ -1193,6 +2484,32 @@ async function safeJson(response) {
 async function appendPaymentLog(entry) {
   await fs.mkdir(paymentsRoot, { recursive: true });
   await fs.appendFile(paymentLogPath, `${JSON.stringify(entry)}\n`);
+}
+
+async function appendPaypalWebhookLog(entry) {
+  await fs.mkdir(paymentsRoot, { recursive: true });
+  await fs.appendFile(webhookLogPath, `${JSON.stringify(entry)}\n`);
+}
+
+async function hasProcessedPaypalWebhook({ deliveryId, eventId }) {
+  try {
+    const raw = await fs.readFile(webhookLogPath, "utf8");
+    return raw
+      .split("\n")
+      .filter(Boolean)
+      .some((line) => {
+        const parsed = JSON.parse(line);
+        return (
+          (deliveryId && readOptionalString(parsed.deliveryId) === deliveryId) ||
+          (eventId && readOptionalString(parsed.eventId) === eventId)
+        );
+      });
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 async function readPaymentLog() {
@@ -1490,7 +2807,7 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.providerPayoutStatus =
         request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus || "PENDING";
     } else if (normalizedAction === "subscriber-accept-eta" || normalizedAction === "customer-accept-eta") {
-      if (!Number.isFinite(Number(request.etaMinutes))) {
+      if (readNumericValue(request.etaMinutes) === null) {
         throw new Error("A hard ETA must be recorded before customer ETA acceptance.");
       }
       next.customerEtaAcceptedAt = now;
