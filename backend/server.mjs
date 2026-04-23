@@ -87,7 +87,18 @@ const AW_ROADSIDE_POLICY = Object.freeze({
   financial: {
     noRefundsAfterPayment: true,
     payoutLedgerEnabled: true,
-    platformServiceChargeRate: 0.02
+    platformServiceChargeRate: 0.02,
+    walletDisplayTerms: {
+      title: "Wallet display and financial record",
+      summary:
+        "The site wallet displays provider earnings from completed work logs and payout states as a financial record, not as a separate money-holding account.",
+      thirdPartyResponsibility:
+        "The third-party payment company remains physically responsible for actual account balances, reserves, withholdings, and released funds.",
+      expectedParity:
+        "Displayed wallet totals should match the third-party payout balance for the same completed work and payout events.",
+      discrepancyProcess:
+        "If the third-party balance does not match the site wallet, the user may dispute the discrepancy with the third-party company and use the site wallet record to validate the claim."
+    }
   },
   requestLifecycle: [
     "SUBMITTED",
@@ -95,7 +106,71 @@ const AW_ROADSIDE_POLICY = Object.freeze({
     "EN_ROUTE",
     "ARRIVED",
     "COMPLETED"
-  ]
+  ],
+  uiEventMap: {
+    serviceTypes: {
+      "Jump Start": "Jump Start",
+      Lockout: "Lockout",
+      "Tire Change": "Tire Change",
+      "Gas Delivery": "Gas Delivery",
+      "Battery Install": "Battery Install",
+      JUMP_START: "Jump Start",
+      LOCKOUT: "Lockout",
+      TIRE_CHANGE: "Tire Change",
+      GAS_DELIVERY: "Gas Delivery",
+      BATTERY_INSTALL: "Battery Install"
+    },
+    requestStatus: {
+      SUBMITTED: "Request received",
+      ASSIGNED: "Provider assigned",
+      ACCEPTED: "Provider assigned",
+      EN_ROUTE: "Provider on the way",
+      ARRIVED: "Provider arrived",
+      COMPLETED: "Service completed",
+      OPEN: "Open"
+    },
+    paymentStatus: {
+      NOT_PAID: "Payment not started",
+      ORDER_CREATED: "Payment started",
+      PENDING_CAPTURE: "Payment pending",
+      CAPTURED: "Payment completed",
+      DECLINED: "Payment declined",
+      REFUNDED: "Payment refunded",
+      CANCELLED: "Payment canceled",
+      CREATED: "Payment created",
+      COMPLETED: "Payment completed",
+      DENIED: "Payment denied",
+      PENDING: "Payment pending"
+    },
+    providerStatus: {
+      DRAFT: "Setup in progress",
+      PENDING_APPROVAL: "Pending approval",
+      APPROVED: "Approved",
+      ACTIVE: "Active",
+      SUSPENDED: "Suspended",
+      INACTIVE: "Inactive"
+    },
+    payoutStatus: {
+      UNASSIGNED: "Not ready",
+      PENDING: "Pending payout",
+      PROCESSING: "Payout in progress",
+      COMPLETED: "Paid out",
+      ON_HOLD: "On hold",
+      HELD: "On hold",
+      BLOCKED: "Blocked",
+      FAILED: "Payout failed",
+      UNCLAIMED: "Waiting to be claimed"
+    },
+    providerActions: {
+      accept: "Accept request",
+      eta: "Share ETA",
+      "soft-contact": "Soft contact",
+      "hard-contact": "Direct contact",
+      arrived: "Mark arrived",
+      completed: "Mark completed",
+      note: "Send note"
+    }
+  }
 });
 
 const host = process.env.HOST || "0.0.0.0";
@@ -890,6 +965,14 @@ function readOptionalString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readNumericValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 async function getHealthPayload() {
   return {
     status: "ok",
@@ -920,12 +1003,14 @@ async function getPaymentConfigPayload() {
     guestDispatchFee,
     subscriberDispatchFee,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
-    dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability
+    dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability,
+    walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
+    uiEventMap: AW_ROADSIDE_POLICY.uiEventMap
   };
 }
 
 async function getUserProfile(userId) {
-  const users = await readUsers();
+  const [users, requests] = await Promise.all([readUsers(), readRequestLog()]);
   const user = users.find((entry) => entry.id === Number(userId));
   if (!user) {
     throw new Error("User not found.");
@@ -933,6 +1018,7 @@ async function getUserProfile(userId) {
 
   const providerRating = calculateProviderRatingSummary(user);
   const providerSelection = calculateProviderSelectionSummary(user);
+  const subscriberRequestHistory = buildSubscriberRequestHistory(user, requests);
 
   return {
     userId: user.id,
@@ -951,6 +1037,8 @@ async function getUserProfile(userId) {
     providerSelection,
     subscriberActive: Boolean(user.subscriberActive),
     subscriberProfile: user.subscriberProfile || null,
+    requestHistory: subscriberRequestHistory,
+    requestHistoryCount: subscriberRequestHistory.length,
     savedVehicles: Array.isArray(user.subscriberProfile?.savedVehicles)
       ? user.subscriberProfile.savedVehicles
       : user.subscriberProfile?.vehicle
@@ -963,6 +1051,52 @@ async function getUserProfile(userId) {
     trustedZone: user.trustedZone || null,
     createdAt: user.createdAt || null
   };
+}
+
+function buildSubscriberRequestHistory(user, requests) {
+  if (!Array.isArray(user?.roles) || !user.roles.includes("SUBSCRIBER")) {
+    return [];
+  }
+
+  const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+  return (Array.isArray(requests) ? requests : [])
+    .filter((request) => Number(request?.userId) === Number(user.id))
+    .filter((request) => {
+      const sourceDate = request?.submittedAt || request?.createdAt || request?.updatedAt || null;
+      if (!sourceDate) {
+        return true;
+      }
+      const parsed = new Date(sourceDate).getTime();
+      return Number.isFinite(parsed) ? parsed >= oneYearAgo : true;
+    })
+    .map((request) => ({
+      requestId: request.id || request.requestId || null,
+      requestDate: request.submittedAt || request.createdAt || null,
+      updatedAt: request.updatedAt || null,
+      status: request.status || null,
+      completionStatus: request.completionStatus || null,
+      paymentStatus: request.paymentStatus || null,
+      providerPayoutStatus: request.providerPayoutStatus || null,
+      fullName: request.fullName || "",
+      phoneNumber: request.phoneNumber || "",
+      location: request.location || "",
+      vehicleInfo: request.vehicleInfo || "",
+      serviceType: request.serviceType || "",
+      notes: request.notes || "",
+      etaMinutes: Number.isFinite(Number(request.etaMinutes)) ? Number(request.etaMinutes) : null,
+      assignedProviderId: request.assignedProviderId || null,
+      customerEtaAcceptedAt: request.customerEtaAcceptedAt || null,
+      arrivalConfirmedAt: request.arrivalConfirmedAt || null,
+      completionConfirmedAt: request.completionConfirmedAt || null,
+      paymentPromptedAt: request.paymentPromptedAt || null,
+      amountCharged: Number(request.amountCharged || 0),
+      amountCollected: Number(request.amountCollected || 0)
+    }))
+    .sort((left, right) => {
+      const leftTime = new Date(left.updatedAt || left.requestDate || 0).getTime();
+      const rightTime = new Date(right.updatedAt || right.requestDate || 0).getTime();
+      return rightTime - leftTime;
+    });
 }
 
 async function getFrontendConfigPayload(req = null) {
@@ -985,6 +1119,8 @@ async function getFrontendConfigPayload(req = null) {
     guestDispatchFee,
     subscriberDispatchFee,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
+    walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
+    uiEventMap: AW_ROADSIDE_POLICY.uiEventMap,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion,
     compatibilityGatewayUrl: `${baseUrl}/api/compat/status`,
     compatibilityManifestUrl: `${baseUrl}/api/compat/manifest`,
@@ -999,9 +1135,9 @@ function createServicePaymentQuote(request) {
     throw new Error("A backend requestId is required before service payment.");
   }
 
-  const etaMinutes = Number.isFinite(Number(request?.etaMinutes)) ? Number(request.etaMinutes) : null;
+  const etaMinutes = readNumericValue(request?.etaMinutes);
   const status = readOptionalString(request?.status).toUpperCase();
-  if (etaMinutes === null && !["EN_ROUTE", "ARRIVED", "COMPLETED"].includes(status)) {
+  if (etaMinutes === null) {
     const error = new Error("Service payment is locked until a provider hard ETA is recorded.");
     error.statusCode = 409;
     error.code = "hard-eta-required";
@@ -2671,7 +2807,7 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.providerPayoutStatus =
         request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus || "PENDING";
     } else if (normalizedAction === "subscriber-accept-eta" || normalizedAction === "customer-accept-eta") {
-      if (!Number.isFinite(Number(request.etaMinutes))) {
+      if (readNumericValue(request.etaMinutes) === null) {
         throw new Error("A hard ETA must be recorded before customer ETA acceptance.");
       }
       next.customerEtaAcceptedAt = now;
