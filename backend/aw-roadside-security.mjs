@@ -224,6 +224,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         }
 
         const session = requireSession(req, helpers);
+        const action = decodeURIComponent(requestActionMatch[2]);
         const normalizedAction = action.trim().toLowerCase();
         if (PROVIDER_ONLY_ACTIONS.has(normalizedAction) && !session.roles.includes("PROVIDER")) {
           helpers.sendJson(res, 403, {
@@ -249,7 +250,6 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
 
         const payload = await helpers.readJsonBody(req);
         const requestId = decodeURIComponent(requestActionMatch[1]);
-        const action = decodeURIComponent(requestActionMatch[2]);
         const result = await requestServiceController.applyProviderAction(
           requestId,
           action,
