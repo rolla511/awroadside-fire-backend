@@ -35,8 +35,25 @@ const ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES = new Map([
   ["text/plain", ".txt"],
   ["image/jpeg", ".jpeg"]
 ]);
+
+function readBooleanEnv(value, fallback = false) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "0", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
+
 const subscriberMonthlyFee = Number.parseFloat(process.env.SUBSCRIBER_MONTHLY_FEE || "5");
 const providerMonthlyFee = Number.parseFloat(process.env.PROVIDER_MONTHLY_FEE || "5.99");
+const publicPricingVisible = readBooleanEnv(process.env.PUBLIC_PRICING_VISIBLE, false);
+const showInternalPreviewData = readBooleanEnv(process.env.SHOW_INTERNAL_PREVIEW_DATA, false);
 const PROVIDER_ASSESSMENT_QUESTIONS = [
   { id: "jumpstartProcedure", prompt: "How do you safely perform a jumpstart?" },
   { id: "jackPlacement", prompt: "Where do you place a jack on a car?" },
@@ -1115,6 +1132,8 @@ async function getFrontendConfigPayload(req = null) {
     subscriberServicePrice,
     subscriberMonthlyFee,
     providerMonthlyFee,
+    publicPricingVisible,
+    showInternalPreviewData,
     assignmentFee,
     guestDispatchFee,
     subscriberDispatchFee,
