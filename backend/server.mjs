@@ -198,7 +198,12 @@ const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live
 const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
 const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
-const paypalWebhookId = (process.env.PAYPAL_WEBHOOK_ID || "").trim();
+const PAYPAL_WEBHOOK_IDS = Object.freeze({
+  live: "27268198X79844346",
+  sandbox: "4RN22635Y61567938"
+});
+const paypalWebhookId =
+  (process.env.PAYPAL_WEBHOOK_ID || "").trim() || PAYPAL_WEBHOOK_IDS[paypalMode] || "";
 const paypalWebhookPath = "/api/paypal/webhook";
 const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
 const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
