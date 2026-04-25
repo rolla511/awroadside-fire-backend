@@ -21,7 +21,11 @@ const state = {
   serviceQuoteAccepted: false,
   auth: readStoredAuth(),
   admin: readStoredAdmin(),
-  adminDashboard: null
+  adminDashboard: null,
+  adminSearchResults: [],
+  adminSearchRole: "ALL",
+  adminSearchQuery: "",
+  adminSelectedUserProfile: null
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -31,12 +35,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initializeApp() {
+  applyPreviewVisibility();
+  renderPublicPricing();
   setupNavigation();
   renderIdentity();
   renderAdminState();
   setupHomeAuth();
   setupSubscriberModal();
-  applyRuntimeEntryState();
   setupProviderSignup();
   setupProviderSignin();
   setupProviderWorkPanel();
@@ -343,10 +348,10 @@ function setupRequestForm() {
       });
       showBox("submit-status", `Request submitted. Reference ${requestId}.`);
       if (state.paymentConfig?.enabled) {
-        setText("paypal-status", "Optional skip-the-line priority upgrade is available. Service payment remains locked until backend hard ETA agreement.");
+        setText("paypal-status", "Optional skip-the-line priority service is available. Service payment unlocks after the arrival estimate is confirmed.");
         togglePaypalContainer(true);
       } else {
-        setText("paypal-status", "Request submitted. Optional priority upgrade is not configured. Service payment remains locked until backend hard ETA agreement.");
+        setText("paypal-status", "Request submitted. Optional priority service is not configured yet. Service payment unlocks after the arrival estimate is confirmed.");
         togglePaypalContainer(false);
       }
     } catch (error) {
@@ -386,6 +391,8 @@ async function loadFrontendConfig() {
       adminApiBaseUrl: resolveAdminApiBaseUrl(config?.adminApiBaseUrl || runtimeConfig.adminApiBaseUrl)
     };
     state.compatibilityManifest = manifest?.manifest || null;
+    applyPreviewVisibility();
+    renderPublicPricing(config);
 
     setText("backend-status", health.status.toUpperCase());
     setText("backend-service", "Service is available");
@@ -393,9 +400,6 @@ async function loadFrontendConfig() {
     setText("api-url", "Dispatch online");
     setText("api-status", "Service is available.");
     setText("security-layer-name", "Ready");
-    setText("priority-price", formatUsd(config.priorityServicePrice || 25));
-    setText("subscriber-monthly-price", "$5.00/mo");
-    setText("provider-monthly-price", "$5.99/mo");
     setVariantState(
       state.compatibilityManifest?.mode || "ready",
       state.compatibilityManifest
@@ -403,6 +407,8 @@ async function loadFrontendConfig() {
         : "Manifest loaded"
     );
   } catch (error) {
+    applyPreviewVisibility();
+    renderPublicPricing();
     setText("backend-status", "OFF");
     setText("backend-service", "Service unavailable");
     setText("api-status", `Unable to reach dispatch: ${error.message}`);
@@ -452,13 +458,13 @@ async function loadPaymentConfig() {
     state.paymentConfig = config;
 
     if (!config.enabled || !config.clientId) {
-      setText("paypal-status", "PayPal priority upgrade is not configured.");
+      setText("paypal-status", "Optional priority payment is not configured.");
       togglePaypalContainer(false);
       return;
     }
 
-    setText("paypal-status", "Optional skip-the-line priority upgrade is available after request submission.");
-    setText("priority-price", formatUsd(config.priorityServicePrice || 25));
+    setText("paypal-status", "Optional priority payment is available after request submission.");
+    renderPublicPricing(config);
     await ensurePaypalSdk(config.clientId, config.currency || "USD");
     renderPaypalButtons();
   } catch (error) {
@@ -550,6 +556,16 @@ function renderPaypalButtons() {
         throw new Error(payload.message || payload.error || "Unable to capture PayPal order.");
       }
 
+      if (payload.request) {
+        state.pendingRequest = { ...state.pendingRequest, ...payload.request };
+        rememberRequest({
+          requestId: payload.request.requestId || payload.request.id || state.pendingRequest?.requestId || null,
+          serviceType: payload.request.serviceType || state.pendingRequest?.serviceType || "",
+          status: payload.request.status || state.pendingRequest?.status || "SUBMITTED",
+          mode: state.auth?.subscriberActive ? "subscriber" : "guest"
+        });
+      }
+
       recordPaymentEvent({
         event: "order-captured",
         orderId: data.orderID,
@@ -581,7 +597,7 @@ function setupPaymentAgreement() {
   if (agreeButton) {
     agreeButton.addEventListener("click", () => {
       if (!state.servicePaymentQuote) {
-        showBox("service-payment-status", "Backend service quote is required before agreement.");
+        showBox("service-payment-status", "The current service price is required before agreement.");
         return;
       }
       state.serviceQuoteAccepted = true;
@@ -593,7 +609,7 @@ function setupPaymentAgreement() {
       });
       showBox(
         "service-payment-status",
-        `Agreed to backend quote ${state.servicePaymentQuote.amount.value} ${state.servicePaymentQuote.amount.currency_code}. Service checkout can proceed only through the backend.`
+        `Agreed to the current service price of ${state.servicePaymentQuote.amount.value} ${state.servicePaymentQuote.amount.currency_code}.`
       );
     });
   }
@@ -614,7 +630,7 @@ async function loadServicePaymentQuote() {
     });
     const payload = await response.json();
     if (!response.ok || !payload.quoteId) {
-      throw new Error(payload.message || payload.error || "Backend quote was not available.");
+      throw new Error(payload.message || payload.error || "The current service price is not available yet.");
     }
     state.servicePaymentQuote = payload;
     state.serviceQuoteAccepted = false;
@@ -626,7 +642,7 @@ async function loadServicePaymentQuote() {
     });
     showBox(
       "service-payment-status",
-      `Backend quote ready: ${payload.amount.value} ${payload.amount.currency_code}. Customer agreement is required before service payment.`
+      `Service price ready: ${payload.amount.value} ${payload.amount.currency_code}. Please agree before continuing.`
     );
   } catch (error) {
     state.servicePaymentQuote = null;
@@ -721,7 +737,7 @@ function setupAdminPanel() {
           return;
         }
         if (!payload.token) {
-          throw new Error("Admin token missing from backend response.");
+          throw new Error("Admin token missing from service response.");
         }
 
         state.admin = {
@@ -761,6 +777,40 @@ function setupAdminPanel() {
       });
     });
 
+  const adminDirectory = document.querySelectorAll("#admin-search-results, #admin-user-profile");
+  adminDirectory.forEach((container) => {
+    container.addEventListener("click", async (event) => {
+      const viewButton = event.target.closest("[data-admin-view-user]");
+      if (viewButton) {
+        event.preventDefault();
+        await loadAdminUserProfile(viewButton.getAttribute("data-admin-view-user"));
+        return;
+      }
+
+      const button = event.target.closest("[data-admin-action]");
+      if (!button) {
+        return;
+      }
+      event.preventDefault();
+      await handleAdminAction(button);
+      const selectedUserId = button.getAttribute("data-user-id");
+      if (selectedUserId) {
+        await loadAdminUserProfile(selectedUserId);
+      }
+    });
+  });
+
+  const adminSearchForm = document.getElementById("admin-search-form");
+  if (adminSearchForm) {
+    adminSearchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(adminSearchForm);
+      state.adminSearchQuery = normalizeField(formData.get("query"));
+      state.adminSearchRole = normalizeField(formData.get("role")).toUpperCase() || "ALL";
+      await loadAdminSearch();
+    });
+  }
+
   const refreshButton = document.getElementById("watchdog-refresh-button");
   if (refreshButton) {
     refreshButton.addEventListener("click", async () => {
@@ -799,8 +849,68 @@ async function loadAdminDashboard() {
     setText("admin-status-badge", payload.trustedZone || "Active");
     setText("admin-status-text", `Location zone: ${payload.locationZone || "not set"}.`);
     renderAdminCollections();
+    renderAdminDirectory();
   } catch (error) {
     showBox("admin-login-status", error.message);
+  }
+}
+
+async function loadAdminSearch() {
+  if (!state.admin?.token) {
+    showBox("admin-search-status", "Admin login is required.");
+    return;
+  }
+
+  const query = normalizeField(state.adminSearchQuery);
+  const role = normalizeField(state.adminSearchRole).toUpperCase() || "ALL";
+  if (!query) {
+    state.adminSearchResults = [];
+    state.adminSelectedUserProfile = null;
+    renderAdminDirectory();
+    showBox("admin-search-status", "Enter a name, email, phone number, service area, or account id.");
+    return;
+  }
+
+  try {
+    const searchParams = new URLSearchParams({ q: query, role });
+    const response = await adminFetch(`/search?${searchParams.toString()}`, {
+      method: "GET",
+      headers: adminAuthHeaders()
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.message || payload.error || "Unable to search admin accounts.");
+    }
+    state.adminSearchResults = Array.isArray(payload.users) ? payload.users : [];
+    renderAdminDirectory();
+    showBox("admin-search-status", `${state.adminSearchResults.length} account(s) matched.`);
+  } catch (error) {
+    showBox("admin-search-status", error.message);
+  }
+}
+
+async function loadAdminUserProfile(userId) {
+  if (!state.admin?.token) {
+    showBox("admin-search-status", "Admin login is required.");
+    return;
+  }
+  if (!userId) {
+    return;
+  }
+
+  try {
+    const response = await adminFetch(`/users/${encodeURIComponent(userId)}/profile`, {
+      method: "GET",
+      headers: adminAuthHeaders()
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.message || payload.error || "Unable to load account profile.");
+    }
+    state.adminSelectedUserProfile = payload;
+    renderAdminDirectory();
+  } catch (error) {
+    showBox("admin-search-status", error.message);
   }
 }
 
@@ -863,6 +973,13 @@ async function handleAdminAction(button) {
 }
 
 function renderAdminCollections() {
+  const walletTerms = state.adminDashboard?.policy?.financial?.walletDisplayTerms || null;
+  setText(
+    "admin-financial-policy",
+    walletTerms
+      ? `${walletTerms.summary} ${walletTerms.thirdPartyResponsibility} ${walletTerms.expectedParity} ${walletTerms.discrepancyProcess}`
+      : "Financial record terms will appear after login."
+  );
   renderAdminList(
     "admin-subscriber-list",
     Array.isArray(state.adminDashboard?.subscribers) ? state.adminDashboard.subscribers : [],
@@ -887,6 +1004,29 @@ function renderAdminCollections() {
     renderFinancialAdminItem,
     "Financial records will appear after login."
   );
+}
+
+function renderAdminDirectory() {
+  renderAdminList(
+    "admin-search-results",
+    Array.isArray(state.adminSearchResults) ? state.adminSearchResults : [],
+    renderAdminSearchResult,
+    state.admin?.token
+      ? "Search by name, email, phone, service area, or account id."
+      : "Search results will appear here after admin login."
+  );
+
+  const container = document.getElementById("admin-user-profile");
+  if (!container) {
+    return;
+  }
+
+  if (!state.adminSelectedUserProfile?.user) {
+    container.innerHTML = '<div class="admin-empty">Choose a search result to inspect account status, support context, and recent request history.</div>';
+    return;
+  }
+
+  container.innerHTML = renderAdminUserProfile(state.adminSelectedUserProfile);
 }
 
 function renderAdminList(id, items, renderer, emptyMessage) {
@@ -917,7 +1057,7 @@ function renderSubscriberAdminItem(subscriber) {
           <strong>${escapeHtml(subscriber.fullName || subscriber.email)}</strong>
           <small>${escapeHtml(subscriber.email || "No email")} · ${escapeHtml(subscriber.phoneNumber || "No phone")}</small>
         </div>
-        <span class="badge">${escapeHtml(subscriber.subscriptionStatus || "UNKNOWN")}</span>
+        <span class="badge">${escapeHtml(prettifyToken(subscriber.subscriptionStatus || "UNKNOWN"))}</span>
       </div>
       <div class="admin-item-meta">
         <span>Billing: ${escapeHtml(formatTimestamp(subscriber.nextBillingDate))}</span>
@@ -944,13 +1084,87 @@ function renderProviderAdminItem(provider) {
           <strong>${escapeHtml(provider.fullName || provider.email)}</strong>
           <small>${escapeHtml(provider.email || "No email")} · ${escapeHtml(provider.phoneNumber || "No phone")}</small>
         </div>
-        <span class="badge">${escapeHtml(provider.providerStatus || "DRAFT")}</span>
+        <span class="badge">${escapeHtml(labelUiStatus("providerStatus", provider.providerStatus || "DRAFT"))}</span>
       </div>
       <div class="admin-item-meta">
-        <span>State: ${escapeHtml(provider.accountState || "ACTIVE")}</span>
-        <span>Services: ${escapeHtml((provider.services || []).join(", ") || "Not set")}</span>
+        <span>State: ${escapeHtml(prettifyToken(provider.accountState || "ACTIVE"))}</span>
+        <span>Services: ${escapeHtml((provider.services || []).map(labelServiceType).join(", ") || "Not set")}</span>
       </div>
       <div class="button-pair">${approveButton}</div>
+    </article>
+  `;
+}
+
+function renderAdminSearchResult(user) {
+  const roles = Array.isArray(user.roles) ? user.roles.join(", ") : "Unknown";
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(user.fullName || user.email || `User ${user.id}`)}</strong>
+          <small>#${escapeHtml(user.id)} · ${escapeHtml(user.email || "No email")} · ${escapeHtml(user.phoneNumber || "No phone")}</small>
+        </div>
+        <span class="badge">${escapeHtml(prettifyToken(roles))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>State: ${escapeHtml(prettifyToken(user.accountState || "ACTIVE"))}</span>
+        <span>Provider: ${escapeHtml(prettifyToken(user.providerStatus || "n/a"))}</span>
+        <span>Requests: ${escapeHtml(String(user.requestCount || 0))}</span>
+        <span>Active: ${escapeHtml(String(user.activeRequestCount || 0))}</span>
+      </div>
+      <p class="muted">${escapeHtml(user.serviceArea || user.currentLocation || "No service-area or location note available.")}</p>
+      <div class="button-pair">
+        <button class="glow-button compact" type="button" data-admin-view-user="${escapeHtml(user.id)}">Open Profile</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminUserProfile(profile) {
+  const user = profile.user || {};
+  const subscriber = profile.subscriber || null;
+  const provider = profile.provider || null;
+  const supportSummary = profile.supportSummary || {};
+  const nextAccountState = user.accountState === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
+  const customerRequests = Array.isArray(profile.recentCustomerRequests) ? profile.recentCustomerRequests : [];
+  const providerRequests = Array.isArray(profile.recentProviderRequests) ? profile.recentProviderRequests : [];
+  const providerApproveButton = provider?.providerStatus === "PENDING_APPROVAL"
+    ? `<button class="glow-button compact" type="button" data-admin-action="approve-provider" data-user-id="${escapeHtml(user.id)}">Approve Provider</button>`
+    : "";
+
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(user.fullName || user.email || `User ${user.id}`)}</strong>
+          <small>#${escapeHtml(user.id)} · ${escapeHtml((user.roles || []).join(", ") || "No roles")}</small>
+        </div>
+        <span class="badge">${escapeHtml(prettifyToken(user.accountState || "ACTIVE"))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>Email: ${escapeHtml(user.email || "Not set")}</span>
+        <span>Phone: ${escapeHtml(user.phoneNumber || "Not set")}</span>
+        <span>Signed up: ${escapeHtml(formatTimestamp(user.signUpDate))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>Customer requests: ${escapeHtml(String(supportSummary.customerRequestCount || 0))}</span>
+        <span>Provider requests: ${escapeHtml(String(supportSummary.providerRequestCount || 0))}</span>
+        <span>Customer live: ${escapeHtml(String(supportSummary.activeCustomerRequests || 0))}</span>
+        <span>Provider live: ${escapeHtml(String(supportSummary.activeProviderRequests || 0))}</span>
+      </div>
+      ${subscriber ? `<p class="muted">Subscriber status: ${escapeHtml(prettifyToken(subscriber.subscriptionStatus || "inactive"))} · Vehicles: ${escapeHtml((subscriber.savedVehicles || []).map(formatVehicleSummary).join(" | ") || "None")} · Billing: ${escapeHtml(formatTimestamp(subscriber.nextBillingDate))}</p>` : ""}
+      ${provider ? `<p class="muted">Provider status: ${escapeHtml(labelUiStatus("providerStatus", provider.providerStatus || "DRAFT"))} · Service area: ${escapeHtml(provider.serviceArea || "Not set")} · Services: ${escapeHtml((provider.services || []).map(labelServiceType).join(", ") || "Not set")}</p>` : ""}
+      ${provider ? `<p class="muted">Hours configured: ${provider.hoursOfService?.hasHours ? "Yes" : "No"} · Documents ready: ${provider.documentStatus?.meetsMinimumRequirements ? "Yes" : "No"} · PayPal email: ${escapeHtml(provider.paypal?.email || "Not linked")}</p>` : ""}
+      <div class="button-pair">
+        <button class="glow-button alt compact" type="button" data-admin-action="set-account-state" data-user-id="${escapeHtml(user.id)}" data-account-state="${escapeHtml(nextAccountState)}">${escapeHtml(nextAccountState === "SUSPENDED" ? "Suspend User" : "Reactivate User")}</button>
+        ${providerApproveButton}
+      </div>
+      <div class="admin-item-meta">
+        <span>Recent customer requests: ${escapeHtml(String(customerRequests.length))}</span>
+        <span>Recent provider requests: ${escapeHtml(String(providerRequests.length))}</span>
+      </div>
+      ${customerRequests.length ? customerRequests.map((entry) => `<div class="muted">${escapeHtml(entry.requestId)} · ${escapeHtml(labelServiceType(entry.serviceType))} · ${escapeHtml(labelUiStatus("requestStatus", entry.status || "UNKNOWN"))} · ${escapeHtml(formatTimestamp(entry.submittedAt))}</div>`).join("") : '<div class="muted">No recent customer requests.</div>'}
+      ${providerRequests.length ? providerRequests.map((entry) => `<div class="muted">${escapeHtml(entry.requestId)} · ${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(labelUiStatus("requestStatus", entry.status || "UNKNOWN"))} · ${escapeHtml(formatTimestamp(entry.submittedAt))}</div>`).join("") : '<div class="muted">No recent provider assignments.</div>'}
     </article>
   `;
 }
@@ -963,13 +1177,13 @@ function renderServiceHistoryItem(entry) {
           <strong>${escapeHtml(entry.requestId || "Unknown request")}</strong>
           <small>${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(entry.phoneNumber || "No phone")}</small>
         </div>
-        <span class="badge">${escapeHtml(entry.completionStatus || "OPEN")}</span>
+        <span class="badge">${escapeHtml(labelUiStatus("requestStatus", entry.completionStatus || "OPEN"))}</span>
       </div>
       <div class="admin-item-meta">
-        <span>${escapeHtml(entry.serviceType || "Service")}</span>
-        <span>${escapeHtml(entry.customerType || "UNKNOWN")}</span>
+        <span>${escapeHtml(labelServiceType(entry.serviceType || "Service"))}</span>
+        <span>${escapeHtml(prettifyToken(entry.customerType || "UNKNOWN"))}</span>
         <span>${escapeHtml(entry.providerAssigned || "Unassigned")}</span>
-        <span>${escapeHtml(entry.paymentStatus || "UNKNOWN")}</span>
+        <span>${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</span>
       </div>
       <p class="muted">Refund flag: ${entry.refundFlag ? "Yes" : "No"} · Dispute flag: ${entry.disputeFlag ? "Yes" : "No"} · Requested: ${escapeHtml(formatTimestamp(entry.requestDate))}</p>
       <div class="button-pair">
@@ -987,12 +1201,12 @@ function renderFinancialAdminItem(entry) {
           <strong>${escapeHtml(entry.requestId || "Unknown request")}</strong>
           <small>${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(entry.providerAssigned || "Unassigned")}</small>
         </div>
-        <span class="badge">${escapeHtml(entry.providerPayoutStatus || "UNASSIGNED")}</span>
+        <span class="badge">${escapeHtml(labelUiStatus("payoutStatus", entry.providerPayoutStatus || "UNASSIGNED"))}</span>
       </div>
       <div class="admin-item-meta">
         <span>Charged: ${escapeHtml(formatUsd(entry.amountCharged || 0))}</span>
         <span>Collected: ${escapeHtml(formatUsd(entry.amountCollected || 0))}</span>
-        <span>Payment: ${escapeHtml(entry.paymentStatus || "UNKNOWN")}</span>
+        <span>Payment: ${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</span>
       </div>
       <p class="muted">Refund issued: ${entry.refundIssued ? "Yes" : "No"} · Refund flag: ${entry.refundFlag ? "Yes" : "No"} · Dispute flag: ${entry.disputeFlag ? "Yes" : "No"}</p>
       <div class="button-pair">
@@ -1099,9 +1313,12 @@ function renderProviderWorkList() {
       const requestId = request.requestId || request.id || "unknown";
       return `<div class="provider-work-card">
         <div>
-          <div class="value">${escapeHtml(request.serviceType || "Service")} · ${escapeHtml(request.fullName || "Customer")}</div>
+          <div class="value">${escapeHtml(labelServiceType(request.serviceType || "Service"))} · ${escapeHtml(request.fullName || "Customer")}</div>
           <div class="muted">${escapeHtml(request.location || "Location not provided")}</div>
-          <div class="muted">Status: ${escapeHtml(request.status || "UNKNOWN")} · Reference ${escapeHtml(requestId)}</div>
+          <div class="muted">Status: ${escapeHtml(labelUiStatus("requestStatus", request.status || "UNKNOWN"))} · Reference ${escapeHtml(requestId)}</div>
+          <div class="muted">ETA stage: ${escapeHtml(prettifyToken(request.etaStage || "pending"))} · Soft ETA: ${escapeHtml(String(request.softEtaMinutes ?? "Not set"))} · Hard ETA: ${escapeHtml(String(request.hardEtaMinutes ?? "Locked"))}</div>
+          <div class="muted">Location access: ${escapeHtml(prettifyToken(request.locationDisclosureLevel || "masked"))} · Contact access: ${escapeHtml(prettifyToken(request.contactDisclosureLevel || "locked"))}</div>
+          <div class="muted">Customer callback: ${escapeHtml(request.customerCallbackNumber || "Locked until payment and provider activation")}</div>
         </div>
         <div class="provider-action-grid">
           ${renderProviderActionButton(requestId, "accept", "Accept")}
@@ -1136,7 +1353,7 @@ async function queueProviderAction(requestId, action) {
     route: entry.route,
     status: "queued-frontend",
     requestId,
-    message: "Provider action sent through the backend controller."
+      message: "Provider action sent to dispatch."
   });
   renderProviderActionQueue();
   showBox("provider-work-status", `${labelProviderAction(action)} queued for ${requestId}.`);
@@ -1166,8 +1383,8 @@ async function queueProviderAction(requestId, action) {
     showBox(
       "provider-work-status",
       payload.committed === false
-        ? `${labelProviderAction(action)} accepted by backend as pending for ${requestId}.`
-        : `${labelProviderAction(action)} committed by backend for ${requestId}.`
+        ? `${labelProviderAction(action)} saved for dispatch review for ${requestId}.`
+        : `${labelProviderAction(action)} recorded for ${requestId}.`
     );
     await loadProviderQueue();
   } catch (error) {
@@ -1185,13 +1402,6 @@ async function queueProviderAction(requestId, action) {
     renderProviderActionQueue();
     showBox("provider-work-status", error.message);
   }
-}
-
-function labelProviderAction(action) {
-  return action
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function recordRequestHistory(entry) {
@@ -1234,28 +1444,28 @@ function renderProcessingCenter() {
   renderList("processing-log-list", state.processingLog, (entry) => {
     const status = entry.httpStatus ? `${entry.status} ${entry.httpStatus}` : entry.status;
     return `<div class="item">
-      <div class="value">${escapeHtml(entry.action || entry.method || "route")} · ${escapeHtml(status || "pending")}</div>
+      <div class="value">${escapeHtml(labelProcessingEntry(entry.action || entry.method || "route"))} · ${escapeHtml(labelProcessingStatus(status || "pending"))}</div>
       <div class="muted">${escapeHtml(entry.route || "local")} · ${formatTimestamp(entry.timestamp)}</div>
       ${entry.message ? `<div class="muted">${escapeHtml(entry.message)}</div>` : ""}
     </div>`;
   }, "No route events stored yet.");
 
   renderList("request-history-list", state.requestHistory, (entry) => `<div class="item">
-    <div class="value">${escapeHtml(entry.requestId || "pending")} · ${escapeHtml(entry.serviceType || "service")}</div>
-    <div class="muted">${escapeHtml(entry.status || "submitted")} · ${escapeHtml(entry.mode || "guest")} · ${formatTimestamp(entry.timestamp)}</div>
+    <div class="value">${escapeHtml(entry.requestId || "pending")} · ${escapeHtml(labelServiceType(entry.serviceType || "service"))}</div>
+    <div class="muted">${escapeHtml(labelUiStatus("requestStatus", entry.status || "submitted"))} · ${escapeHtml(entry.mode || "guest")} · ${formatTimestamp(entry.timestamp)}</div>
   </div>`, "No request history stored yet.");
 
   renderList("payment-ledger-list", state.paymentLedger, (entry) => `<div class="item">
-    <div class="value">${escapeHtml(entry.event || "payment")} · ${escapeHtml(entry.status || "pending")}</div>
+    <div class="value">${escapeHtml(labelPaymentEvent(entry.event || "payment"))} · ${escapeHtml(labelUiStatus("paymentStatus", entry.status || "pending"))}</div>
     <div class="muted">Order ${escapeHtml(entry.orderId || "not assigned")} · Request ${escapeHtml(entry.requestId || "pending")} · ${formatTimestamp(entry.timestamp)}</div>
   </div>`, "No payment events stored yet.");
 }
 
 function renderProviderActionQueue() {
   renderList("provider-action-queue-list", state.providerActionQueue, (entry) => `<div class="item">
-    <div class="value">${escapeHtml(labelProviderAction(entry.action || "action"))} · ${escapeHtml(entry.status || "queued")}</div>
+    <div class="value">${escapeHtml(labelProviderAction(entry.action || "action"))} · ${escapeHtml(labelProcessingStatus(entry.status || "queued"))}</div>
     <div class="muted">Request ${escapeHtml(entry.requestId || "unknown")} · ${formatTimestamp(entry.updatedAt || entry.timestamp)}</div>
-    ${entry.backendStatus ? `<div class="muted">Backend status: ${escapeHtml(entry.backendStatus)}</div>` : ""}
+    ${entry.backendStatus ? `<div class="muted">Current step: ${escapeHtml(labelUiStatus("requestStatus", entry.backendStatus))}</div>` : ""}
     ${entry.error ? `<div class="muted">${escapeHtml(entry.error)}</div>` : ""}
   </div>`, "No provider actions queued yet.");
 }
@@ -1294,7 +1504,6 @@ function collectRequestFormData(form) {
   return {
     userId: state.auth?.userId || null,
     roles: state.auth?.roles || [],
-    subscriberActive: Boolean(state.auth?.subscriberActive),
     fullName: normalizeField(formData.get("fullName")),
     phoneNumber: normalizeField(formData.get("phoneNumber")),
     serviceType: normalizeField(formData.get("serviceType")),
@@ -1316,7 +1525,7 @@ function renderIdentity() {
   const profile = auth?.profile || null;
   const detail = auth
     ? auth.roles.includes("PROVIDER")
-      ? `Provider signed in${auth.providerStatus ? ` · ${auth.providerStatus}` : ""}`
+      ? `Provider signed in${auth.providerStatus ? ` · ${labelUiStatus("providerStatus", auth.providerStatus)}` : ""}`
       : auth.roles.includes("SUBSCRIBER")
         ? `Subscriber signed in${auth.subscriberActive ? " · membership active" : ""}`
         : "Signed in"
@@ -1333,7 +1542,7 @@ function renderIdentity() {
   );
   setText("provider-identity-role", roleText);
   setText("provider-identity-state", detail);
-  setText("provider-admin-status", auth?.providerStatus ? `Provider status: ${auth.providerStatus}.` : "Provider status will appear after sign-in.");
+  setText("provider-admin-status", auth?.providerStatus ? `Provider status: ${labelUiStatus("providerStatus", auth.providerStatus)}.` : "Provider status will appear after sign-in.");
   setText("provider-service-list", formatProviderServices(profile));
   setText("provider-vehicle-summary", formatProviderVehicle(profile));
 }
@@ -1371,11 +1580,6 @@ function setupNavigation() {
 }
 
 function readScreenFromHash() {
-  const forcedScreen = normalizeScreenValue(readForcedScreen());
-  if (forcedScreen) {
-    return forcedScreen;
-  }
-
   const pathname = window.location.pathname.toLowerCase();
   if (pathname.endsWith("/customer.html")) {
     return "customer";
@@ -1390,50 +1594,11 @@ function readScreenFromHash() {
     return "home";
   }
 
-  const value = normalizeScreenValue(window.location.hash.replace(/^#/, "").trim().toLowerCase());
-  if (isKnownScreen(value)) {
+  const value = window.location.hash.replace(/^#/, "").trim().toLowerCase();
+  if (["home", "customer", "provider", "admin", "security"].includes(value)) {
     return value;
   }
   return "home";
-}
-
-function readForcedScreen() {
-  const candidate =
-    normalizeUrlValue(runtimeConfig.frontendConfig?.forcedScreen) ||
-    normalizeUrlValue(runtimeConfig.forcedScreen);
-  const normalized = normalizeScreenValue(candidate);
-  return isKnownScreen(normalized) ? normalized : "";
-}
-
-function isKnownScreen(value) {
-  return ["home", "customer", "provider", "admin", "security"].includes(value);
-}
-
-function normalizeScreenValue(value) {
-  return value === "subscriber" ? "customer" : value;
-}
-
-function applyRuntimeEntryState() {
-  const query = new URLSearchParams(window.location.search);
-  const intent = normalizeField(
-    query.get("intent") ||
-    runtimeConfig.frontendConfig?.entryIntent ||
-    runtimeConfig.entryIntent
-  ).toLowerCase();
-  const autoOpenSubscriber = Boolean(runtimeConfig.frontendConfig?.autoOpenMemberSignup);
-
-  if (intent === "subscribe" || autoOpenSubscriber) {
-    switchScreen("customer");
-    showModal("member-signup-modal");
-  }
-}
-
-function showModal(id) {
-  const modal = document.getElementById(id);
-  if (!modal) {
-    return;
-  }
-  modal.hidden = false;
 }
 
 function switchScreen(screen) {
@@ -1613,7 +1778,7 @@ async function fetchJsonFromCandidates(urls, options = {}) {
       const response = await fetch(url, options);
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.message || payload.error || `Request failed with ${response.status}.`);
+        throw new Error(formatUserFacingMessage(payload.message || payload.error || `Request failed with ${response.status}.`));
       }
       recordProcessingEvent({
         action: "backend-route",
@@ -1649,7 +1814,7 @@ function renderProfileState(profile) {
 
 function formatProviderServices(profile) {
   const services = Array.isArray(profile?.services) ? profile.services.filter(Boolean) : [];
-  return services.length ? `Services: ${services.join(", ")}` : "Services: not loaded.";
+  return services.length ? `Services: ${services.map(labelServiceType).join(", ")}` : "Services: not loaded.";
 }
 
 function formatProviderVehicle(profile) {
@@ -1740,6 +1905,22 @@ function normalizeUrlValue(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function parseBooleanFlag(value, fallback = false) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
 function readRuntimeConfig() {
   const config = window.AWRoadsideConfig || window.awRoadsideConfig || {};
   return {
@@ -1751,7 +1932,9 @@ function readRuntimeConfig() {
     bootstrapFrontendConfigUrl: normalizeUrlValue(config.bootstrapFrontendConfigUrl),
     bootstrapManifestUrl: normalizeUrlValue(config.bootstrapManifestUrl),
     bootstrapAcknowledgeUrl: normalizeUrlValue(config.bootstrapAcknowledgeUrl),
-    frontendConfig: config.frontendConfig && typeof config.frontendConfig === "object" ? config.frontendConfig : null
+    frontendConfig: config.frontendConfig && typeof config.frontendConfig === "object" ? config.frontendConfig : null,
+    publicPricingVisible: parseBooleanFlag(config.publicPricingVisible, false),
+    showInternalPreviewData: parseBooleanFlag(config.showInternalPreviewData, false)
   };
 }
 
@@ -1789,7 +1972,7 @@ function showBox(id, message) {
   if (!element) {
     return;
   }
-  element.textContent = message;
+  element.textContent = formatUserFacingMessage(message);
   element.style.display = "block";
 }
 
@@ -1803,6 +1986,52 @@ function setText(id, value) {
 function setVariantState(mode, detail) {
   setText("variant-mode", String(mode || "unknown").toUpperCase());
   setText("variant-detail", detail || "Variant state unavailable.");
+}
+
+function shouldShowInternalPreviewData() {
+  return parseBooleanFlag(state.frontendConfig?.showInternalPreviewData, runtimeConfig.showInternalPreviewData);
+}
+
+function shouldShowPublicPricing() {
+  return parseBooleanFlag(state.frontendConfig?.publicPricingVisible, runtimeConfig.publicPricingVisible);
+}
+
+function applyPreviewVisibility() {
+  const showInternalPreviewData = shouldShowInternalPreviewData();
+  document.querySelectorAll("[data-internal-preview]").forEach((element) => {
+    element.hidden = !showInternalPreviewData;
+  });
+}
+
+function formatMonthlyUsd(amount) {
+  return `${formatUsd(amount)}/mo`;
+}
+
+function hasDisplayPrice(value) {
+  return Number.isFinite(Number(value));
+}
+
+function renderPublicPricing(config = null) {
+  const source = config || state.paymentConfig || state.frontendConfig || {};
+  if (shouldShowPublicPricing()) {
+    setText(
+      "priority-price",
+      hasDisplayPrice(source.priorityServicePrice) ? formatUsd(source.priorityServicePrice) : "Available after request"
+    );
+    setText(
+      "subscriber-monthly-price",
+      hasDisplayPrice(source.subscriberMonthlyFee) ? formatMonthlyUsd(source.subscriberMonthlyFee) : "pricing available on request"
+    );
+    setText(
+      "provider-monthly-price",
+      hasDisplayPrice(source.providerMonthlyFee) ? formatMonthlyUsd(source.providerMonthlyFee) : "approval-based pricing"
+    );
+    return;
+  }
+
+  setText("priority-price", "Available after request");
+  setText("subscriber-monthly-price", "pricing available on request");
+  setText("provider-monthly-price", "approval-based pricing");
 }
 
 function togglePaypalContainer(show) {
@@ -1825,6 +2054,94 @@ function formatTimestamp(value) {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+}
+
+function uiEventMap() {
+  return state.adminDashboard?.policy?.uiEventMap || state.frontendConfig?.uiEventMap || state.paymentConfig?.uiEventMap || {};
+}
+
+function labelUiStatus(group, value) {
+  const normalized = normalizeField(String(value || "")).toUpperCase();
+  const map = uiEventMap()?.[group] || {};
+  return map[normalized] || map[value] || prettifyToken(value || "Unknown");
+}
+
+function labelServiceType(value) {
+  const map = uiEventMap()?.serviceTypes || {};
+  return map[value] || map[normalizeField(String(value || "")).toUpperCase()] || prettifyToken(value || "Service");
+}
+
+function labelProviderAction(action) {
+  const map = uiEventMap()?.providerActions || {};
+  return map[action] || prettifyToken(action || "action");
+}
+
+function labelPaymentEvent(value) {
+  return prettifyToken(String(value || "payment").replace(/^order-/, "payment-"));
+}
+
+function labelProcessingEntry(value) {
+  return value === "backend-route" ? "Service event" : prettifyToken(value || "route");
+}
+
+function labelProcessingStatus(value) {
+  const normalized = normalizeField(String(value || "")).toLowerCase();
+  return {
+    accepted: "Accepted",
+    rejected: "Needs review",
+    "network-error": "Connection issue",
+    blocked: "Blocked",
+    queued: "Queued",
+    "queued-frontend": "Queued",
+    "backend-pending": "Pending",
+    "backend-committed": "Recorded",
+    "backend-error": "Action failed",
+    error: "Action failed",
+  }[normalized] || prettifyToken(value || "pending");
+}
+
+function formatUserFacingMessage(message) {
+  const text = normalizeField(message);
+  if (!text) {
+    return "";
+  }
+
+  const normalized = text.toLowerCase();
+  if (normalized.includes("hard eta")) {
+    return "Service payment will unlock once the provider records a soft ETA.";
+  }
+  if (normalized.includes("payment must be captured before live communication is unlocked")) {
+    return "Direct provider-to-customer communication unlocks only after payment is captured.";
+  }
+  if (normalized.includes("backend service quote")) {
+    return "The current service price is required before continuing.";
+  }
+  if (normalized.includes("backend quote")) {
+    return text.replace(/backend quote/gi, "service price");
+  }
+  if (normalized.includes("protected backend")) {
+    return text.replace(/protected backend/gi, "dispatch service");
+  }
+  if (normalized.includes("backend response")) {
+    return text.replace(/backend response/gi, "service response");
+  }
+  if (normalized.includes("backend admin routes")) {
+    return text.replace(/backend admin routes/gi, "admin service routes");
+  }
+  if (normalized.includes("backend")) {
+    return text.replace(/backend/gi, "service");
+  }
+  if (normalized.includes("request failed with 5")) {
+    return "Something went wrong on the service side. Please try again.";
+  }
+  return text;
+}
+
+function prettifyToken(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase())
+    .trim() || "Unknown";
 }
 
 function shortHash(value) {

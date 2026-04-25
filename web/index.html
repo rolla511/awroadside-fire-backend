@@ -13,7 +13,7 @@
 <div class="page-shell">
   <header class="topbar">
     <div>
-      <p class="eyebrow">AW Roadside Command</p>
+      <p class="eyebrow">AW Roadside</p>
       <h1 class="brand-title">A-Dub Roadside</h1>
     </div>
     <div class="status-cluster">
@@ -34,16 +34,16 @@
         <img src="assets/roadside-home.png" alt="A-Dub Roadside mobile concept"/>
       </div>
       <div class="sidebar-copy">
-        <p class="eyebrow">Live Flow</p>
-        <h2>One secure frontend, customer to admin.</h2>
-        <p id="identity-state" class="muted">Sign in, continue as guest, or open provider/admin tools.</p>
+        <p class="eyebrow">Roadside Help</p>
+        <h2>One secure place to request service and manage your account.</h2>
+        <p id="identity-state" class="muted">Sign in or continue as guest to request help.</p>
       </div>
       <nav class="nav-stack">
         <a class="nav-link" href="#home" data-nav="home">Home</a>
         <a class="nav-link" href="#customer" data-nav="customer">Customer Request</a>
-        <a class="nav-link" href="#provider" data-nav="provider">Provider Access</a>
-        <a class="nav-link" href="#admin" data-nav="admin">Admin</a>
-        <a class="nav-link" href="#security" data-nav="security">Security</a>
+        <a class="nav-link" href="#provider" data-nav="provider" data-internal-preview>Provider Access</a>
+        <a class="nav-link" href="#admin" data-nav="admin" data-internal-preview>Admin</a>
+        <a class="nav-link" href="#security" data-nav="security" data-internal-preview>Security</a>
       </nav>
       <div class="sidebar-metrics">
         <div class="metric-card">
@@ -61,7 +61,7 @@
           <strong id="api-url">Roadside request center</strong>
           <small id="api-status">Checking service availability...</small>
         </div>
-        <div class="metric-card">
+        <div class="metric-card" data-internal-preview>
           <span>Variant</span>
           <strong id="variant-mode">Pending</strong>
           <small id="variant-detail">Manifest handshake not loaded</small>
@@ -75,7 +75,7 @@
           <div class="hero-panel panel">
             <p class="eyebrow">Regional Response</p>
             <h2>Fast roadside help with secure account flow.</h2>
-            <p class="muted">The customer, subscriber, provider, admin, and watchdog routes all run through the protected runtime instead of a dead static controller.</p>
+            <p class="muted">Get service now, get moving sooner, and request roadside help with a clear dispatch-to-completion flow.</p>
             <div class="cta-row">
               <a class="glow-button" href="#customer">Continue as Guest</a>
               <button class="glow-button alt" id="member-signup-open" type="button">Subscribe</button>
@@ -104,16 +104,16 @@
           <div class="panel callout">
             <p class="eyebrow">Membership</p>
             <h3>Subscriber priority</h3>
-            <p class="muted">Store your vehicle, keep request history, and activate at <span id="subscriber-monthly-price">$5.00/mo</span>.</p>
+            <p class="muted">Keep your vehicle saved, keep your history close, and stay ready when roadside help cannot wait with <span id="subscriber-monthly-price">pricing available on request</span>.</p>
           </div>
           <div class="panel callout">
             <p class="eyebrow">Provider Program</p>
             <h3>Application flow</h3>
-            <p class="muted">Providers sign in here and enter the secure pending approval queue at <span id="provider-monthly-price">$5.99/mo</span>.</p>
+            <p class="muted">Providers can apply and enter the secure approval queue with <span id="provider-monthly-price">approval-based pricing</span>.</p>
           </div>
         </div>
 
-        <div class="panel processing-panel">
+        <div class="panel processing-panel" data-internal-preview>
           <div class="panel-title-row">
             <div>
               <p class="eyebrow">Processing Center</p>
@@ -143,7 +143,7 @@
           </div>
           <div class="header-badges">
             <span class="badge">Identity: <strong id="customer-identity-role">Guest</strong></span>
-            <span class="badge">Priority: <strong id="priority-price">$25.00</strong></span>
+            <span class="badge">Quote: <strong id="priority-price">Available after request</strong></span>
           </div>
         </div>
 
@@ -195,7 +195,7 @@
             <div class="panel detail-panel">
               <p class="eyebrow">Payment Ledger</p>
               <h3>Priority payment path</h3>
-              <p class="muted">Priority is optional. Service payment stays locked until the arrival estimate and service price are confirmed.</p>
+              <p class="muted">Need help fast? Optional priority payment can move things along, while service payment stays locked until the arrival estimate and service price are confirmed.</p>
               <div class="button-pair">
                 <button class="glow-button compact" id="service-payment-quote-button" type="button">Check Service Quote</button>
                 <button class="glow-button alt compact" id="service-payment-agree-button" type="button">Agree To Service Price</button>
@@ -359,6 +359,45 @@
           </div>
           <p class="muted">Use the admin commands below for manual customer and provider support. These controls run through admin service routes, not direct database edits.</p>
           <div class="feedback-box" id="admin-action-status" style="display:none"></div>
+        </div>
+
+        <div class="admin-data-grid">
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Directory Search</p>
+                <h3>Account support lookup</h3>
+              </div>
+            </div>
+            <form class="form-stack" id="admin-search-form">
+              <label><span>Search Query</span><input class="field" name="query" id="admin-search-query" placeholder="Name, email, phone, user id, service area" /></label>
+              <label>
+                <span>Role Filter</span>
+                <select class="field" name="role" id="admin-search-role">
+                  <option value="ALL">All users</option>
+                  <option value="SUBSCRIBER">Subscribers</option>
+                  <option value="PROVIDER">Providers</option>
+                </select>
+              </label>
+              <button class="glow-button wide" type="submit">Search Accounts</button>
+            </form>
+            <div class="feedback-box" id="admin-search-status" style="display:none"></div>
+            <div class="admin-list" id="admin-search-results">
+              <div class="admin-empty">Search results will appear here after admin login.</div>
+            </div>
+          </div>
+
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Selected Account</p>
+                <h3>Profile support view</h3>
+              </div>
+            </div>
+            <div class="admin-list" id="admin-user-profile">
+              <div class="admin-empty">Choose a search result to inspect account status, support context, and recent request history.</div>
+            </div>
+          </div>
         </div>
 
         <div class="admin-data-grid">
