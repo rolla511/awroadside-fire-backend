@@ -110,8 +110,26 @@ export function createAdminController() {
         }
         const url = new URL(req.url, "http://127.0.0.1");
         const query = normalizeString(url.searchParams.get("q"));
+        const role = normalizeString(url.searchParams.get("role"));
         const [users, requests] = await Promise.all([helpers.readUsers(), helpers.readRequestLog()]);
-        helpers.sendJson(res, 200, runKeywordSearch(query, users, requests));
+        helpers.sendJson(res, 200, runKeywordSearch(query, role, users, requests));
+        return true;
+      }
+
+      const userProfileMatch = pathname.match(/^\/api\/admin\/users\/(\d+)\/profile$/);
+      if (userProfileMatch) {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const adminSession = requireAdminSession(req, sessions, trustedZones);
+        if (!adminSession.ok) {
+          helpers.sendJson(res, adminSession.statusCode, adminSession.body);
+          return true;
+        }
+        const [users, requests] = await Promise.all([helpers.readUsers(), helpers.readRequestLog()]);
+        const profile = buildAdminUserProfile(Number(userProfileMatch[1]), users, requests);
+        helpers.sendJson(res, 200, profile);
         return true;
       }
 
@@ -696,6 +714,7 @@ function mapProvider(user) {
     currentLocation: user.providerProfile?.currentLocation || null,
     serviceArea: user.providerProfile?.serviceArea || null,
     providerInfo: user.providerProfile?.providerInfo || null,
+    paypal: user.providerProfile?.paypal || null,
     assessment: user.providerProfile?.assessment || null,
     rating,
     documentStatus,
@@ -746,12 +765,12 @@ function mapFinancialRecord(request, userById) {
   let calculationFormula = "";
 
   if (customerTier === "SUBSCRIBER") {
-    // Subscriber: $40 - $2 assignment - 2% service rate
+    // Subscriber: $40 - $5.50 assignment - 2% service rate
     const percentageCharge = Number((totalServiceGross * serviceChargeRate).toFixed(2));
     platformCharge = assignmentFee + percentageCharge;
     calculationFormula = `${totalServiceGross} (gross) - ${assignmentFee} (assignment) - ${percentageCharge} (2% platform) = ${Number((totalServiceGross - platformCharge).toFixed(2))} (payout)`;
   } else {
-    // Guest: $55 - $10 dispatch - $2 assignment = $43 payout
+    // Guest: $55 - $10 dispatch - $5.50 assignment = $39.50 payout
     platformCharge = dispatchFee + assignmentFee;
     calculationFormula = `${totalServiceGross} (gross) - ${dispatchFee} (dispatch) - ${assignmentFee} (assignment) = ${Number((totalServiceGross - platformCharge).toFixed(2))} (payout)`;
   }
@@ -866,32 +885,66 @@ function mapProviderRating(user) {
   };
 }
 
-function runKeywordSearch(query, users, requests) {
+function runKeywordSearch(query, role, users, requests) {
+  const normalizedRole = normalizeString(role).toUpperCase();
   if (!query) {
     return {
       query: "",
+      role: normalizedRole || "ALL",
+      users: [],
       subscribers: [],
       providers: [],
       requests: []
     };
   }
-  const match = (value) => normalizeString(value).toLowerCase().includes(query.toLowerCase());
+  const loweredQuery = query.toLowerCase();
+  const match = (value) => normalizeString(value).toLowerCase().includes(loweredQuery);
+  const roleAllowed = (user) => {
+    const roles = Array.isArray(user?.roles) ? user.roles : [];
+    if (!normalizedRole || normalizedRole === "ALL") {
+      return roles.includes("SUBSCRIBER") || roles.includes("PROVIDER");
+    }
+    return roles.includes(normalizedRole);
+  };
+
+  const matchedSubscribers = users
+    .filter((user) => Array.isArray(user.roles) && user.roles.includes("SUBSCRIBER"))
+    .filter((user) => roleAllowed(user))
+    .filter((user) => [
+      user.id,
+      user.fullName,
+      user.email,
+      user.phoneNumber,
+      user.accountState,
+      user.subscriberProfile?.paymentInfo,
+      user.subscriberProfile?.vehicle?.make,
+      user.subscriberProfile?.vehicle?.model
+    ].some(match))
+    .map((user) => mapAdminDirectoryUser(user, requests));
+
+  const matchedProviders = users
+    .filter((user) => Array.isArray(user.roles) && user.roles.includes("PROVIDER"))
+    .filter((user) => roleAllowed(user))
+    .filter((user) => [
+      user.id,
+      user.fullName,
+      user.email,
+      user.phoneNumber,
+      user.providerProfile?.serviceArea,
+      user.providerProfile?.currentLocation,
+      user.providerStatus,
+      ...(Array.isArray(user.services) ? user.services : [])
+    ].some(match))
+    .map((user) => mapAdminDirectoryUser(user, requests));
+
   return {
     query,
-    subscribers: users
-      .filter((user) => Array.isArray(user.roles) && user.roles.includes("SUBSCRIBER"))
-      .filter((user) => [user.fullName, user.email, user.phoneNumber].some(match))
-      .map((user) => summarizeUser(user)),
-    providers: users
-      .filter((user) => Array.isArray(user.roles) && user.roles.includes("PROVIDER"))
-      .filter((user) => [
-        user.fullName,
-        user.email,
-        user.phoneNumber,
-        user.providerProfile?.serviceArea,
-        user.providerProfile?.currentLocation
-      ].some(match))
-      .map((user) => summarizeUser(user)),
+    role: normalizedRole || "ALL",
+    users: [...matchedSubscribers, ...matchedProviders].sort((left, right) =>
+      String(left.fullName || left.email || "").localeCompare(String(right.fullName || right.email || ""))
+    ),
+    subscribers: matchedSubscribers,
+    providers: matchedProviders,
     requests: requests
       .filter((request) => [
         request.id,
@@ -906,6 +959,99 @@ function runKeywordSearch(query, users, requests) {
         fullName: request.fullName || "",
         serviceType: request.serviceType || "",
         status: request.status || "UNKNOWN"
+      }))
+  };
+}
+
+function mapAdminDirectoryUser(user, requests) {
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  const directRequests = requests.filter((request) => Number(request.userId) === Number(user.id));
+  const providerRequests = requests.filter((request) => Number(request.assignedProviderId) === Number(user.id));
+  const relevantRequests = roles.includes("PROVIDER") ? providerRequests : directRequests;
+  return {
+    id: user.id,
+    fullName: user.fullName || "",
+    email: user.email || "",
+    phoneNumber: user.phoneNumber || "",
+    roles,
+    accountState: normalizeAccountState(user.accountState),
+    providerStatus: user.providerStatus || null,
+    subscriberActive: Boolean(user.subscriberActive),
+    serviceArea: user.providerProfile?.serviceArea || null,
+    currentLocation: user.providerProfile?.currentLocation || null,
+    requestCount: relevantRequests.length,
+    activeRequestCount: relevantRequests.filter((request) =>
+      ["SUBMITTED", "ASSIGNED", "EN_ROUTE", "ARRIVED"].includes(normalizeString(request.status).toUpperCase())
+    ).length
+  };
+}
+
+function buildAdminUserProfile(userId, users, requests) {
+  const user = users.find((entry) => Number(entry.id) === Number(userId));
+  if (!user) {
+    const error = new Error(`User ${userId} was not found.`);
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  const customerRequests = requests.filter((request) => Number(request.userId) === Number(user.id));
+  const providerRequests = requests.filter((request) => Number(request.assignedProviderId) === Number(user.id));
+  const liveRequestStatuses = new Set(["SUBMITTED", "ASSIGNED", "EN_ROUTE", "ARRIVED"]);
+  const latestCustomerRequest = customerRequests
+    .slice()
+    .sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))[0] || null;
+  const latestProviderRequest = providerRequests
+    .slice()
+    .sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))[0] || null;
+
+  return {
+    user: {
+      id: user.id,
+      fullName: user.fullName || "",
+      email: user.email || "",
+      phoneNumber: user.phoneNumber || "",
+      roles,
+      accountState: normalizeAccountState(user.accountState),
+      signUpDate: user.signUpDate || user.createdAt || null,
+      providerStatus: user.providerStatus || null,
+      subscriberActive: Boolean(user.subscriberActive),
+      available: Boolean(user.available)
+    },
+    supportSummary: {
+      customerRequestCount: customerRequests.length,
+      providerRequestCount: providerRequests.length,
+      activeCustomerRequests: customerRequests.filter((request) => liveRequestStatuses.has(normalizeString(request.status).toUpperCase())).length,
+      activeProviderRequests: providerRequests.filter((request) => liveRequestStatuses.has(normalizeString(request.status).toUpperCase())).length,
+      latestCustomerRequestId: latestCustomerRequest?.id || latestCustomerRequest?.requestId || null,
+      latestProviderRequestId: latestProviderRequest?.id || latestProviderRequest?.requestId || null
+    },
+    subscriber: roles.includes("SUBSCRIBER") ? mapSubscriber(user, requests) : null,
+    provider: roles.includes("PROVIDER") ? mapProvider(user) : null,
+    recentCustomerRequests: customerRequests
+      .slice()
+      .sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))
+      .slice(0, 10)
+      .map((request) => ({
+        requestId: request.id || request.requestId,
+        submittedAt: request.submittedAt || request.createdAt || null,
+        serviceType: request.serviceType || "",
+        status: request.status || "UNKNOWN",
+        paymentStatus: request.paymentStatus || "UNKNOWN",
+        location: request.location || ""
+      })),
+    recentProviderRequests: providerRequests
+      .slice()
+      .sort((left, right) => String(right.updatedAt || right.createdAt || "").localeCompare(String(left.updatedAt || left.createdAt || "")))
+      .slice(0, 10)
+      .map((request) => ({
+        requestId: request.id || request.requestId,
+        submittedAt: request.submittedAt || request.createdAt || null,
+        serviceType: request.serviceType || "",
+        status: request.status || "UNKNOWN",
+        paymentStatus: request.paymentStatus || "UNKNOWN",
+        fullName: request.fullName || "",
+        location: request.location || ""
       }))
   };
 }

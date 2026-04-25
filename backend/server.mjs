@@ -198,8 +198,7 @@ const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live
 const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
 const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
-const defaultPaypalWebhookId = "4RN22635Y61567938";
-const paypalWebhookId = (process.env.PAYPAL_WEBHOOK_ID || defaultPaypalWebhookId).trim();
+const paypalWebhookId = (process.env.PAYPAL_WEBHOOK_ID || "").trim();
 const paypalWebhookPath = "/api/paypal/webhook";
 const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
 const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
@@ -291,6 +290,8 @@ const server = http.createServer(async (req, res) => {
       getPaymentConfigPayload,
       getFrontendConfigPayload: (request) => getFrontendConfigPayload(request),
       getRoadsidePolicy: () => AW_ROADSIDE_POLICY,
+      presentRequestForSession: (request, session) => presentRequestForSession(request, session),
+      presentRequestsForSession: (requests, session) => presentRequestsForSession(requests, session),
       getWatchdogStatus: () => localWatchdog.getStatus(),
       recordSecurityEvent: (event, details) => localWatchdog.record(event, details),
       saveProviderDocuments: (userId, currentDocuments, documentsPayload) =>
@@ -912,6 +913,7 @@ function normalizeServiceRequest(payload) {
     phoneNumber,
     serviceType,
     location,
+    locationSummary: summarizeLocationForDispatch(location),
     notes,
     ...(vehicleInfo ? { vehicleInfo } : {}),
     ...(assignedProviderId ? { assignedProviderId } : {}),
@@ -924,6 +926,25 @@ function normalizeServiceRequest(payload) {
       value: priorityServicePrice.toFixed(2)
     }
   };
+}
+
+function summarizeLocationForDispatch(location) {
+  const normalized = readOptionalString(location);
+  if (!normalized) {
+    return "Approximate service area pending.";
+  }
+
+  const segments = normalized.split(",").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length >= 2) {
+    return segments.slice(-2).join(", ");
+  }
+
+  const withoutLeadingStreetNumber = normalized.replace(/^\d+\s+/, "").trim();
+  if (withoutLeadingStreetNumber) {
+    return `Area near ${withoutLeadingStreetNumber.slice(0, 32)}`;
+  }
+
+  return "Approximate service area pending.";
 }
 
 function resolveCustomerTier(request) {
@@ -1035,7 +1056,7 @@ async function getUserProfile(userId) {
 
   const providerRating = calculateProviderRatingSummary(user);
   const providerSelection = calculateProviderSelectionSummary(user);
-  const subscriberRequestHistory = buildSubscriberRequestHistory(user, requests);
+  const subscriberRequestHistory = buildSubscriberRequestHistory(user, requests, users);
 
   return {
     userId: user.id,
@@ -1070,7 +1091,7 @@ async function getUserProfile(userId) {
   };
 }
 
-function buildSubscriberRequestHistory(user, requests) {
+function buildSubscriberRequestHistory(user, requests, users = []) {
   if (!Array.isArray(user?.roles) || !user.roles.includes("SUBSCRIBER")) {
     return [];
   }
@@ -1096,12 +1117,21 @@ function buildSubscriberRequestHistory(user, requests) {
       providerPayoutStatus: request.providerPayoutStatus || null,
       fullName: request.fullName || "",
       phoneNumber: request.phoneNumber || "",
-      location: request.location || "",
+      location: canCustomerSeeExactLocation(request, user.id) ? request.location || "" : request.locationSummary || "",
+      exactLocation: canCustomerSeeExactLocation(request, user.id) ? request.location || "" : null,
       vehicleInfo: request.vehicleInfo || "",
       serviceType: request.serviceType || "",
       notes: request.notes || "",
-      etaMinutes: Number.isFinite(Number(request.etaMinutes)) ? Number(request.etaMinutes) : null,
+      etaMinutes: readNumericValue(request.etaMinutes),
+      softEtaMinutes: readNumericValue(request.softEtaMinutes),
+      hardEtaMinutes: readNumericValue(request.hardEtaMinutes),
+      etaStage: request.etaStage || null,
       assignedProviderId: request.assignedProviderId || null,
+      directCommunicationEnabled: isDirectCommunicationUnlocked(request),
+      customerCallbackNumber: request.phoneNumber || "",
+      providerCallbackNumber: resolveAssignedProviderPhoneNumber(request, users, { actorRole: "SUBSCRIBER", userId: user.id }),
+      locationDisclosureLevel: resolveLocationDisclosureLevel(request, { actorRole: "SUBSCRIBER", userId: user.id }),
+      contactDisclosureLevel: resolveContactDisclosureLevel(request, { actorRole: "SUBSCRIBER", userId: user.id }),
       customerEtaAcceptedAt: request.customerEtaAcceptedAt || null,
       arrivalConfirmedAt: request.arrivalConfirmedAt || null,
       completionConfirmedAt: request.completionConfirmedAt || null,
@@ -1114,6 +1144,133 @@ function buildSubscriberRequestHistory(user, requests) {
       const rightTime = new Date(right.updatedAt || right.requestDate || 0).getTime();
       return rightTime - leftTime;
     });
+}
+
+function isPaymentCaptured(request) {
+  return readOptionalString(request?.paymentStatus).toUpperCase() === "CAPTURED";
+}
+
+function isProviderActivated(request) {
+  return Boolean(request?.providerActivatedAt || request?.hardContactedAt);
+}
+
+function isDirectCommunicationUnlocked(request) {
+  return isPaymentCaptured(request) && isProviderActivated(request);
+}
+
+function canCustomerSeeExactLocation(request, userId) {
+  return Number(request?.userId) === Number(userId);
+}
+
+function isGuestOwnerSession(request, session = {}) {
+  return session?.ownsRequest === true && readOptionalString(session.actorRole).toUpperCase() === "GUEST";
+}
+
+function canProviderSeeExactLocation(request, userId) {
+  return Number(request?.assignedProviderId) === Number(userId) && isDirectCommunicationUnlocked(request);
+}
+
+function resolveLocationDisclosureLevel(request, session = {}) {
+  const actorRole = readOptionalString(session.actorRole).toUpperCase();
+  if (actorRole === "ADMIN") {
+    return "EXACT";
+  }
+  if (actorRole === "SUBSCRIBER" && canCustomerSeeExactLocation(request, session.userId)) {
+    return "EXACT";
+  }
+  if (isGuestOwnerSession(request, session)) {
+    return "EXACT";
+  }
+  if (actorRole === "PROVIDER" && canProviderSeeExactLocation(request, session.userId)) {
+    return "EXACT";
+  }
+  return "MASKED";
+}
+
+function resolveContactDisclosureLevel(request, session = {}) {
+  const actorRole = readOptionalString(session.actorRole).toUpperCase();
+  if (actorRole === "ADMIN") {
+    return "UNLOCKED";
+  }
+  if (actorRole === "SUBSCRIBER" && canCustomerSeeExactLocation(request, session.userId)) {
+    return isDirectCommunicationUnlocked(request) ? "UNLOCKED" : "LOCKED";
+  }
+  if (isGuestOwnerSession(request, session)) {
+    return isDirectCommunicationUnlocked(request) ? "UNLOCKED" : "LOCKED";
+  }
+  if (actorRole === "PROVIDER" && Number(request?.assignedProviderId) === Number(session.userId)) {
+    return isDirectCommunicationUnlocked(request) ? "UNLOCKED" : "LOCKED";
+  }
+  return "LOCKED";
+}
+
+function resolveAssignedProviderPhoneNumber(request, users = [], session = {}) {
+  if (!isDirectCommunicationUnlocked(request)) {
+    return "";
+  }
+  if (readOptionalString(session.actorRole).toUpperCase() !== "SUBSCRIBER") {
+    return "";
+  }
+  const provider = users.find((entry) => Number(entry.id) === Number(request?.assignedProviderId));
+  return readOptionalString(provider?.phoneNumber);
+}
+
+async function presentRequestForSession(request, session = null) {
+  const declaredActorRole = readOptionalString(session?.actorRole).toUpperCase();
+  const actorRole = declaredActorRole || (session?.roles?.includes("ADMIN")
+    ? "ADMIN"
+    : session?.roles?.includes("PROVIDER")
+      ? "PROVIDER"
+      : session?.roles?.includes("SUBSCRIBER")
+        ? "SUBSCRIBER"
+        : "GUEST");
+  const visibleLocationLevel = resolveLocationDisclosureLevel(request, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
+  const visibleContactLevel = resolveContactDisclosureLevel(request, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
+  const users = actorRole === "SUBSCRIBER" && isDirectCommunicationUnlocked(request)
+    ? await readUsers()
+    : [];
+  const providerCallbackNumber = resolveAssignedProviderPhoneNumber(request, users, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
+
+  return {
+    ...request,
+    location: visibleLocationLevel === "EXACT" ? request.location || "" : request.locationSummary || "Exact location unlocks after payment.",
+    exactLocation: visibleLocationLevel === "EXACT" ? request.location || "" : null,
+    notes:
+      visibleLocationLevel === "EXACT"
+        ? request.notes || ""
+        : request.maskedNotes || "Detailed customer notes unlock after payment and provider activation.",
+    phoneNumber:
+      visibleContactLevel === "UNLOCKED" || actorRole === "SUBSCRIBER" || isGuestOwnerSession(request, session || {})
+        ? request.phoneNumber || ""
+        : "Locked until payment and provider activation",
+    customerCallbackNumber:
+      visibleContactLevel === "UNLOCKED" || actorRole === "SUBSCRIBER" || isGuestOwnerSession(request, session || {})
+        ? request.phoneNumber || ""
+        : "",
+    providerCallbackNumber,
+    directCommunicationEnabled: isDirectCommunicationUnlocked(request),
+    locationDisclosureLevel: visibleLocationLevel,
+    contactDisclosureLevel: visibleContactLevel,
+    softEtaMinutes: readNumericValue(request.softEtaMinutes),
+    hardEtaMinutes: readNumericValue(request.hardEtaMinutes),
+    etaStage: request.etaStage || null
+  };
+}
+
+async function presentRequestsForSession(requests, session = null) {
+  return Promise.all((Array.isArray(requests) ? requests : []).map((request) => presentRequestForSession(request, session)));
 }
 
 async function getFrontendConfigPayload(req = null) {
@@ -1154,16 +1311,16 @@ function createServicePaymentQuote(request) {
     throw new Error("A backend requestId is required before service payment.");
   }
 
-  const etaMinutes = readNumericValue(request?.etaMinutes);
+  const etaMinutes = readNumericValue(request?.softEtaMinutes ?? request?.etaMinutes);
   const status = readOptionalString(request?.status).toUpperCase();
   if (etaMinutes === null) {
-    const error = new Error("Service payment is locked until a provider hard ETA is recorded.");
+    const error = new Error("Service payment is locked until a provider soft ETA is recorded.");
     error.statusCode = 409;
     error.code = "hard-eta-required";
     throw error;
   }
   if (!request?.customerEtaAcceptedAt) {
-    const error = new Error("Service payment is locked until the customer accepts the hard ETA.");
+    const error = new Error("Service payment is locked until the customer accepts the soft ETA.");
     error.statusCode = 409;
     error.code = "customer-eta-acceptance-required";
     throw error;
@@ -1190,7 +1347,7 @@ function createServicePaymentQuote(request) {
     platformLiability: AW_ROADSIDE_POLICY.platform.liability,
     providerLiability: AW_ROADSIDE_POLICY.provider.liabilityStatement,
     terms:
-      "Service payment can be created only after the backend records a provider hard ETA and the customer accepts this backend quote."
+      "Service payment can be created only after the backend records a provider soft ETA and the customer accepts this backend quote."
   };
 }
 
@@ -1545,7 +1702,6 @@ async function applyPaypalWebhookEvent(webhookEvent) {
 
 function isPaypalProviderWebhookEvent(eventType) {
   return (
-    eventType.startsWith("MERCHANT.") ||
     eventType.startsWith("CUSTOMER.ACCOUNT-ENTITIES.") ||
     eventType.startsWith("CUSTOMER.PARTNER-") ||
     eventType.startsWith("PAYMENT.PAYOUTSBATCH.") ||
@@ -1660,7 +1816,7 @@ async function applyPaypalProviderAccountWebhook(webhookEvent, eventType) {
 
     const nextPaypal = {
       ...paypalState,
-      merchantId: identifiers.merchantId || paypalState.merchantId || null,
+      providerAccountId: identifiers.providerAccountId || paypalState.providerAccountId || null,
       accountId: identifiers.accountId || paypalState.accountId || null,
       trackingId: identifiers.trackingId || paypalState.trackingId || null,
       payerId: identifiers.payerId || paypalState.payerId || null,
@@ -1817,7 +1973,7 @@ async function applyPaypalProviderPayoutWebhook(webhookEvent, eventType) {
 
       const nextPaypal = {
         ...paypalState,
-        merchantId: payoutIdentifiers.merchantId || paypalState.merchantId || null,
+        providerAccountId: payoutIdentifiers.providerAccountId || paypalState.providerAccountId || null,
         accountId: payoutIdentifiers.accountId || paypalState.accountId || null,
         email: payoutIdentifiers.email || paypalState.email || readOptionalString(provider.email) || null,
         lastWebhookEventId: readOptionalString(webhookEvent.id) || paypalState.lastWebhookEventId || null,
@@ -1930,8 +2086,9 @@ function isPaypalProviderMatch(user, identifiers) {
     return true;
   }
 
-  const candidateMerchantIds = new Set(
+  const candidateProviderAccountIds = new Set(
     [
+      readOptionalString(providerPaypal.providerAccountId),
       readOptionalString(providerPaypal.merchantId),
       readOptionalString(providerPaypal.accountId),
       readOptionalString(providerPaypal.trackingId),
@@ -1939,10 +2096,10 @@ function isPaypalProviderMatch(user, identifiers) {
     ].filter(Boolean)
   );
   if (
-    (identifiers.merchantId && candidateMerchantIds.has(identifiers.merchantId)) ||
-    (identifiers.accountId && candidateMerchantIds.has(identifiers.accountId)) ||
-    (identifiers.trackingId && candidateMerchantIds.has(identifiers.trackingId)) ||
-    (identifiers.payerId && candidateMerchantIds.has(identifiers.payerId))
+    (identifiers.providerAccountId && candidateProviderAccountIds.has(identifiers.providerAccountId)) ||
+    (identifiers.accountId && candidateProviderAccountIds.has(identifiers.accountId)) ||
+    (identifiers.trackingId && candidateProviderAccountIds.has(identifiers.trackingId)) ||
+    (identifiers.payerId && candidateProviderAccountIds.has(identifiers.payerId))
   ) {
     return true;
   }
@@ -1975,8 +2132,8 @@ function extractProviderPaypalIdentifiers(resource) {
 
   return {
     ...payoutIdentifiers,
-    merchantId: firstNonEmptyString([
-      payoutIdentifiers.merchantId,
+    providerAccountId: firstNonEmptyString([
+      payoutIdentifiers.providerAccountId,
       resource.merchant_id,
       resource.merchantId,
       resource.merchant_id_in_paypal,
@@ -2050,7 +2207,7 @@ function extractPaypalPayoutIdentifiers(resource) {
       resource.payoutId,
       resource.id
     ]),
-    merchantId: firstNonEmptyString([resource.merchant_id, resource.merchantId, resource?.payee?.merchant_id, resource?.payee?.merchantId]),
+    providerAccountId: firstNonEmptyString([resource.merchant_id, resource.merchantId, resource?.payee?.merchant_id, resource?.payee?.merchantId]),
     accountId: firstNonEmptyString([resource.account_id, resource.accountId]),
     email: firstNonEmptyString([resource.receiver_email, resource.receiver, resource.email, resource.email_address])
   };
@@ -2059,7 +2216,7 @@ function extractPaypalPayoutIdentifiers(resource) {
 function normalizeProviderPaypalProfile(value) {
   const paypal = value && typeof value === "object" ? value : {};
   return {
-    merchantId: readOptionalString(paypal.merchantId) || null,
+    providerAccountId: readOptionalString(paypal.providerAccountId) || readOptionalString(paypal.merchantId) || null,
     accountId: readOptionalString(paypal.accountId) || null,
     trackingId: readOptionalString(paypal.trackingId) || null,
     payerId: readOptionalString(paypal.payerId) || null,
@@ -2697,6 +2854,14 @@ async function createServiceRequest(serviceRequest) {
     status: "SUBMITTED",
     completionStatus: "OPEN",
     paymentStatus: "NOT_PAID",
+    locationDisclosureLevel: "MASKED",
+    contactDisclosureLevel: "LOCKED",
+    softEtaMinutes: null,
+    hardEtaMinutes: null,
+    etaStage: "PENDING",
+    providerActivatedAt: null,
+    exactLocationUnlockedAt: null,
+    contactUnlockedAt: null,
     customerEtaAcceptedAt: null,
     arrivalConfirmedAt: null,
     completionConfirmedAt: null,
@@ -2719,6 +2884,7 @@ async function createServiceRequest(serviceRequest) {
     createdAt: now,
     updatedAt: now,
     ...serviceRequest,
+    maskedNotes: "Detailed customer notes unlock after payment and provider activation.",
     customerTier: pricing.customerTier,
     pricing,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
@@ -2803,14 +2969,33 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.acceptedAt = now;
       next.providerPayoutStatus = request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus;
     } else if (normalizedAction === "eta") {
+      const nextEta = Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : request.etaMinutes ?? null;
       next.status = "EN_ROUTE";
-      next.etaMinutes = Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : request.etaMinutes ?? null;
+      next.etaMinutes = nextEta;
       next.etaUpdatedAt = now;
+      if (isDirectCommunicationUnlocked(request)) {
+        next.hardEtaMinutes = nextEta;
+        next.etaStage = "HARD";
+      } else {
+        next.softEtaMinutes = nextEta;
+        next.etaStage = "SOFT";
+      }
     } else if (normalizedAction === "soft-contact") {
       next.softContactedAt = now;
       next.status = request.status === "SUBMITTED" ? "ASSIGNED" : request.status;
     } else if (normalizedAction === "hard-contact") {
+      if (!isPaymentCaptured(request)) {
+        const error = new Error("Payment must be captured before live communication is unlocked.");
+        error.statusCode = 409;
+        error.code = "payment-required-before-contact";
+        throw error;
+      }
       next.hardContactedAt = now;
+      next.providerActivatedAt = now;
+      next.exactLocationUnlockedAt = now;
+      next.contactUnlockedAt = now;
+      next.locationDisclosureLevel = "EXACT";
+      next.contactDisclosureLevel = "UNLOCKED";
       next.status = "EN_ROUTE";
     } else if (normalizedAction === "arrived" || normalizedAction === "force-arrived") {
       next.status = "ARRIVED";

@@ -185,7 +185,14 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           const securePayload = sanitizeProtectedRequestPayload(payload, session);
           const created = await requestServiceController.createRequest(securePayload, helpers);
           routeCache.delete("request-list");
-          helpers.sendJson(res, 201, created);
+          helpers.sendJson(
+            res,
+            201,
+            await helpers.presentRequestForSession(
+              created,
+              session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }
+            )
+          );
           recordAudit("request-create", {
             userId: session?.userId || null,
             requestId: created.id || created.requestId || null,
@@ -208,7 +215,11 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
             });
             return true;
           }
-          helpers.sendJson(res, 200, await readThroughCache("request-list", () => requestServiceController.listRequests(helpers)));
+          const payload = await readThroughCache("request-list", () => requestServiceController.listRequests(helpers));
+          helpers.sendJson(res, 200, {
+            ...payload,
+            requests: await helpers.presentRequestsForSession(payload.requests, session)
+          });
           return true;
         }
 
@@ -262,7 +273,10 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           helpers
         );
         routeCache.delete("request-list");
-        helpers.sendJson(res, result.committed === false ? 202 : 200, result);
+        helpers.sendJson(res, result.committed === false ? 202 : 200, {
+          ...result,
+          request: result.request ? await helpers.presentRequestForSession(result.request, session) : null
+        });
         recordAudit("provider-request-action", {
           userId: session.userId,
           requestId,
@@ -357,6 +371,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           });
           return true;
         }
+        const session = helpers.resolveUserSession(req);
         const payload = await helpers.readJsonBody(req);
         const orderId = typeof payload.orderId === "string" ? payload.orderId.trim() : "";
         if (!orderId) {
@@ -371,8 +386,9 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           route: "aw-roadside-security",
           capture
         });
+        let updatedRequest = null;
         if (typeof payload.requestId === "string" && payload.requestId.trim() && typeof helpers.updateRequestRecord === "function") {
-          await helpers.updateRequestRecord(payload.requestId, (request) => ({
+          updatedRequest = await helpers.updateRequestRecord(payload.requestId, (request) => ({
             ...request,
             paymentStatus: "CAPTURED",
             amountCollected: Number(request.amountCharged || request.amountCollected || 0),
@@ -382,7 +398,13 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         helpers.sendJson(res, 200, {
           status: capture.status,
           orderId,
-          capture
+          capture,
+          request: updatedRequest
+            ? await helpers.presentRequestForSession(
+                updatedRequest,
+                session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }
+              )
+            : null
         });
         return true;
       }

@@ -5,6 +5,11 @@ const PASSWORD_KEY_LENGTH = 64;
 const DEFAULT_SUBSCRIBER_MONTHLY = 5;
 const DEFAULT_PROVIDER_MONTHLY = 5.99;
 
+function testingTermsBypassEnabled() {
+  const value = String(process.env.AW_TESTING_SKIP_TERMS || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
 export function createSubscriptionController() {
   return {
     async handle(req, res, pathname, helpers) {
@@ -109,7 +114,8 @@ export async function createSignup(payload, helpers) {
   const password = requireString(payload.password, "password");
   const phoneNumber = optionalString(payload.phoneNumber);
   const role = requireString(payload.role, "role").toUpperCase();
-  const termsAccepted = payload.termsAccepted === true;
+  const termsBypass = testingTermsBypassEnabled();
+  const termsAccepted = payload.termsAccepted === true || termsBypass;
   const createdAt = new Date().toISOString();
 
   if (!["SUBSCRIBER", "PROVIDER"].includes(role)) {
@@ -120,11 +126,11 @@ export async function createSignup(payload, helpers) {
     throw new Error("Terms of agreement are required.");
   }
 
-  if (role === "SUBSCRIBER" && payload.subscriberTermsAccepted !== true) {
+  if (role === "SUBSCRIBER" && payload.subscriberTermsAccepted !== true && !termsBypass) {
     throw new Error("Subscriber terms must be accepted.");
   }
 
-  if (role === "PROVIDER" && payload.providerTermsAccepted !== true) {
+  if (role === "PROVIDER" && payload.providerTermsAccepted !== true && !termsBypass) {
     throw new Error("Provider terms must be accepted.");
   }
 
@@ -211,6 +217,7 @@ export async function loginUser(payload, helpers) {
 
 export async function setupSubscriber(payload, helpers, session = null) {
   const policy = getRoadsidePolicy(helpers);
+  const termsBypass = testingTermsBypassEnabled();
   const vehicle = payload.vehicle || {};
   const make = requireString(vehicle.make, "vehicle.make");
   const model = requireString(vehicle.model, "vehicle.model");
@@ -223,16 +230,6 @@ export async function setupSubscriber(payload, helpers, session = null) {
     billingZip: optionalString(payload.billingZip),
     paymentProvider: optionalString(payload.paymentProvider) || "manual-test-mode"
   };
-  if (payload.subscriberTermsAccepted !== true && user.terms?.subscriber?.accepted !== true) {
-    throw new Error("Subscriber terms must be accepted before activation.");
-  }
-  if (payload.dispatchOnlyLiabilityAccepted !== true && user.terms?.subscriber?.dispatchOnlyLiabilityAccepted !== true) {
-    throw new Error("Dispatch-only liability terms must be accepted before activation.");
-  }
-  if (payload.noRefundPolicyAccepted !== true && user.terms?.subscriber?.noRefundPolicyAccepted !== true) {
-    throw new Error("No-refund policy must be accepted before activation.");
-  }
-
   const users = await helpers.readUsers();
   const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
   if (!user) {
@@ -240,6 +237,15 @@ export async function setupSubscriber(payload, helpers, session = null) {
   }
   if (!user.roles.includes("SUBSCRIBER")) {
     throw new Error("Not a subscriber.");
+  }
+  if (!termsBypass && payload.subscriberTermsAccepted !== true && user.terms?.subscriber?.accepted !== true) {
+    throw new Error("Subscriber terms must be accepted before activation.");
+  }
+  if (!termsBypass && payload.dispatchOnlyLiabilityAccepted !== true && user.terms?.subscriber?.dispatchOnlyLiabilityAccepted !== true) {
+    throw new Error("Dispatch-only liability terms must be accepted before activation.");
+  }
+  if (!termsBypass && payload.noRefundPolicyAccepted !== true && user.terms?.subscriber?.noRefundPolicyAccepted !== true) {
+    throw new Error("No-refund policy must be accepted before activation.");
   }
 
   const updateUser = (mutableUser) => {
@@ -290,6 +296,7 @@ export async function setupSubscriber(payload, helpers, session = null) {
 
 export async function applyProvider(payload, helpers, session = null) {
   const policy = getRoadsidePolicy(helpers);
+  const termsBypass = testingTermsBypassEnabled();
   const users = await helpers.readUsers();
   const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
   if (!user) {
@@ -309,10 +316,10 @@ export async function applyProvider(payload, helpers, session = null) {
   if (!documentStatus.meetsMinimumRequirements) {
     throw new Error(`Provider documents missing: ${documentStatus.missing.join(", ")}.`);
   }
-  if (payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
+  if (!termsBypass && payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
     throw new Error("Provider terms must be accepted before profile submission.");
   }
-  if (payload.providerLiabilityAccepted !== true && user.terms?.provider?.liabilityAccepted !== true) {
+  if (!termsBypass && payload.providerLiabilityAccepted !== true && user.terms?.provider?.liabilityAccepted !== true) {
     throw new Error("Provider liability acknowledgement is required.");
   }
 
