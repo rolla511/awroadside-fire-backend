@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "awroadside-fire",
+    "slug": "awroadside-fire",
+    "version": "1.0.0",
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "838ef0d6-d610-4494-a9ae-3a1ad481547e"
+      }
+    }
+  }
+}
