@@ -8,6 +8,8 @@ import { createAdminController } from "./admin-controller.mjs";
 import { createAwRoadsideSecurityController } from "./aw-roadside-security.mjs";
 import { createCompatibilityGateway } from "./compatibility-gateway.mjs";
 import { createLocalWatchdog } from "./local-watchdog.mjs";
+import { createLocationService } from "./location-service.mjs";
+import { createProviderWalletPayload } from "./provider-wallet-controller.mjs";
 import { createRequestServiceController } from "./request-service-controller.mjs";
 import { createRuntimeRepository } from "./runtime-repository.mjs";
 import { createSubscriptionController } from "./subscription-controller.mjs";
@@ -205,6 +207,9 @@ const PAYPAL_WEBHOOK_IDS = Object.freeze({
 const paypalWebhookId =
   (process.env.PAYPAL_WEBHOOK_ID || "").trim() || PAYPAL_WEBHOOK_IDS[paypalMode] || "";
 const paypalWebhookPath = "/api/paypal/webhook";
+const mapboxAccessToken = (process.env.MAPBOX_ACCESS_TOKEN || "").trim();
+const providerServiceRadiusMiles = Number.parseFloat(process.env.PROVIDER_SERVICE_RADIUS_MILES || "20");
+const requestAcceptanceWindowMinutes = Number.parseFloat(process.env.REQUEST_ACCEPTANCE_WINDOW_MINUTES || "5");
 const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
 const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
 const guestServicePrice = Number.parseFloat(process.env.GUEST_SERVICE_PRICE || `${serviceBasePrice}`);
@@ -233,6 +238,11 @@ const localWatchdog = createLocalWatchdog({
 const universalBridgeController = createUniversalBridgeController();
 const runtimeRepository = createRuntimeRepository({
   runtimeRoot
+});
+const locationService = createLocationService({
+  accessToken: mapboxAccessToken,
+  defaultRadiusMiles: providerServiceRadiusMiles,
+  defaultAcceptanceWindowMinutes: requestAcceptanceWindowMinutes
 });
 const awRoadsideSecurityController = createAwRoadsideSecurityController({
   requestServiceController,
@@ -293,7 +303,13 @@ const server = http.createServer(async (req, res) => {
       applyLocalRequestAction,
       getHealthPayload,
       getPaymentConfigPayload,
+      getProviderWalletPayload: (userId) => getProviderWalletPayload(userId),
       getFrontendConfigPayload: (request) => getFrontendConfigPayload(request),
+      getLocationConfigPayload: () => getLocationConfigPayload(),
+      forwardGeocodeLocation: (query, options) => locationService.forwardGeocode(query, options),
+      getLocationIsochrone: (longitude, latitude, options) => locationService.getIsochrone(longitude, latitude, options),
+      resolveProviderLocationMetadata: (payload) => resolveProviderLocationMetadata(payload),
+      filterRequestsForSession: (requests, session) => filterRequestsForSession(requests, session),
       getRoadsidePolicy: () => AW_ROADSIDE_POLICY,
       presentRequestForSession: (request, session) => presentRequestForSession(request, session),
       presentRequestsForSession: (requests, session) => presentRequestsForSession(requests, session),
@@ -1021,8 +1037,76 @@ async function getHealthPayload() {
     status: "ok",
     service: "local-node-runtime",
     timestamp: new Date().toISOString(),
-    policyVersion: AW_ROADSIDE_POLICY.termsVersion
+    policyVersion: AW_ROADSIDE_POLICY.termsVersion,
+    locationServicesConfigured: locationService.isConfigured()
   };
+}
+
+function getLocationConfigPayload() {
+  return {
+    providerServiceRadiusMiles,
+    requestAcceptanceWindowMinutes,
+    mapbox: locationService.getConfig()
+  };
+}
+
+async function resolveProviderLocationMetadata(payload = {}) {
+  const currentLocation = readOptionalString(payload.currentLocation);
+  const serviceArea = readOptionalString(payload.serviceArea);
+  const metadata = {
+    serviceRadiusMiles: providerServiceRadiusMiles
+  };
+
+  if (!locationService.isConfigured()) {
+    return metadata;
+  }
+
+  if (currentLocation) {
+    const currentLocationMatch = await tryForwardGeocode(currentLocation);
+    if (currentLocationMatch) {
+      metadata.currentLocationCoordinates = {
+        longitude: currentLocationMatch.longitude,
+        latitude: currentLocationMatch.latitude
+      };
+      metadata.currentLocationGeocodeSource = "mapbox-forward-geocode";
+      metadata.currentLocationGeocodedAt = new Date().toISOString();
+      metadata.currentLocationMapboxId = currentLocationMatch.mapboxId || null;
+    }
+  }
+
+  if (serviceArea) {
+    const serviceAreaMatch = await tryForwardGeocode(serviceArea);
+    if (serviceAreaMatch) {
+      metadata.serviceAreaCoordinates = {
+        longitude: serviceAreaMatch.longitude,
+        latitude: serviceAreaMatch.latitude
+      };
+      metadata.serviceAreaGeocodeSource = "mapbox-forward-geocode";
+      metadata.serviceAreaGeocodedAt = new Date().toISOString();
+      metadata.serviceAreaMapboxId = serviceAreaMatch.mapboxId || null;
+    }
+  }
+
+  return metadata;
+}
+
+async function tryForwardGeocode(query) {
+  try {
+    const result = await locationService.forwardGeocode(query, { limit: 1, autocomplete: false });
+    const match = Array.isArray(result.features) ? result.features[0] : null;
+    const longitude = Number.isFinite(Number(match?.routableLongitude)) ? Number(match.routableLongitude) : Number(match?.longitude);
+    const latitude = Number.isFinite(Number(match?.routableLatitude)) ? Number(match.routableLatitude) : Number(match?.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return null;
+    }
+    return {
+      longitude,
+      latitude,
+      mapboxId: match?.mapboxId || null
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function getPaymentConfigPayload() {
@@ -1094,6 +1178,17 @@ async function getUserProfile(userId) {
     trustedZone: user.trustedZone || null,
     createdAt: user.createdAt || null
   };
+}
+
+async function getProviderWalletPayload(userId) {
+  const [users, requests] = await Promise.all([readUsers(), readRequestLog()]);
+  const provider = users.find((entry) => Number(entry.id) === Number(userId));
+  return createProviderWalletPayload({
+    provider,
+    requests,
+    walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
+    normalizeProviderPaypalProfile
+  });
 }
 
 function buildSubscriberRequestHistory(user, requests, users = []) {
@@ -1276,6 +1371,96 @@ async function presentRequestForSession(request, session = null) {
 
 async function presentRequestsForSession(requests, session = null) {
   return Promise.all((Array.isArray(requests) ? requests : []).map((request) => presentRequestForSession(request, session)));
+}
+
+async function filterRequestsForSession(requests, session = null) {
+  const list = Array.isArray(requests) ? requests : [];
+  if (!session?.roles?.includes("PROVIDER") || !session?.userId) {
+    return list;
+  }
+
+  const users = await readUsers();
+  const provider = users.find((entry) => Number(entry.id) === Number(session.userId));
+  if (!provider) {
+    return [];
+  }
+
+  return list.filter((request) => isRequestEligibleForProvider(request, provider));
+}
+
+function isRequestEligibleForProvider(request, provider) {
+  const assignedProviderId = Number(request?.assignedProviderId);
+  if (Number.isInteger(assignedProviderId) && assignedProviderId === Number(provider?.id)) {
+    return true;
+  }
+
+  const status = readOptionalString(request?.status).toUpperCase();
+  if (!["SUBMITTED", "ASSIGNED", "EN_ROUTE", "ARRIVED"].includes(status)) {
+    return false;
+  }
+
+  if (status === "ASSIGNED" && request?.assignedProviderId) {
+    return false;
+  }
+
+  const requestServiceType = readOptionalString(request?.serviceType).toUpperCase();
+  const providerServices = Array.isArray(provider?.services)
+    ? provider.services.map((value) => readOptionalString(value).toUpperCase()).filter(Boolean)
+    : [];
+  if (requestServiceType && providerServices.length && !providerServices.includes(requestServiceType)) {
+    return false;
+  }
+
+  if (provider?.available !== true) {
+    return false;
+  }
+
+  if (provider?.providerStatus !== "APPROVED" && provider?.providerStatus !== "ACTIVE") {
+    return false;
+  }
+
+  if (isRequestAcceptanceExpired(request)) {
+    return false;
+  }
+
+  return isProviderWithinCoverage(request, provider);
+}
+
+function isRequestAcceptanceExpired(request) {
+  const expiry = readOptionalString(request?.requestAcceptanceExpiresAt);
+  if (!expiry) {
+    return false;
+  }
+  const time = new Date(expiry).getTime();
+  return Number.isFinite(time) ? time < Date.now() : false;
+}
+
+function isProviderWithinCoverage(request, provider) {
+  const requestCoordinates = normalizeCoordinateRecord(request?.locationCoordinates);
+  const providerCoordinates =
+    normalizeCoordinateRecord(provider?.providerProfile?.currentLocationCoordinates) ||
+    normalizeCoordinateRecord(provider?.providerProfile?.serviceAreaCoordinates);
+
+  if (requestCoordinates && providerCoordinates) {
+    return locationService.isWithinRadius(providerCoordinates, requestCoordinates, providerServiceRadiusMiles);
+  }
+
+  const requestLocation = readOptionalString(request?.locationFullAddress || request?.location || request?.locationSummary).toLowerCase();
+  const serviceArea = readOptionalString(provider?.providerProfile?.serviceArea).toLowerCase();
+  const currentLocation = readOptionalString(provider?.providerProfile?.currentLocation).toLowerCase();
+
+  if (!requestLocation) {
+    return false;
+  }
+
+  if (serviceArea && requestLocation.includes(serviceArea)) {
+    return true;
+  }
+  if (currentLocation && requestLocation.includes(currentLocation)) {
+    return true;
+  }
+
+  return false;
 }
 
 async function getFrontendConfigPayload(req = null) {
@@ -2849,6 +3034,7 @@ async function createServiceRequest(serviceRequest) {
   const now = new Date().toISOString();
   const requestId = `req_${Date.now()}`;
   const customerType = resolveCustomerTier(serviceRequest);
+  const resolvedLocation = await resolveRequestLocation(serviceRequest);
   const pricing = resolveServicePricing({
     ...serviceRequest,
     customerTier: customerType
@@ -2885,10 +3071,13 @@ async function createServiceRequest(serviceRequest) {
     dispatchFee: pricing.dispatchFee,
     platformShareAmount: pricing.platformShare,
     providerPayoutAmount: pricing.providerPayout,
+    requestAcceptanceWindowMinutes,
+    requestAcceptanceExpiresAt: addMinutes(now, requestAcceptanceWindowMinutes),
     submittedAt: now,
     createdAt: now,
     updatedAt: now,
     ...serviceRequest,
+    ...resolvedLocation,
     maskedNotes: "Detailed customer notes unlock after payment and provider activation.",
     customerTier: pricing.customerTier,
     pricing,
@@ -2899,6 +3088,84 @@ async function createServiceRequest(serviceRequest) {
   await fs.appendFile(requestLogPath, `${JSON.stringify(savedRequest)}\n`);
 
   return savedRequest;
+}
+
+async function resolveRequestLocation(serviceRequest) {
+  const explicitCoordinates = normalizeCoordinateRecord(
+    serviceRequest?.locationCoordinates || {
+      longitude: serviceRequest?.longitude,
+      latitude: serviceRequest?.latitude
+    }
+  );
+  if (explicitCoordinates) {
+    return {
+      locationCoordinates: explicitCoordinates,
+      locationGeocodeSource: "provided-coordinates",
+      locationGeocodedAt: new Date().toISOString()
+    };
+  }
+
+  if (!locationService.isConfigured()) {
+    return {};
+  }
+
+  const location = readOptionalString(serviceRequest?.location);
+  if (!location) {
+    return {};
+  }
+
+  try {
+    const result = await locationService.forwardGeocode(location, { limit: 1, autocomplete: false });
+    const match = Array.isArray(result.features) ? result.features[0] : null;
+    const longitude = Number.isFinite(Number(match?.routableLongitude)) ? Number(match.routableLongitude) : Number(match?.longitude);
+    const latitude = Number.isFinite(Number(match?.routableLatitude)) ? Number(match.routableLatitude) : Number(match?.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return {};
+    }
+
+    return {
+      locationCoordinates: {
+        longitude,
+        latitude
+      },
+      locationGeocodeSource: "mapbox-forward-geocode",
+      locationGeocodedAt: new Date().toISOString(),
+      locationMapboxId: match?.mapboxId || null,
+      locationFullAddress: match?.fullAddress || serviceRequest.location,
+      locationAccuracy: match?.accuracy || null
+    };
+  } catch {
+    return {};
+  }
+}
+
+function normalizeCoordinateRecord(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const longitude = Number(value.longitude);
+  const latitude = Number(value.latitude);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return null;
+  }
+
+  if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) {
+    return null;
+  }
+
+  return {
+    longitude,
+    latitude
+  };
+}
+
+function addMinutes(value, minutes) {
+  const base = new Date(value);
+  if (Number.isNaN(base.getTime())) {
+    return value;
+  }
+  return new Date(base.getTime() + Number(minutes || 0) * 60 * 1000).toISOString();
 }
 
 async function readRequestLog() {

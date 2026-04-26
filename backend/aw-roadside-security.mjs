@@ -78,6 +78,47 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
+      if (pathname === "/api/aw-roadside/location/config") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        helpers.sendJson(res, 200, helpers.getLocationConfigPayload());
+        return true;
+      }
+
+      if (pathname === "/api/aw-roadside/location/geocode") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const url = new URL(req.url, "http://localhost");
+        const query = url.searchParams.get("q") || "";
+        helpers.sendJson(res, 200, await helpers.forwardGeocodeLocation(query, { limit: 5 }));
+        return true;
+      }
+
+      if (pathname === "/api/aw-roadside/location/isochrone") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const url = new URL(req.url, "http://localhost");
+        const longitude = Number(url.searchParams.get("longitude"));
+        const latitude = Number(url.searchParams.get("latitude"));
+        const contoursMinutes = Number(url.searchParams.get("minutes"));
+        const profile = url.searchParams.get("profile") || "driving";
+        helpers.sendJson(
+          res,
+          200,
+          await helpers.getLocationIsochrone(longitude, latitude, {
+            contoursMinutes,
+            profile
+          })
+        );
+        return true;
+      }
+
       if (pathname === "/api/aw-roadside/payments/config") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
@@ -121,6 +162,30 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         const session = requireSession(req, helpers);
         const profile = await helpers.getUserProfile(session.userId);
         helpers.sendJson(res, 200, profile);
+        return true;
+      }
+
+      if (pathname === "/api/aw-roadside/provider/wallet") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const session = helpers.resolveUserSession(req);
+        if (!session) {
+          helpers.sendJson(res, 401, {
+            error: "session-required",
+            message: "A valid session token is required."
+          });
+          return true;
+        }
+        if (!session.roles.includes("PROVIDER")) {
+          helpers.sendJson(res, 403, {
+            error: "provider-session-required",
+            message: "A provider session is required to view wallet records."
+          });
+          return true;
+        }
+        helpers.sendJson(res, 200, await helpers.getProviderWalletPayload(session.userId));
         return true;
       }
 
@@ -216,9 +281,10 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
             return true;
           }
           const payload = await readThroughCache("request-list", () => requestServiceController.listRequests(helpers));
+          const visibleRequests = await helpers.filterRequestsForSession(payload.requests, session);
           helpers.sendJson(res, 200, {
             ...payload,
-            requests: await helpers.presentRequestsForSession(payload.requests, session)
+            requests: await helpers.presentRequestsForSession(visibleRequests, session)
           });
           return true;
         }
