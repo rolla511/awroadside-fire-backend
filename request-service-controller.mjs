@@ -1,7 +1,26 @@
 import path from "node:path";
 
 const ACCEPTED_STATUSES = new Set(["ACCEPTED", "ASSIGNED", "EN_ROUTE", "ARRIVED", "COMPLETED"]);
-const PROVIDER_ACTIONS = new Set(["accept", "eta", "soft-contact", "hard-contact", "arrived", "completed"]);
+const PROVIDER_ACTIONS = new Set([
+  "accept",
+  "eta",
+  "soft-contact",
+  "hard-contact",
+  "arrived",
+  "completed",
+  "subscriber-accept-eta",
+  "customer-accept-eta",
+  "confirm-arrived",
+  "subscriber-arrived-confirm",
+  "confirm-completion",
+  "subscriber-completion-confirm",
+  "prompt-payment",
+  "note",
+  "force-accept",
+  "force-arrived",
+  "force-complete",
+  "mark-complete"
+]);
 const DEFAULT_API_STYLE = "adapter";
 
 export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl = "", fallbackApiStyle = "roadside-backend" }) {
@@ -345,12 +364,14 @@ function normalizeHealthPayload(apiStyle, payload) {
 
 function normalizeListPayload(apiStyle, payload) {
   if (apiStyle === "roadside-backend") {
-    if (!Array.isArray(payload)) {
-      return { requests: [] };
-    }
+    const requests = Array.isArray(payload)
+      ? payload
+      : Array.isArray(payload?.requests)
+        ? payload.requests
+        : [];
     return {
-      requests: payload.map(normalizeRoadsideRequest)
-    };
+      requests: requests.map(normalizeRoadsideRequest)
+    }
   }
   return payload;
 }
@@ -396,17 +417,38 @@ function normalizeRoadsideRequest(payload) {
     id: payload.id || payload.requestId || null,
     requestId: payload.id || payload.requestId || null,
     status: typeof payload.status === "string" ? payload.status.trim().toUpperCase() : "UNKNOWN",
+    completionStatus: payload.completionStatus || null,
     userId: Number.isInteger(payload.userId) ? payload.userId : null,
     roles: Array.isArray(payload.roles) ? payload.roles : [],
     fullName: payload.fullName || payload.customerName || "",
     phoneNumber: payload.phoneNumber || payload.phone || "",
     vehicleInfo: payload.vehicleInfo || payload.vehicle || "",
     location: payload.location || "",
+    locationSummary: payload.locationSummary || "",
     serviceType: payload.serviceType || "",
     notes: payload.notes || "",
+    maskedNotes: payload.maskedNotes || "",
     assignedProviderId: payload.assignedProviderId || null,
     paymentStatus: payload.paymentStatus || null,
+    providerPayoutStatus: payload.providerPayoutStatus || null,
+    providerPayoutAmount: Number.isFinite(Number(payload.providerPayoutAmount)) ? Number(payload.providerPayoutAmount) : null,
+    amountCharged: Number.isFinite(Number(payload.amountCharged)) ? Number(payload.amountCharged) : null,
+    amountCollected: Number.isFinite(Number(payload.amountCollected)) ? Number(payload.amountCollected) : null,
+    platformShareAmount: Number.isFinite(Number(payload.platformShareAmount)) ? Number(payload.platformShareAmount) : null,
     etaMinutes: Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : null,
+    softEtaMinutes: Number.isFinite(Number(payload.softEtaMinutes)) ? Number(payload.softEtaMinutes) : null,
+    hardEtaMinutes: Number.isFinite(Number(payload.hardEtaMinutes)) ? Number(payload.hardEtaMinutes) : null,
+    etaStage: payload.etaStage || null,
+    locationDisclosureLevel: payload.locationDisclosureLevel || null,
+    contactDisclosureLevel: payload.contactDisclosureLevel || null,
+    providerActivatedAt: payload.providerActivatedAt || null,
+    exactLocationUnlockedAt: payload.exactLocationUnlockedAt || null,
+    contactUnlockedAt: payload.contactUnlockedAt || null,
+    customerEtaAcceptedAt: payload.customerEtaAcceptedAt || null,
+    arrivalConfirmedAt: payload.arrivalConfirmedAt || null,
+    completionConfirmedAt: payload.completionConfirmedAt || null,
+    paymentPromptedAt: payload.paymentPromptedAt || null,
+    noteExchange: Array.isArray(payload.noteExchange) ? payload.noteExchange : [],
     providerActions: Array.isArray(payload.providerActions) ? payload.providerActions : [],
     acceptedAt: payload.acceptedAt || null,
     etaUpdatedAt: payload.etaUpdatedAt || null,
@@ -425,6 +467,8 @@ function mapCreatePayload(apiStyle, payload) {
   }
 
   return {
+    ...(payload.userId !== null ? { userId: payload.userId } : {}),
+    ...(payload.roles?.length ? { roles: payload.roles } : {}),
     fullName: payload.fullName,
     phoneNumber: payload.phoneNumber,
     vehicleInfo:
@@ -432,7 +476,8 @@ function mapCreatePayload(apiStyle, payload) {
       "Vehicle details not provided from app runtime",
     location: payload.location,
     serviceType: payload.serviceType,
-    notes: payload.notes || ""
+    notes: payload.notes || "",
+    ...(payload.assignedProviderId ? { assignedProviderId: payload.assignedProviderId } : {})
   };
 }
 
