@@ -2,10 +2,21 @@ import {
   applyProvider,
   createSignup,
   loginUser,
-  setupSubscriber
+  setupSubscriber,
+  uploadProviderDocuments
 } from "./subscription-controller.mjs";
 
 const DEFAULT_ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
+const PROVIDER_ONLY_ACTIONS = new Set(["accept", "eta", "soft-contact", "hard-contact", "arrived", "completed"]);
+const CUSTOMER_ONLY_ACTIONS = new Set([
+  "subscriber-accept-eta",
+  "customer-accept-eta",
+  "confirm-arrived",
+  "subscriber-arrived-confirm",
+  "confirm-completion",
+  "subscriber-completion-confirm"
+]);
+const SHARED_NOTE_ACTIONS = new Set(["note"]);
 
 export function createAwRoadsideSecurityController({ requestServiceController, localWatchdog }) {
   const routeCache = new Map();
@@ -67,6 +78,47 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
+      if (pathname === "/api/aw-roadside/location/config") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        helpers.sendJson(res, 200, helpers.getLocationConfigPayload());
+        return true;
+      }
+
+      if (pathname === "/api/aw-roadside/location/geocode") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const url = new URL(req.url, "http://localhost");
+        const query = url.searchParams.get("q") || "";
+        helpers.sendJson(res, 200, await helpers.forwardGeocodeLocation(query, { limit: 5 }));
+        return true;
+      }
+
+      if (pathname === "/api/aw-roadside/location/isochrone") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const url = new URL(req.url, "http://localhost");
+        const longitude = Number(url.searchParams.get("longitude"));
+        const latitude = Number(url.searchParams.get("latitude"));
+        const contoursMinutes = Number(url.searchParams.get("minutes"));
+        const profile = url.searchParams.get("profile") || "driving";
+        helpers.sendJson(
+          res,
+          200,
+          await helpers.getLocationIsochrone(longitude, latitude, {
+            contoursMinutes,
+            profile
+          })
+        );
+        return true;
+      }
+
       if (pathname === "/api/aw-roadside/payments/config") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
@@ -113,6 +165,30 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
+      if (pathname === "/api/aw-roadside/provider/wallet") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const session = helpers.resolveUserSession(req);
+        if (!session) {
+          helpers.sendJson(res, 401, {
+            error: "session-required",
+            message: "A valid session token is required."
+          });
+          return true;
+        }
+        if (!session.roles.includes("PROVIDER")) {
+          helpers.sendJson(res, 403, {
+            error: "provider-session-required",
+            message: "A provider session is required to view wallet records."
+          });
+          return true;
+        }
+        helpers.sendJson(res, 200, await helpers.getProviderWalletPayload(session.userId));
+        return true;
+      }
+
       if (pathname === "/api/aw-roadside/auth/subscriber/setup") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -142,10 +218,28 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           providerStatus: updatedUser.providerStatus,
-          providerMonthly: 5.99
+          providerMonthly: helpers.getRoadsidePolicy?.().provider?.monthlyFee || 6
         });
         recordAudit("provider-apply", { userId: updatedUser.id });
         await helpers.recordSecurityEvent("provider-apply", { userId: updatedUser.id });
+        return true;
+      }
+
+      if (pathname === "/api/aw-roadside/auth/provider/documents") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+        const session = requireSession(req, helpers);
+        const payload = await helpers.readJsonBody(req);
+        const updatedUser = await uploadProviderDocuments(payload, helpers, session);
+        helpers.sendJson(res, 200, {
+          userId: updatedUser.id,
+          providerStatus: updatedUser.providerStatus,
+          documents: updatedUser.providerProfile?.documents || {}
+        });
+        recordAudit("provider-documents-upload", { userId: updatedUser.id });
+        await helpers.recordSecurityEvent("provider-documents-upload", { userId: updatedUser.id });
         return true;
       }
 
@@ -156,7 +250,14 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           const securePayload = sanitizeProtectedRequestPayload(payload, session);
           const created = await requestServiceController.createRequest(securePayload, helpers);
           routeCache.delete("request-list");
-          helpers.sendJson(res, 201, created);
+          helpers.sendJson(
+            res,
+            201,
+            await helpers.presentRequestForSession(
+              created,
+              session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }
+            )
+          );
           recordAudit("request-create", {
             userId: session?.userId || null,
             requestId: created.id || created.requestId || null,
@@ -171,8 +272,20 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         }
 
         if (req.method === "GET") {
-          requireSession(req, helpers);
-          helpers.sendJson(res, 200, await readThroughCache("request-list", () => requestServiceController.listRequests(helpers)));
+          const session = requireSession(req, helpers);
+          if (!session.roles.includes("PROVIDER") && !session.roles.includes("ADMIN")) {
+            helpers.sendJson(res, 403, {
+              error: "provider-or-admin-session-required",
+              message: "A provider or admin session is required to read the provider request queue."
+            });
+            return true;
+          }
+          const payload = await readThroughCache("request-list", () => requestServiceController.listRequests(helpers));
+          const visibleRequests = await helpers.filterRequestsForSession(payload.requests, session);
+          helpers.sendJson(res, 200, {
+            ...payload,
+            requests: await helpers.presentRequestsForSession(visibleRequests, session)
+          });
           return true;
         }
 
@@ -182,34 +295,73 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
 
       const requestActionMatch = pathname.match(/^\/api\/aw-roadside\/requests\/([^/]+)\/([^/]+)$/);
       if (requestActionMatch) {
+        const requestId = decodeURIComponent(requestActionMatch[1]);
+        const action = decodeURIComponent(requestActionMatch[2]);
+        const normalizedAction = action.trim().toLowerCase();
+        if (normalizedAction === "feedback") {
+          if (req.method !== "POST") {
+            helpers.sendMethodNotAllowed(res, "POST");
+            return true;
+          }
+          const session = helpers.resolveUserSession(req);
+          const payload = await helpers.readJsonBody(req);
+          const result = await helpers.recordCustomerFeedback(requestId, payload, session);
+          helpers.sendJson(res, 200, result);
+          recordAudit("request-feedback", {
+            userId: session?.userId || null,
+            requestId
+          });
+          await helpers.recordSecurityEvent("request-feedback", {
+            userId: session?.userId || null,
+            requestId
+          });
+          return true;
+        }
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
         }
 
         const session = requireSession(req, helpers);
-        if (!session.roles.includes("PROVIDER")) {
+        if (PROVIDER_ONLY_ACTIONS.has(normalizedAction) && !session.roles.includes("PROVIDER")) {
           helpers.sendJson(res, 403, {
             error: "provider-session-required",
             message: "A provider session is required for request work actions."
           });
           return true;
         }
+        if (CUSTOMER_ONLY_ACTIONS.has(normalizedAction) && !session.roles.includes("SUBSCRIBER")) {
+          helpers.sendJson(res, 403, {
+            error: "subscriber-session-required",
+            message: "A subscriber session is required for customer confirmations."
+          });
+          return true;
+        }
+        if (SHARED_NOTE_ACTIONS.has(normalizedAction) && !session.roles.some((role) => role === "SUBSCRIBER" || role === "PROVIDER")) {
+          helpers.sendJson(res, 403, {
+            error: "session-role-required",
+            message: "A subscriber or provider session is required for note exchange."
+          });
+          return true;
+        }
 
         const payload = await helpers.readJsonBody(req);
-        const requestId = decodeURIComponent(requestActionMatch[1]);
-        const action = decodeURIComponent(requestActionMatch[2]);
         const result = await requestServiceController.applyProviderAction(
           requestId,
           action,
           {
             ...payload,
-            providerUserId: session.userId
+            providerUserId: session.roles.includes("PROVIDER") ? session.userId : null,
+            userId: session.userId,
+            actorRole: session.roles.includes("PROVIDER") ? "PROVIDER" : session.roles.includes("SUBSCRIBER") ? "SUBSCRIBER" : "USER"
           },
           helpers
         );
         routeCache.delete("request-list");
-        helpers.sendJson(res, result.committed === false ? 202 : 200, result);
+        helpers.sendJson(res, result.committed === false ? 202 : 200, {
+          ...result,
+          request: result.request ? await helpers.presentRequestForSession(result.request, session) : null
+        });
         recordAudit("provider-request-action", {
           userId: session.userId,
           requestId,
@@ -304,6 +456,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           });
           return true;
         }
+        const session = helpers.resolveUserSession(req);
         const payload = await helpers.readJsonBody(req);
         const orderId = typeof payload.orderId === "string" ? payload.orderId.trim() : "";
         if (!orderId) {
@@ -318,8 +471,9 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
           route: "aw-roadside-security",
           capture
         });
+        let updatedRequest = null;
         if (typeof payload.requestId === "string" && payload.requestId.trim() && typeof helpers.updateRequestRecord === "function") {
-          await helpers.updateRequestRecord(payload.requestId, (request) => ({
+          updatedRequest = await helpers.updateRequestRecord(payload.requestId, (request) => ({
             ...request,
             paymentStatus: "CAPTURED",
             amountCollected: Number(request.amountCharged || request.amountCollected || 0),
@@ -329,7 +483,13 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         helpers.sendJson(res, 200, {
           status: capture.status,
           orderId,
-          capture
+          capture,
+          request: updatedRequest
+            ? await helpers.presentRequestForSession(
+                updatedRequest,
+                session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }
+              )
+            : null
         });
         return true;
       }
@@ -353,6 +513,9 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         degraded: false
       };
     } catch (error) {
+      if (cacheKey === "request-list") {
+        throw error;
+      }
       const cached = routeCache.get(cacheKey);
       if (cached && Date.now() - cached.updatedAt <= routeCacheTtlMs) {
         recordAudit("cache-fallback", {
@@ -377,6 +540,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
     });
     auditLog.splice(50);
   }
+
 }
 
 function attachSession(payload, helpers) {
@@ -412,6 +576,7 @@ function sanitizeProtectedRequestPayload(payload, session) {
   return {
     userId: session?.userId || null,
     roles: session?.roles || [],
+    subscriberActive: Boolean(payload.subscriberActive),
     fullName,
     phoneNumber,
     serviceType,
