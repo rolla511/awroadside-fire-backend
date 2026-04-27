@@ -716,6 +716,42 @@ export default function App() {
     }
   }
 
+  async function handleProviderTraining(providerId, status) {
+    if (!adminSession?.token) {
+      setErrorMessage('Admin login is required before updating provider training.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      const payload = await api.updateProviderTraining(
+        providerId,
+        status === 'COMPLETED'
+          ? {
+              status: 'COMPLETED',
+              note: 'Training completed',
+            }
+          : {
+              status: 'SCHEDULED',
+              scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              note: 'Manual roadside retraining',
+            },
+        adminSession.token,
+        createAdminHeaders()
+      );
+      await loadAdminDashboard(frontendConfig, adminSession);
+      if (adminSelectedUserProfile?.user?.id === providerId) {
+        const refreshedProfile = await api.getAdminUserProfile(providerId, adminSession.token, createAdminHeaders());
+        setAdminSelectedUserProfile(refreshedProfile);
+      }
+      setStatusMessage(formatUserFacingMessage(payload.message || `Training updated for ${providerId}.`));
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleAdminAccountState(userId, accountState) {
     if (!adminSession?.token) {
       setErrorMessage('Admin login is required before changing account state.');
@@ -1696,6 +1732,8 @@ export default function App() {
               <Text style={styles.mutedText}>Document readiness: {provider.documentStatus?.meetsMinimumRequirements ? 'Ready' : 'Missing items'}</Text>
               <Text style={styles.mutedText}>PayPal email: {provider.paypal?.email || 'Not linked'}</Text>
               <Text style={styles.mutedText}>Last payout event: {provider.paypal?.payouts?.lastEventType || 'None'}</Text>
+              <Text style={styles.mutedText}>Training: {provider.discipline?.training?.status || 'NOT_REQUIRED'} · Strikes: {provider.discipline?.strikeCount ?? 0}</Text>
+              <Text style={styles.mutedText}>Suspension: {provider.discipline?.currentSuspension?.indefinite ? 'Indefinite until training' : provider.discipline?.currentSuspension?.active ? `Active until ${formatDate(provider.discipline?.currentSuspension?.endsAt)}` : 'None active'}</Text>
               <InputField
                 label="Approval Note"
                 value={adminNotes.approvals[String(provider.id)] || ''}
@@ -1703,6 +1741,12 @@ export default function App() {
               />
               <View style={styles.buttonGrid}>
                 <Button label="Approve Provider" onPress={() => handleApproveProvider(provider.id)} />
+                {provider.discipline?.currentSuspension?.indefinite ? (
+                  <Button label="Schedule Training" onPress={() => handleProviderTraining(provider.id, 'SCHEDULED')} kind="secondary" />
+                ) : null}
+                {provider.discipline?.training?.status === 'SCHEDULED' || provider.discipline?.training?.status === 'ENROLLED' ? (
+                  <Button label="Mark Training Complete" onPress={() => handleProviderTraining(provider.id, 'COMPLETED')} kind="secondary" />
+                ) : null}
               </View>
             </View>
           ))

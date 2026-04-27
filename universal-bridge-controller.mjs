@@ -166,7 +166,7 @@ export function createUniversalBridgeController() {
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           providerStatus: updatedUser.providerStatus,
-          providerMonthly: updatedUser.providerMonthly || 5.99,
+          providerMonthly: updatedUser.providerMonthly || helpers.getRoadsidePolicy?.().provider?.monthlyFee || 6,
           ...(sessionToken ? { sessionToken, token: sessionToken } : {})
         });
         return true;
@@ -277,7 +277,8 @@ function mapAuthenticatedRequestPayload(payload, session) {
   return {
     ...mapGuestRequestPayload(payload),
     userId: session.userId,
-    roles: session.roles || []
+    roles: session.roles || [],
+    subscriberActive: Boolean(payload.subscriberActive)
   };
 }
 
@@ -292,7 +293,12 @@ function mapSubscriptionPayload(payload) {
     },
     paymentMethodMasked: normalizeString(
       payload.paymentMethodMasked || payload.paymentMethod || payload.cardMasked || "manual-test-mode"
-    )
+    ),
+    paymentProvider: normalizeString(payload.paymentProvider || "manual-test-mode"),
+    billingZip: normalizeString(payload.billingZip),
+    subscriberTermsAccepted: payload.subscriberTermsAccepted === true,
+    dispatchOnlyLiabilityAccepted: payload.dispatchOnlyLiabilityAccepted === true,
+    noRefundPolicyAccepted: payload.noRefundPolicyAccepted === true
   };
 }
 
@@ -304,7 +310,10 @@ function mapProviderSignupPayload(payload) {
     email: normalizeString(payload.email),
     password: normalizeString(payload.password),
     role: "PROVIDER",
-    termsAccepted: payload.termsAccepted !== false
+    termsAccepted: payload.termsAccepted === true,
+    providerTermsAccepted: payload.providerTermsAccepted === true,
+    providerLiabilityAccepted: payload.providerLiabilityAccepted === true,
+    providerHoldHarmlessAccepted: payload.providerHoldHarmlessAccepted === true
   };
 }
 
@@ -325,13 +334,26 @@ function mapProviderApplicationPayload(payload) {
       color: normalizeString(vehicleInfo.color || payload.color)
     },
     documents: {
-      license: Boolean(documents.license ?? payload.license),
-      registration: Boolean(documents.registration ?? payload.registration),
-      insurance: Boolean(documents.insurance ?? payload.insurance),
-      helperId: Boolean(documents.helperId ?? payload.helperId)
+      license: normalizeDocumentPayload(documents.license ?? payload.license),
+      registration: normalizeDocumentPayload(documents.registration ?? payload.registration),
+      insurance: normalizeDocumentPayload(documents.insurance ?? payload.insurance),
+      helperId: normalizeDocumentPayload(documents.helperId ?? payload.helperId)
     },
     experience: normalizeString(payload.experience),
-    services
+    services,
+    providerTermsAccepted: payload.providerTermsAccepted === true,
+    providerLiabilityAccepted: payload.providerLiabilityAccepted === true,
+    providerInfo: payload.providerInfo && typeof payload.providerInfo === "object" ? payload.providerInfo : {
+      legalName: normalizeString(payload.fullName || payload.name),
+      phoneNumber: normalizeString(payload.phoneNumber || payload.phone),
+      email: normalizeString(payload.email)
+    },
+    hoursOfService: payload.hoursOfService && typeof payload.hoursOfService === "object" ? payload.hoursOfService : {},
+    serviceArea: normalizeString(payload.serviceArea || payload.coverageArea),
+    currentLocation: normalizeString(payload.currentLocation || payload.location),
+    equipment: Array.isArray(payload.equipment) ? payload.equipment : [],
+    assessmentAnswers: payload.assessmentAnswers && typeof payload.assessmentAnswers === "object" ? payload.assessmentAnswers : {},
+    rates: payload.rates && typeof payload.rates === "object" ? payload.rates : {}
   };
 }
 
@@ -348,4 +370,11 @@ function readRequestId(payload) {
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeDocumentPayload(value) {
+  if (value && typeof value === "object") {
+    return value;
+  }
+  return Boolean(value);
 }

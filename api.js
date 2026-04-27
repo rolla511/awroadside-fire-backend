@@ -163,6 +163,14 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
         headers: extraHeaders,
       });
     },
+    updateProviderTraining(userId, payload, tokenOverride = null, extraHeaders = {}) {
+      return request(`/api/admin/providers/${encodeURIComponent(userId)}/training`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        token: tokenOverride,
+        headers: extraHeaders,
+      });
+    },
     refundRequest(payload, tokenOverride = null, extraHeaders = {}) {
       return request('/api/admin/refund', {
         method: 'POST',
