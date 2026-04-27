@@ -4,8 +4,18 @@ import path from "node:path";
 
 const WATCHED_RELATIVE_FILES = [
   "backend/server.mjs",
+  "backend/awroadsidedb-config.mjs",
+  "backend/storage/index.mjs",
+  "backend/storage/users-repository.mjs",
+  "backend/storage/requests-repository.mjs",
+  "backend/storage/provider-wallet-repository.mjs",
+  "backend/storage/provider-history-repository.mjs",
+  "backend/storage/payments-repository.mjs",
+  "backend/storage/schema.mjs",
+  "backend/storage/sql-helpers.mjs",
   "backend/aw-roadside-security.mjs",
   "backend/subscription-controller.mjs",
+  "backend/smtp-mailer.mjs",
   "backend/request-service-controller.mjs",
   "backend/admin-controller.mjs",
   "web/app.js",

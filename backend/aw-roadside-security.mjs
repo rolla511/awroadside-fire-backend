@@ -218,7 +218,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           providerStatus: updatedUser.providerStatus,
-          providerMonthly: 5.99
+          providerMonthly: helpers.getRoadsidePolicy?.().provider?.monthlyFee || 6
         });
         recordAudit("provider-apply", { userId: updatedUser.id });
         await helpers.recordSecurityEvent("provider-apply", { userId: updatedUser.id });
@@ -295,14 +295,34 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
 
       const requestActionMatch = pathname.match(/^\/api\/aw-roadside\/requests\/([^/]+)\/([^/]+)$/);
       if (requestActionMatch) {
+        const requestId = decodeURIComponent(requestActionMatch[1]);
+        const action = decodeURIComponent(requestActionMatch[2]);
+        const normalizedAction = action.trim().toLowerCase();
+        if (normalizedAction === "feedback") {
+          if (req.method !== "POST") {
+            helpers.sendMethodNotAllowed(res, "POST");
+            return true;
+          }
+          const session = helpers.resolveUserSession(req);
+          const payload = await helpers.readJsonBody(req);
+          const result = await helpers.recordCustomerFeedback(requestId, payload, session);
+          helpers.sendJson(res, 200, result);
+          recordAudit("request-feedback", {
+            userId: session?.userId || null,
+            requestId
+          });
+          await helpers.recordSecurityEvent("request-feedback", {
+            userId: session?.userId || null,
+            requestId
+          });
+          return true;
+        }
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
         }
 
         const session = requireSession(req, helpers);
-        const action = decodeURIComponent(requestActionMatch[2]);
-        const normalizedAction = action.trim().toLowerCase();
         if (PROVIDER_ONLY_ACTIONS.has(normalizedAction) && !session.roles.includes("PROVIDER")) {
           helpers.sendJson(res, 403, {
             error: "provider-session-required",
@@ -326,7 +346,6 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         }
 
         const payload = await helpers.readJsonBody(req);
-        const requestId = decodeURIComponent(requestActionMatch[1]);
         const result = await requestServiceController.applyProviderAction(
           requestId,
           action,
@@ -521,6 +540,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
     });
     auditLog.splice(50);
   }
+
 }
 
 function attachSession(payload, helpers) {

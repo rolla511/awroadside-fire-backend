@@ -2,8 +2,8 @@ import crypto from "node:crypto";
 
 const PASSWORD_HASH_ALGORITHM = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
-const DEFAULT_SUBSCRIBER_MONTHLY = 5;
-const DEFAULT_PROVIDER_MONTHLY = 5.99;
+const DEFAULT_SUBSCRIBER_MONTHLY = 7.99;
+const DEFAULT_PROVIDER_MONTHLY = 6;
 
 function testingTermsBypassEnabled() {
   const value = String(process.env.AW_TESTING_SKIP_TERMS || "").trim().toLowerCase();
@@ -62,7 +62,7 @@ export function createSubscriptionController() {
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           subscriberActive: updatedUser.subscriberActive,
-          membershipPrice: 5
+          membershipPrice: DEFAULT_SUBSCRIBER_MONTHLY
         });
         return true;
       }
@@ -79,7 +79,7 @@ export function createSubscriptionController() {
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           providerStatus: updatedUser.providerStatus,
-          providerMonthly: 5.99
+          providerMonthly: DEFAULT_PROVIDER_MONTHLY
         });
         return true;
       }
@@ -248,7 +248,23 @@ export async function setupSubscriber(payload, helpers, session = null) {
     throw new Error("No-refund policy must be accepted before activation.");
   }
 
-  const updateUser = (mutableUser) => {
+  const updateUser = async (mutableUser) => {
+    const confirmedAt = new Date().toISOString();
+    const confirmationRecord = buildSubscriberConfirmationRecord({
+      user: mutableUser,
+      vehicle: { make, model, year, color },
+      membershipPrice: policy.subscriber.monthlyFee,
+      confirmedAt
+    });
+    const delivery = typeof helpers.sendSubscriberConfirmationEmail === "function"
+      ? await helpers.sendSubscriberConfirmationEmail(confirmationRecord)
+      : {
+          deliveryStatus: "stored-no-transport",
+          deliveredAt: null,
+          transport: "profile-record-only",
+          message: "Subscriber confirmation stored in profile. No outbound email transport is configured."
+        };
+
     mutableUser.subscriberActive = true;
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
     mutableUser.nextBillingDate = mutableUser.nextBillingDate || addDays(new Date().toISOString(), 30);
@@ -258,14 +274,18 @@ export async function setupSubscriber(payload, helpers, session = null) {
       savedVehicles: [{ make, model, year, color }],
       paymentMethodMasked,
       paymentInfo,
-      termsAcceptedAt: new Date().toISOString(),
-      termsVersion: policy.subscriber.termsVersion
+      termsAcceptedAt: confirmedAt,
+      termsVersion: policy.subscriber.termsVersion,
+      confirmation: {
+        ...confirmationRecord,
+        ...delivery
+      }
     };
     mutableUser.terms = {
       ...(mutableUser.terms || {}),
       subscriber: {
         accepted: true,
-        acceptedAt: new Date().toISOString(),
+        acceptedAt: confirmedAt,
         termsVersion: policy.subscriber.termsVersion,
         dispatchOnlyLiabilityAccepted: true,
         noRefundPolicyAccepted: true,
@@ -289,7 +309,7 @@ export async function setupSubscriber(payload, helpers, session = null) {
     });
   }
 
-  const result = updateUser(user);
+  const result = await updateUser(user);
   await helpers.writeUsers(users);
   return result;
 }
@@ -341,6 +361,14 @@ export async function applyProvider(payload, helpers, session = null) {
     throw new Error("Provider hours of service are required.");
   }
 
+  const currentLocation = normalizeString(payload.currentLocation || payload.location);
+  const locationMetadata = typeof helpers.resolveProviderLocationMetadata === "function"
+    ? await helpers.resolveProviderLocationMetadata({
+        currentLocation,
+        serviceArea
+      })
+    : {};
+
   const providerPatch = (mutableUser) => {
     mutableUser.providerStatus = "PENDING_APPROVAL";
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
@@ -359,7 +387,8 @@ export async function applyProvider(payload, helpers, session = null) {
       assessment,
       hoursOfService,
       serviceArea,
-      currentLocation: normalizeString(payload.currentLocation || payload.location),
+      currentLocation,
+      ...locationMetadata,
       equipment,
       profileSubmittedAt: new Date().toISOString(),
       profileSubmissionStatus: "SUBMITTED",
@@ -493,6 +522,28 @@ function resolveUsername(user) {
 
 function optionalString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function buildSubscriberConfirmationRecord({ user, vehicle, membershipPrice, confirmedAt }) {
+  const subject = "AW Roadside subscription confirmed";
+  const body = [
+    `Hello ${user.fullName || user.username || "subscriber"},`,
+    "",
+    "Your AW Roadside subscription is now active.",
+    `Membership price: $${Number(membershipPrice || 0).toFixed(2)}/month`,
+    `Vehicle on file: ${[vehicle.year, vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(" ") || "not provided"}`,
+    `Confirmation date: ${confirmedAt}`,
+    "",
+    "Keep this confirmation for your records."
+  ].join("\n");
+
+  return {
+    status: "CONFIRMED",
+    confirmedAt,
+    recipientEmail: user.email || null,
+    subject,
+    body
+  };
 }
 
 function normalizeString(value) {
