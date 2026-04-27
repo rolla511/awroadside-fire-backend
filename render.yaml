@@ -12,6 +12,12 @@ services:
         value: 20
       - key: PUBLIC_BASE_URL
         sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: AW_DB_MODE
+        value: external-db
+      - key: AW_DB_STRICT
+        value: "false"
       - key: RUNTIME_ROOT
         value: /var/data/runtime
       - key: PAYPAL_ENV
@@ -19,6 +25,24 @@ services:
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_SECURE
+        sync: false
+      - key: MAIL_REQUIRE_STARTTLS
+        sync: false
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_REPLY_TO
         sync: false
       - key: AW_SESSION_SECRET
         generateValue: true
