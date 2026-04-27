@@ -1,7 +1,7 @@
 const DEFAULT_BASE_URL =
   typeof process !== 'undefined'
-    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || 'https://awroadside-fire-backend-1.onrender.com'
-    : 'https://awroadside-fire-backend-1.onrender.com';
+    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || ''
+    : '';
 
 export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);

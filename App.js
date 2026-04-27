@@ -21,8 +21,8 @@ const homeGraphic = require('./assets/images/roadside-home.png');
 const subscriberGraphic = require('./assets/images/roadside-subscriber.png');
 const DEFAULT_BACKEND_URL =
   typeof process !== 'undefined'
-    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || 'https://awroadside-fire-backend-1.onrender.com'
-    : 'https://awroadside-fire-backend-1.onrender.com';
+    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || ''
+    : '';
 
 const topNavItems = [
   { id: 'overview', label: 'Overview' },
