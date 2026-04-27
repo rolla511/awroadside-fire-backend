@@ -1,24 +1,27 @@
 {
-  "name": "untitled-local-runtime",
+  "name": "awroadside-fire",
+  "main": "node_modules/expo/AppEntry.js",
   "version": "1.0.0",
-  "private": true,
-  "description": "Local-first runtime app with backend, static frontend, and build output for later deployment.",
-  "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
   "scripts": {
-    "dev": "node backend/server.mjs",
-    "dev:mock-service": "node backend/mock-request-service.mjs",
-    "dev:with-mock": "REQUEST_SERVICE_API_BASE_URL=http://127.0.0.1:3100 node backend/server.mjs",
-    "start": "NODE_ENV=production node backend/server.mjs",
-    "build": "node scripts/build.mjs",
-    "build:wordpress": "node scripts/build-wordpress.mjs",
-    "build:wordpress:firewp1home": "node scripts/build-wordpress-firewp1home.mjs",
-    "build:wordpress:screens": "node scripts/build-wordpress-screen-packs.mjs",
-    "healthcheck": "node scripts/healthcheck.mjs",
-    "watchdog": "node scripts/watchdog.mjs",
-    "watchdog:refresh": "node scripts/watchdog-refresh.mjs",
-    "audit": "npm audit --audit-level=moderate"
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build:android:development": "EAS_NO_VCS=1 npx eas-cli build --platform android --profile development --non-interactive"
+  },
+  "dependencies": {
+    "@expo/metro-runtime": "~55.0.10",
+    "expo": "~55.0.17",
+    "expo-dev-client": "~55.0.28",
+    "expo-splash-screen": "~55.0.19",
+    "expo-status-bar": "~55.0.5",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-web": "~0.21.0"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/react": "~19.2.10"
   }
 }
