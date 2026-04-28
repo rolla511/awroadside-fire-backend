@@ -13,7 +13,7 @@ import { createLocationService } from "./location-service.mjs";
 import { createProviderWalletPayload } from "./provider-wallet-controller.mjs";
 import { createRequestServiceController } from "./request-service-controller.mjs";
 import { createRuntimeRepository } from "./runtime-repository.mjs";
-import { createAwRoadsideStorageAuthority } from "./storage/index.mjs";
+import { createAwRoadsideStorageAuthority } from "./index.mjs";
 import { createSubscriptionController } from "./subscription-controller.mjs";
 import { createSmtpMailer } from "./smtp-mailer.mjs";
 import { createUniversalBridgeController } from "./universal-bridge-controller.mjs";
