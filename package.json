@@ -1,74 +1,27 @@
 {
-  "name": "expo-server",
-  "version": "55.0.8",
-  "description": "Server API for Expo Router projects",
-  "main": "build/cjs/index.js",
-  "module": "build/mjs/index.js",
-  "sideEffects": false,
-  "exports": {
-    ".": {
-      "import": "./build/mjs/index.js",
-      "require": "./build/cjs/index.js"
-    },
-    "./private": {
-      "import": "./build/mjs/private.js",
-      "require": "./build/cjs/private.js"
-    },
-    "./adapter/*": {
-      "import": "./build/mjs/vendor/*.js",
-      "require": "./build/cjs/vendor/*.js"
-    },
-    "./vendor/*": {
-      "import": "./build/mjs/vendor/*.js",
-      "require": "./build/cjs/vendor/*.js"
-    },
-    "./runtime/*": {
-      "import": "./build/mjs/runtime/index.js",
-      "require": "./build/cjs/runtime/index.js"
-    },
-    "./build/*": {
-      "import": "./build/mjs/*.js",
-      "require": "./build/cjs/*.js"
-    },
-    "./package.json": "./package.json"
-  },
+  "name": "awroadside-fire",
+  "main": "node_modules/expo/AppEntry.js",
+  "version": "1.0.0",
   "scripts": {
-    "build": "run-p build:cjs build:mjs",
-    "build:cjs": "tsc -p tsconfig.json",
-    "build:mjs": "tsc -p tsconfig.mjs.json",
-    "clean": "rimraf build",
-    "prepare": "run-s clean build",
-    "lint": "eslint .",
-    "test": "jest"
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build:android:development": "EAS_NO_VCS=1 npx eas-cli build --platform android --profile development --non-interactive"
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/expo/expo.git",
-    "directory": "packages/expo-server"
+  "dependencies": {
+    "@expo/metro-runtime": "~55.0.10",
+    "expo": "~55.0.17",
+    "expo-dev-client": "~55.0.28",
+    "expo-splash-screen": "~55.0.19",
+    "expo-status-bar": "~55.0.5",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-web": "~0.21.0"
   },
-  "keywords": [
-    "expo"
-  ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/expo/expo/issues"
-  },
-  "homepage": "https://github.com/expo/expo/tree/main/packages/expo-server#readme",
-  "files": [
-    "build",
-    "adapter"
-  ],
+  "private": true,
   "devDependencies": {
-    "@types/express": "^5.0.3",
-    "expo-module-scripts": "^55.0.2",
-    "npm-run-all2": "^8.0.4",
-    "rimraf": "^6.1.2"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "engines": {
-    "node": ">=20.16.0"
-  },
-  "gitHead": "e37e614d97c3ca53f16b91609a787675d044c284"
+    "@types/react": "~19.2.10"
+  }
 }
