@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import crypto from "node:crypto";
 import http from "node:http";
 import path from "node:path";
@@ -21,7 +21,7 @@ import { createUniversalBridgeController } from "./universal-bridge-controller.m
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
-const webRoot = path.join(projectRoot, "web");
+const webRoot = resolveWebRoot();
 const appRoot = path.join(projectRoot, "app");
 const runtimeRoot = resolveRuntimeRoot();
 const reportsRoot = path.join(runtimeRoot, "reports");
@@ -218,6 +218,35 @@ const host = process.env.HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const startedAt = new Date();
 const publicBaseUrl = resolvePublicBaseUrl();
+
+function resolveWebRoot() {
+  const configuredWebRoot = (process.env.WEB_ROOT || "").trim();
+  const cwd = process.cwd();
+  const parentRoot = path.dirname(projectRoot);
+  const candidateRoots = [
+    configuredWebRoot
+      ? path.isAbsolute(configuredWebRoot)
+        ? configuredWebRoot
+        : path.resolve(projectRoot, configuredWebRoot)
+      : null,
+    path.join(projectRoot, "web"),
+    path.join(cwd, "web"),
+    path.join(projectRoot, "dist", "web"),
+    path.join(cwd, "dist", "web"),
+    path.join(parentRoot, "web"),
+    path.join(parentRoot, "src", "web")
+  ].filter(Boolean);
+
+  for (const candidateRoot of new Set(candidateRoots)) {
+    if (existsSync(path.join(candidateRoot, "index.html"))) {
+      return candidateRoot;
+    }
+  }
+
+  throw new Error(
+    `Unable to resolve web root. Checked: ${candidateRoots.join(", ")}`
+  );
+}
 const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
 const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
 const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
