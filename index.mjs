@@ -5,7 +5,7 @@ import { createProviderWalletRepository } from "./provider-wallet-repository.mjs
 import { createRequestsRepository } from "./requests-repository.mjs";
 import { createUsersRepository } from "./users-repository.mjs";
 
-export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
+export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, bootAuthority = {} }) {
   const usersRepository = createUsersRepository();
   const requestsRepository = createRequestsRepository();
   const paymentsRepository = createPaymentsRepository();
@@ -18,12 +18,38 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
     providerWallet: providerWalletRepository,
     providerHistory: providerHistoryRepository
   });
+  const storageBootAuthority = Object.freeze({
+    backendEntry: bootAuthority.backendEntry || dbConfig.authority.backendEntry,
+    blueprintPath: bootAuthority.blueprintPath || null,
+    blueprintRuntime: bootAuthority.blueprintRuntime || null,
+    runningNodeVersion: bootAuthority.runningNodeVersion || null,
+    watchdogLayer: bootAuthority.watchdogLayer || "aw-roadside-local-watchdog",
+    databaseRole: "storage-only",
+    writeAuthority: "backend/server.mjs"
+  });
 
   let sql = null;
   let enabled = false;
+  let status = {
+    initialized: false,
+    enabled: false,
+    mode: dbConfig.authority.mode,
+    configured: dbConfig.authority.configured,
+    client: dbConfig.authority.client,
+    database: dbConfig.authority.database || null,
+    strict: dbConfig.authority.strict,
+    bootAuthority: storageBootAuthority,
+    lastEvent: "created"
+  };
 
   return {
     repositories,
+    getStatus() {
+      return {
+        ...status,
+        bootAuthority: storageBootAuthority
+      };
+    },
     async initialize() {
       await dbConfig.recordTransition("db-config-initialized", {
         mode: dbConfig.authority.mode,
@@ -31,8 +57,21 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
         client: dbConfig.authority.client,
         strict: dbConfig.authority.strict
       });
+      status = {
+        ...status,
+        initialized: true,
+        lastEvent: "db-config-initialized"
+      };
+      await record("storage-authority-boot-linked", {
+        bootAuthority: storageBootAuthority
+      });
 
       if (!dbConfig.authority.configured || dbConfig.authority.mode === "file-runtime") {
+        status = {
+          ...status,
+          enabled: false,
+          lastEvent: "storage-authority-file-runtime"
+        };
         await record("storage-authority-file-runtime", {
           repositories: Object.keys(repositories)
         });
@@ -40,6 +79,11 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
       }
 
       if (dbConfig.authority.client !== "postgres") {
+        status = {
+          ...status,
+          enabled: false,
+          lastEvent: "storage-authority-unsupported-client"
+        };
         await handleFailure(new Error(`Unsupported DB client: ${dbConfig.authority.client}`), "storage-authority-unsupported-client");
         return;
       }
@@ -49,6 +93,11 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
         sql = new Pool(dbConfig.getConnectionConfig());
         await sql.query(STORAGE_SCHEMA_SQL);
         enabled = true;
+        status = {
+          ...status,
+          enabled: true,
+          lastEvent: "storage-authority-sql-ready"
+        };
         await record("storage-authority-sql-ready", {
           repositories: Object.keys(repositories),
           client: dbConfig.authority.client,
@@ -104,6 +153,12 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
   }
 
   async function handleFailure(error, event) {
+    status = {
+      ...status,
+      enabled: false,
+      lastEvent: event,
+      lastError: error instanceof Error ? error.message : String(error)
+    };
     await record(event, {
       message: error instanceof Error ? error.message : String(error)
     });
