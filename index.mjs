@@ -1,5 +1,5 @@
 export function createAwRoadsideStorageAuthority({
-  dbConfig,
+  awRoadsideDbConfig,
   localWatchdog,
   bootAuthority = {},
   storageKernel = {}
@@ -7,7 +7,7 @@ export function createAwRoadsideStorageAuthority({
   const repositories = Object.freeze(storageKernel.repositories || {});
   const schemaSql = typeof storageKernel.schemaSql === "string" ? storageKernel.schemaSql : "";
   const storageBootAuthority = Object.freeze({
-    backendEntry: bootAuthority.backendEntry || dbConfig.authority.backendEntry,
+    backendEntry: bootAuthority.backendEntry || awRoadsideDbConfig.authority.backendEntry,
     blueprintPath: bootAuthority.blueprintPath || null,
     serverRuntimeProvider: bootAuthority.serverRuntimeProvider || "node",
     serverRuntimeVersion: bootAuthority.serverRuntimeVersion || null,
@@ -21,11 +21,11 @@ export function createAwRoadsideStorageAuthority({
   let status = {
     initialized: false,
     enabled: false,
-    mode: dbConfig.authority.mode,
-    configured: dbConfig.authority.configured,
-    client: dbConfig.authority.client,
-    database: dbConfig.authority.database || null,
-    strict: dbConfig.authority.strict,
+    mode: awRoadsideDbConfig.authority.mode,
+    configured: awRoadsideDbConfig.authority.configured,
+    client: awRoadsideDbConfig.authority.client,
+    database: awRoadsideDbConfig.authority.database || null,
+    strict: awRoadsideDbConfig.authority.strict,
     bootAuthority: storageBootAuthority,
     lastEvent: "created"
   };
@@ -39,27 +39,27 @@ export function createAwRoadsideStorageAuthority({
       };
     },
     async initialize() {
-      await dbConfig.recordTransition("db-config-initialized", {
-        mode: dbConfig.authority.mode,
-        configured: dbConfig.authority.configured,
-        client: dbConfig.authority.client,
-        strict: dbConfig.authority.strict
+      await awRoadsideDbConfig.recordTransition("awroadsidedb-config-initialized", {
+        mode: awRoadsideDbConfig.authority.mode,
+        configured: awRoadsideDbConfig.authority.configured,
+        client: awRoadsideDbConfig.authority.client,
+        strict: awRoadsideDbConfig.authority.strict
       });
       status = {
         ...status,
         initialized: true,
-        lastEvent: "db-config-initialized"
+        lastEvent: "awroadsidedb-config-initialized"
       };
       await record("storage-authority-boot-linked", {
         bootAuthority: storageBootAuthority
       });
 
-      if (!dbConfig.authority.configured || dbConfig.authority.mode === "file-runtime") {
+      if (!awRoadsideDbConfig.authority.configured || awRoadsideDbConfig.authority.mode === "file-runtime") {
         status = {
           ...status,
-        enabled: false,
-        lastEvent: "storage-authority-file-runtime"
-      };
+          enabled: false,
+          lastEvent: "storage-authority-file-runtime"
+        };
         await record("storage-authority-file-runtime", {
           repositories: Object.keys(repositories)
         });
@@ -79,19 +79,22 @@ export function createAwRoadsideStorageAuthority({
         return;
       }
 
-      if (dbConfig.authority.client !== "postgres") {
+      if (awRoadsideDbConfig.authority.client !== "postgres") {
         status = {
           ...status,
           enabled: false,
           lastEvent: "storage-authority-unsupported-client"
         };
-        await handleFailure(new Error(`Unsupported DB client: ${dbConfig.authority.client}`), "storage-authority-unsupported-client");
+        await handleFailure(
+          new Error(`Unsupported DB client: ${awRoadsideDbConfig.authority.client}`),
+          "storage-authority-unsupported-client"
+        );
         return;
       }
 
       try {
         const { Pool } = await import("pg");
-        sql = new Pool(dbConfig.getConnectionConfig());
+        sql = new Pool(awRoadsideDbConfig.getConnectionConfig());
         await sql.query(schemaSql);
         enabled = true;
         status = {
@@ -101,8 +104,8 @@ export function createAwRoadsideStorageAuthority({
         };
         await record("storage-authority-sql-ready", {
           repositories: Object.keys(repositories),
-          client: dbConfig.authority.client,
-          database: dbConfig.authority.database || null
+          client: awRoadsideDbConfig.authority.client,
+          database: awRoadsideDbConfig.authority.database || null
         });
       } catch (error) {
         await handleFailure(error, "storage-authority-sql-unavailable");
@@ -144,7 +147,7 @@ export function createAwRoadsideStorageAuthority({
   };
 
   async function record(event, details = {}) {
-    await dbConfig.recordTransition(event, details);
+    await awRoadsideDbConfig.recordTransition(event, details);
     if (localWatchdog && typeof localWatchdog.record === "function") {
       await localWatchdog.record(event, {
         layer: "awroadside-storage",
@@ -163,7 +166,7 @@ export function createAwRoadsideStorageAuthority({
     await record(event, {
       message: error instanceof Error ? error.message : String(error)
     });
-    if (dbConfig.authority.strict) {
+    if (awRoadsideDbConfig.authority.strict) {
       throw error;
     }
   }

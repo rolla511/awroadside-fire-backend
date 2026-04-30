@@ -14,6 +14,12 @@ import { createProviderWalletPayload } from "./provider-wallet-controller.mjs";
 import { createRequestServiceController } from "./request-service-controller.mjs";
 import { createRuntimeRepository } from "./runtime-repository.mjs";
 import { createAwRoadsideStorageAuthority } from "./storage/index.mjs";
+import { createPaymentsRepository } from "./storage/payments-repository.mjs";
+import { createProviderHistoryRepository } from "./storage/provider-history-repository.mjs";
+import { createProviderWalletRepository } from "./storage/provider-wallet-repository.mjs";
+import { createRequestsRepository } from "./storage/requests-repository.mjs";
+import { STORAGE_SCHEMA_SQL } from "./storage/schema.mjs";
+import { createUsersRepository } from "./storage/users-repository.mjs";
 import { createSubscriptionController } from "./subscription-controller.mjs";
 import { createSmtpMailer } from "./smtp-mailer.mjs";
 import { createUniversalBridgeController } from "./universal-bridge-controller.mjs";
@@ -385,7 +391,7 @@ const localWatchdog = createLocalWatchdog({
   projectRoot,
   runtimeRoot
 });
-const dbConfig = createAwRoadsideDbConfig({
+const awRoadsideDbConfig = createAwRoadsideDbConfig({
   env: process.env,
   localWatchdog,
   projectId: "awroadside-fire",
@@ -402,9 +408,27 @@ const smtpMailer = createSmtpMailer({
   replyTo: mailReplyTo,
   localWatchdog
 });
+const storageKernel = Object.freeze({
+  schemaSql: STORAGE_SCHEMA_SQL,
+  repositories: Object.freeze({
+    users: createUsersRepository(),
+    requests: createRequestsRepository(),
+    payments: createPaymentsRepository(),
+    providerWallet: createProviderWalletRepository(),
+    providerHistory: createProviderHistoryRepository()
+  })
+});
 const storageAuthority = createAwRoadsideStorageAuthority({
-  dbConfig,
-  localWatchdog
+  awRoadsideDbConfig,
+  localWatchdog,
+  bootAuthority: {
+    backendEntry: "backend/server.mjs",
+    blueprintPath: blueprintNodeContract.blueprintPath,
+    serverRuntimeProvider: blueprintNodeContract.runtime || "node",
+    serverRuntimeVersion: process.version,
+    watchdogLayer: "aw-roadside-local-watchdog"
+  },
+  storageKernel
 });
 const universalBridgeController = createUniversalBridgeController();
 const runtimeRepository = createRuntimeRepository({
@@ -1021,7 +1045,8 @@ async function createRuntimeStatus() {
       active: true,
       intervalMs: watchdogIntervalMs,
       latestStatusPath: path.join(runtimeRoot, "security", "latest-status.json")
-    }
+    },
+    storage: typeof storageAuthority.getStatus === "function" ? storageAuthority.getStatus() : null
   };
 }
 
