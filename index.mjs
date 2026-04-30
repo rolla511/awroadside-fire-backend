@@ -1,23 +1,8 @@
 import { STORAGE_SCHEMA_SQL } from "./schema.mjs";
-import { createPaymentsRepository } from "./payments-repository.mjs";
-import { createProviderHistoryRepository } from "./provider-history-repository.mjs";
-import { createProviderWalletRepository } from "./provider-wallet-repository.mjs";
-import { createRequestsRepository } from "./requests-repository.mjs";
-import { createUsersRepository } from "./users-repository.mjs";
 
 export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, bootAuthority = {} }) {
-  const usersRepository = createUsersRepository();
-  const requestsRepository = createRequestsRepository();
-  const paymentsRepository = createPaymentsRepository();
-  const providerWalletRepository = createProviderWalletRepository();
-  const providerHistoryRepository = createProviderHistoryRepository();
-  const repositories = Object.freeze({
-    users: usersRepository,
-    requests: requestsRepository,
-    payments: paymentsRepository,
-    providerWallet: providerWalletRepository,
-    providerHistory: providerHistoryRepository
-  });
+  let repositories = Object.freeze({});
+  let repositoriesPromise = null;
   const storageBootAuthority = Object.freeze({
     backendEntry: bootAuthority.backendEntry || dbConfig.authority.backendEntry,
     blueprintPath: bootAuthority.blueprintPath || null,
@@ -43,7 +28,9 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
   };
 
   return {
-    repositories,
+    get repositories() {
+      return repositories;
+    },
     getStatus() {
       return {
         ...status,
@@ -51,6 +38,7 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
       };
     },
     async initialize() {
+      const activeRepositories = await getRepositories();
       await dbConfig.recordTransition("db-config-initialized", {
         mode: dbConfig.authority.mode,
         configured: dbConfig.authority.configured,
@@ -73,7 +61,7 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
           lastEvent: "storage-authority-file-runtime"
         };
         await record("storage-authority-file-runtime", {
-          repositories: Object.keys(repositories)
+          repositories: Object.keys(activeRepositories)
         });
         return;
       }
@@ -99,7 +87,7 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
           lastEvent: "storage-authority-sql-ready"
         };
         await record("storage-authority-sql-ready", {
-          repositories: Object.keys(repositories),
+          repositories: Object.keys(activeRepositories),
           client: dbConfig.authority.client,
           database: dbConfig.authority.database || null
         });
@@ -112,8 +100,9 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
         return;
       }
       try {
-        await usersRepository.sync(sql, Array.isArray(users) ? users : []);
-        await providerHistoryRepository.syncFromUsers(sql, Array.isArray(users) ? users : []);
+        const activeRepositories = await getRepositories();
+        await activeRepositories.users.sync(sql, Array.isArray(users) ? users : []);
+        await activeRepositories.providerHistory.syncFromUsers(sql, Array.isArray(users) ? users : []);
       } catch (error) {
         await handleFailure(error, "storage-sync-users-failed");
       }
@@ -123,9 +112,10 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
         return;
       }
       try {
+        const activeRepositories = await getRepositories();
         const list = Array.isArray(requests) ? requests : [];
-        await requestsRepository.sync(sql, list);
-        await providerWalletRepository.syncFromRequests(sql, list);
+        await activeRepositories.requests.sync(sql, list);
+        await activeRepositories.providerWallet.syncFromRequests(sql, list);
       } catch (error) {
         await handleFailure(error, "storage-sync-requests-failed");
       }
@@ -135,7 +125,8 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
         return;
       }
       try {
-        await paymentsRepository.insert(sql, entry);
+        const activeRepositories = await getRepositories();
+        await activeRepositories.payments.insert(sql, entry);
       } catch (error) {
         await handleFailure(error, "storage-sync-payment-failed");
       }
@@ -166,4 +157,36 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
       throw error;
     }
   }
+
+  async function getRepositories() {
+    if (!repositoriesPromise) {
+      repositoriesPromise = loadRepositories();
+    }
+    repositories = await repositoriesPromise;
+    return repositories;
+  }
+}
+
+async function loadRepositories() {
+  const [
+    { createPaymentsRepository },
+    { createProviderHistoryRepository },
+    { createProviderWalletRepository },
+    { createRequestsRepository },
+    { createUsersRepository }
+  ] = await Promise.all([
+    import("./payments-repository.mjs"),
+    import("./provider-history-repository.mjs"),
+    import("./provider-wallet-repository.mjs"),
+    import("./requests-repository.mjs"),
+    import("./users-repository.mjs")
+  ]);
+
+  return Object.freeze({
+    users: createUsersRepository(),
+    requests: createRequestsRepository(),
+    payments: createPaymentsRepository(),
+    providerWallet: createProviderWalletRepository(),
+    providerHistory: createProviderHistoryRepository()
+  });
 }
