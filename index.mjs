@@ -21,11 +21,11 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog, boot
   const storageBootAuthority = Object.freeze({
     backendEntry: bootAuthority.backendEntry || dbConfig.authority.backendEntry,
     blueprintPath: bootAuthority.blueprintPath || null,
-    blueprintRuntime: bootAuthority.blueprintRuntime || null,
-    runningNodeVersion: bootAuthority.runningNodeVersion || null,
+    serverRuntimeProvider: bootAuthority.serverRuntimeProvider || "node",
+    serverRuntimeVersion: bootAuthority.serverRuntimeVersion || null,
     watchdogLayer: bootAuthority.watchdogLayer || "aw-roadside-local-watchdog",
     databaseRole: "storage-only",
-    writeAuthority: "backend/server.mjs"
+    storageCoordinator: "backend/server.mjs"
   });
 
   let sql = null;
