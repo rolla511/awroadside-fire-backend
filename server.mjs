@@ -1,5 +1,4 @@
 
-import * as paypal from "./paypal-client.mjs";
 import { createAdminController } from "./admin-controller.mjs";
 import { createAwRoadsideSecurityController } from "./aw-roadside-security.mjs";
 import { createCompatibilityGateway } from "./compatibility-gateway.mjs";
