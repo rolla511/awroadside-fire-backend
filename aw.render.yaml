@@ -1,0 +1,85 @@
+services:
+  - type: web
+    name: awroadside-fire-backend
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildFilter:
+      paths:
+        - backend/**/*.mjs
+        - backend/**/*.js
+        - backend/**/*.json
+        - web/**/*.html
+        - web/**/*.js
+        - web/**/*.css
+        - scripts/**/*.mjs
+        - scripts/**/*.js
+        - package.json
+        - package-lock.json
+        - aw.render.yaml
+      ignoredPaths:
+        - awroadside-fire-work/**
+        - dist/**
+        - dist-app-variant/**
+        - out/**
+        - wordpress/**
+        - src/**
+        - node_modules/**
+        - app/runtime/**
+        - "**/*.md"
+        - "**/*.txt"
+        - "**/*.zip"
+    buildCommand: npm ci --omit=dev
+    startCommand: node backend/server.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: AW_DB_MODE
+        value: external-db
+      - key: AW_DB_STRICT
+        value: "false"
+      - key: RUNTIME_ROOT
+        value: /var/data/runtime
+      - key: PAYPAL_ENV
+        value: sandbox
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: MAIL_HOST
+        sync: false
+      - key: MAIL_PORT
+        sync: false
+      - key: MAIL_SECURE
+        sync: false
+      - key: MAIL_REQUIRE_STARTTLS
+        sync: false
+      - key: MAIL_USER
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_REPLY_TO
+        sync: false
+      - key: AW_SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_2FA_CODE
+        sync: false
+      - key: ADMIN_TRUSTED_ZONES
+        sync: false
+    disk:
+      name: awroadside-fire-runtime
+      mountPath: /var/data
+      sizeGB: 1
