@@ -334,7 +334,6 @@ await localWatchdog.initialize();
 await localWatchdog.scanAndRecord();
 await storageAuthority.initialize();
 localWatchdog.startPeriodicScan(watchdogIntervalMs);
-await auditWebEntrypoint();
 await writeRuntimeArtifacts();
 
 const server = http.createServer(async (req, res) => {
@@ -792,22 +791,14 @@ const server = http.createServer(async (req, res) => {
           return;
         }
       } catch {
-        // Fall through to explicit not-found handling below.
+        // Fall through to SPA entrypoint below.
       }
     }
 
-    if (pathname.startsWith("/api/")) {
-      await recordBlockedFallback(pathname, "unknown-api-route");
-      sendJson(res, 404, {
-        error: "not-found",
-        message: `No API route matches ${pathname}.`
-      });
-      return;
-    }
-
-    const fallbackType = path.extname(pathname) ? "missing-static-file" : "blocked-shell-fallback";
-    await recordBlockedFallback(pathname, fallbackType);
-    sendNotFound(res, pathname);
+    const indexPath = path.join(webRoot, "index.html");
+    const indexBody = await fs.readFile(indexPath);
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(indexBody);
   } catch (error) {
     if (res.headersSent) {
       res.end();
@@ -953,12 +944,6 @@ function sendMethodNotAllowed(res, allowedMethod) {
     error: "method-not-allowed",
     message: `Use ${allowedMethod} for this endpoint.`
   });
-}
-
-function sendNotFound(res, pathname) {
-  const body = `Not found: ${pathname}\n`;
-  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end(body);
 }
 
 async function readJsonBody(req) {
@@ -4023,42 +4008,5 @@ function contentType(filePath) {
     case ".html":
     default:
       return "text/html; charset=utf-8";
-  }
-}
-
-async function auditWebEntrypoint() {
-  try {
-    const indexPath = path.join(webRoot, "index.html");
-    const indexBody = await fs.readFile(indexPath, "utf8");
-    if (!looksLikeExpoShell(indexBody)) {
-      return;
-    }
-
-    console.error("[SECURITY] web/index.html contains Expo shell markers.");
-    await localWatchdog.record("expo-shell-detected", {
-      path: "web/index.html"
-    });
-  } catch (error) {
-    console.error("[WARN] Web entrypoint audit failed:", error);
-  }
-}
-
-function looksLikeExpoShell(body) {
-  const value = String(body || "");
-  return (
-    value.includes("expo/AppEntry.bundle") ||
-    value.includes("Use static rendering with Expo Router") ||
-    value.includes("react-native-web")
-  );
-}
-
-async function recordBlockedFallback(pathname, reason) {
-  try {
-    await localWatchdog.record("blocked-web-fallback", {
-      pathname,
-      reason
-    });
-  } catch (error) {
-    console.error("[WARN] Failed to record blocked fallback:", error);
   }
 }
