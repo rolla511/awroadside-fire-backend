@@ -1,4 +1,4 @@
-import { existsSync, promises as fs } from "fs";
+import { existsSync, promises as fs, readFileSync } from "fs";
 import crypto from "crypto";
 import http from "http";
 import path from "path";
@@ -20,7 +20,11 @@ import { createUniversalBridgeController } from "./universal-bridge-controller.m
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, "..");
+const BLUEPRINT_RELATIVE_PATH = "aw.render.yaml";
+const runtimeFileRoot = path.resolve(__dirname, "..");
+const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
+const blueprintNodeContract = readBlueprintNodeContract(blueprintPath);
+const projectRoot = resolveProjectRoot(runtimeFileRoot, blueprintPath, blueprintNodeContract);
 const webRoot = resolveWebRoot();
 const appRoot = path.join(projectRoot, "app");
 const runtimeRoot = resolveRuntimeRoot();
@@ -247,6 +251,93 @@ function resolveWebRoot() {
     `Unable to resolve web root. Checked: ${candidateRoots.join(", ")}`
   );
 }
+
+function resolveBlueprintPath(runtimeRootCandidate) {
+  const candidatePaths = [
+    path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH),
+    path.join(process.cwd(), BLUEPRINT_RELATIVE_PATH),
+    path.join(path.dirname(runtimeRootCandidate), BLUEPRINT_RELATIVE_PATH)
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    if (existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH);
+}
+
+function resolveProjectRoot(runtimeRootCandidate, resolvedBlueprintPath, blueprintContract) {
+  const configuredRootDir = normalizeYamlScalar(blueprintContract?.rootDir);
+  if (!configuredRootDir) {
+    return runtimeRootCandidate;
+  }
+
+  return path.resolve(path.dirname(resolvedBlueprintPath), configuredRootDir);
+}
+
+function readBlueprintNodeContract(resolvedBlueprintPath) {
+  if (!existsSync(resolvedBlueprintPath)) {
+    return Object.freeze({
+      blueprintPath: resolvedBlueprintPath,
+      runtime: "",
+      rootDir: "",
+      startCommand: "",
+      healthCheckPath: "",
+      nodeVersion: "",
+      runtimeRoot: ""
+    });
+  }
+
+  const raw = readFileSync(resolvedBlueprintPath, "utf8");
+  return Object.freeze({
+    blueprintPath: resolvedBlueprintPath,
+    runtime: readYamlScalar(raw, "runtime"),
+    rootDir: readYamlScalar(raw, "rootDir"),
+    startCommand: readYamlScalar(raw, "startCommand"),
+    healthCheckPath: readYamlScalar(raw, "healthCheckPath"),
+    nodeVersion: readYamlEnvVarValue(raw, "NODE_VERSION"),
+    runtimeRoot: readYamlEnvVarValue(raw, "RUNTIME_ROOT")
+  });
+}
+
+function readYamlScalar(raw, key) {
+  const match = String(raw || "").match(new RegExp(`^\\s*${escapeRegExp(key)}:\\s*(.+?)\\s*$`, "m"));
+  return match ? normalizeYamlScalar(match[1]) : "";
+}
+
+function readYamlEnvVarValue(raw, envKey) {
+  const lines = String(raw || "").split("\n");
+  let activeKey = "";
+
+  for (const line of lines) {
+    const keyMatch = line.match(/^\s*-\s+key:\s+(.+?)\s*$/);
+    if (keyMatch) {
+      activeKey = normalizeYamlScalar(keyMatch[1]);
+      continue;
+    }
+
+    if (!activeKey) {
+      continue;
+    }
+
+    const valueMatch = line.match(/^\s*value:\s+(.+?)\s*$/);
+    if (valueMatch && activeKey === envKey) {
+      return normalizeYamlScalar(valueMatch[1]);
+    }
+  }
+
+  return "";
+}
+
+function normalizeYamlScalar(value) {
+  return String(value || "").trim().replace(/^['"]|['"]$/g, "");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+}
 const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
 const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
 const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
@@ -331,9 +422,11 @@ const awRoadsideSecurityController = createAwRoadsideSecurityController({
 
 await runtimeRepository.initialize();
 await localWatchdog.initialize();
+await auditBlueprintNodeRuntime();
 await localWatchdog.scanAndRecord();
 await storageAuthority.initialize();
 localWatchdog.startPeriodicScan(watchdogIntervalMs);
+await auditWebEntrypoint();
 await writeRuntimeArtifacts();
 
 const server = http.createServer(async (req, res) => {
@@ -791,14 +884,22 @@ const server = http.createServer(async (req, res) => {
           return;
         }
       } catch {
-        // Fall through to SPA entrypoint below.
+        // Fall through to explicit not-found handling below.
       }
     }
 
-    const indexPath = path.join(webRoot, "index.html");
-    const indexBody = await fs.readFile(indexPath);
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(indexBody);
+    if (pathname.startsWith("/api/")) {
+      await recordBlockedFallback(pathname, "unknown-api-route");
+      sendJson(res, 404, {
+        error: "not-found",
+        message: `No API route matches ${pathname}.`
+      });
+      return;
+    }
+
+    const fallbackType = path.extname(pathname) ? "missing-static-file" : "blocked-shell-fallback";
+    await recordBlockedFallback(pathname, fallbackType);
+    sendNotFound(res, pathname);
   } catch (error) {
     if (res.headersSent) {
       res.end();
@@ -818,6 +919,8 @@ server.listen(port, host, () => {
   console.log(`PayPal webhook: ${publicBaseUrl}${paypalWebhookPath}`);
   console.log(`Serving static files from ${webRoot}`);
   console.log(`Runtime artifacts in ${runtimeRoot}`);
+  console.log(`Blueprint node contract: ${blueprintNodeContract.blueprintPath}`);
+  console.log(`Running Node: ${process.version}`);
 });
 
 async function writeRuntimeArtifacts() {
@@ -834,6 +937,10 @@ async function writeRuntimeArtifacts() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    blueprintPath: blueprintNodeContract.blueprintPath,
+    blueprintRuntime: blueprintNodeContract.runtime || null,
+    blueprintNodeVersion: blueprintNodeContract.nodeVersion || null,
+    runningNodeVersion: process.version,
     uiUrl: `${publicBaseUrl}/`,
     apiUrl: `${publicBaseUrl}/api/aw-roadside/frontend-config`,
     protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`
@@ -849,6 +956,10 @@ async function writeRuntimeArtifacts() {
     [
       "Local Runtime Startup Report",
       `Started: ${startedAt.toLocaleString()}`,
+      `Blueprint: ${blueprintNodeContract.blueprintPath}`,
+      `Blueprint Runtime: ${blueprintNodeContract.runtime || "not set"}`,
+      `Blueprint Node Version: ${blueprintNodeContract.nodeVersion || "not set"}`,
+      `Running Node Version: ${process.version}`,
       `UI: ${publicBaseUrl}/`,
       `API: ${publicBaseUrl}/api/aw-roadside/frontend-config`,
       `Protected API: ${publicBaseUrl}/api/aw-roadside`,
@@ -873,6 +984,16 @@ async function createRuntimeStatus() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    blueprint: {
+      path: blueprintNodeContract.blueprintPath,
+      runtime: blueprintNodeContract.runtime || null,
+      nodeVersion: blueprintNodeContract.nodeVersion || null,
+      rootDir: blueprintNodeContract.rootDir || null,
+      runtimeRoot: blueprintNodeContract.runtimeRoot || null,
+      startCommand: blueprintNodeContract.startCommand || null,
+      healthCheckPath: blueprintNodeContract.healthCheckPath || null
+    },
+    runningNodeVersion: process.version,
     uiUrl: `${publicBaseUrl}/`,
     apiBaseUrl: `${publicBaseUrl}/api`,
     protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`,
@@ -944,6 +1065,12 @@ function sendMethodNotAllowed(res, allowedMethod) {
     error: "method-not-allowed",
     message: `Use ${allowedMethod} for this endpoint.`
   });
+}
+
+function sendNotFound(res, pathname) {
+  const body = `Not found: ${pathname}\n`;
+  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(body);
 }
 
 async function readJsonBody(req) {
@@ -1729,13 +1856,77 @@ function resolvePublicBaseUrl() {
 
 function resolveRuntimeRoot() {
   const configuredRuntimeRoot = (process.env.RUNTIME_ROOT || "").trim();
-  if (!configuredRuntimeRoot) {
+  const blueprintRuntimeRoot = normalizeYamlScalar(blueprintNodeContract.runtimeRoot);
+  const selectedRuntimeRoot = configuredRuntimeRoot || blueprintRuntimeRoot;
+  if (!selectedRuntimeRoot) {
     return path.join(appRoot, "runtime");
   }
 
-  return path.isAbsolute(configuredRuntimeRoot)
-    ? configuredRuntimeRoot
-    : path.resolve(projectRoot, configuredRuntimeRoot);
+  return path.isAbsolute(selectedRuntimeRoot)
+    ? selectedRuntimeRoot
+    : path.resolve(projectRoot, selectedRuntimeRoot);
+}
+
+async function auditBlueprintNodeRuntime() {
+  const issues = [];
+  const expectedRuntime = normalizeYamlScalar(blueprintNodeContract.runtime).toLowerCase();
+  const expectedNodeVersion = normalizeYamlScalar(blueprintNodeContract.nodeVersion);
+
+  if (expectedRuntime && expectedRuntime !== "node") {
+    issues.push(`Blueprint runtime is ${expectedRuntime}, expected node.`);
+  }
+
+  if (expectedNodeVersion && !matchesNodeVersionSpec(process.version, expectedNodeVersion)) {
+    issues.push(`Running Node ${process.version} does not match Blueprint NODE_VERSION ${expectedNodeVersion}.`);
+  }
+
+  if (issues.length === 0) {
+    return;
+  }
+
+  for (const issue of issues) {
+    console.error("[WARN]", issue);
+  }
+
+  try {
+    await localWatchdog.record("blueprint-node-mismatch", {
+      runtime: process.release?.name || "node",
+      runningNodeVersion: process.version,
+      expectedRuntime: expectedRuntime || null,
+      expectedNodeVersion: expectedNodeVersion || null,
+      issues
+    });
+  } catch (error) {
+    console.error("[WARN] Failed to record Blueprint node mismatch:", error);
+  }
+}
+
+function matchesNodeVersionSpec(version, spec) {
+  const currentMajor = extractMajorVersion(version);
+  const normalizedSpec = String(spec || "").trim();
+  if (!Number.isInteger(currentMajor) || !normalizedSpec) {
+    return true;
+  }
+
+  const exactMajorMatch = normalizedSpec.match(/^v?(\d+)(?:\.x)?$/i);
+  if (exactMajorMatch) {
+    return currentMajor === Number.parseInt(exactMajorMatch[1], 10);
+  }
+
+  const lowerBoundMatch = normalizedSpec.match(/>=\s*(\d+)/);
+  const upperBoundMatch = normalizedSpec.match(/<\s*(\d+)/);
+  if (lowerBoundMatch || upperBoundMatch) {
+    const lowerBound = lowerBoundMatch ? Number.parseInt(lowerBoundMatch[1], 10) : Number.NEGATIVE_INFINITY;
+    const upperBound = upperBoundMatch ? Number.parseInt(upperBoundMatch[1], 10) : Number.POSITIVE_INFINITY;
+    return currentMajor >= lowerBound && currentMajor < upperBound;
+  }
+
+  return true;
+}
+
+function extractMajorVersion(version) {
+  const match = String(version || "").match(/v?(\d+)/i);
+  return match ? Number.parseInt(match[1], 10) : Number.NaN;
 }
 
 async function saveProviderDocuments(userId, currentDocuments = {}, documentsPayload = {}) {
@@ -4008,5 +4199,42 @@ function contentType(filePath) {
     case ".html":
     default:
       return "text/html; charset=utf-8";
+  }
+}
+
+async function auditWebEntrypoint() {
+  try {
+    const indexPath = path.join(webRoot, "index.html");
+    const indexBody = await fs.readFile(indexPath, "utf8");
+    if (!looksLikeExpoShell(indexBody)) {
+      return;
+    }
+
+    console.error("[SECURITY] web/index.html contains Expo shell markers.");
+    await localWatchdog.record("expo-shell-detected", {
+      path: "web/index.html"
+    });
+  } catch (error) {
+    console.error("[WARN] Web entrypoint audit failed:", error);
+  }
+}
+
+function looksLikeExpoShell(body) {
+  const value = String(body || "");
+  return (
+    value.includes("expo/AppEntry.bundle") ||
+    value.includes("Use static rendering with Expo Router") ||
+    value.includes("react-native-web")
+  );
+}
+
+async function recordBlockedFallback(pathname, reason) {
+  try {
+    await localWatchdog.record("blocked-web-fallback", {
+      pathname,
+      reason
+    });
+  } catch (error) {
+    console.error("[WARN] Failed to record blocked fallback:", error);
   }
 }
