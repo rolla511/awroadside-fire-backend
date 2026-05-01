@@ -17,6 +17,7 @@ const state = {
   paymentLedger: readStoredArray(paymentLedgerKey),
   providerActionQueue: readStoredArray(providerActionQueueKey),
   providerQueue: [],
+  providerWallet: null,
   servicePaymentQuote: null,
   serviceQuoteAccepted: false,
   auth: readStoredAuth(),
@@ -30,7 +31,7 @@ const state = {
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeApp().catch((error) => {
-    setText("api-status", `Service unavailable: ${error.message}`);
+    setText("api-status", `Dispatch connection is not ready yet: ${formatUserFacingMessage(error.message)}`);
   });
 });
 
@@ -44,12 +45,17 @@ async function initializeApp() {
   setupSubscriberModal();
   setupProviderSignup();
   setupProviderSignin();
+  setupProviderDocumentsPanel();
   setupProviderWorkPanel();
+  setupProviderWalletPanel();
   setupPaymentAgreement();
+  setupRequestFeedbackPanel();
   setupAdminPanel();
   setupRequestForm();
   renderProcessingCenter();
+  renderCustomerRequestState();
   renderProviderActionQueue();
+  renderProviderWallet();
   await loadFrontendConfig();
   await acknowledgeRuntimeVariant();
   await hydrateStoredSession();
@@ -87,7 +93,7 @@ function setupHomeAuth() {
         storeAuth(state.auth);
         await hydrateStoredSession();
         renderIdentity();
-        switchScreen("customer");
+        navigateToScreen("customer");
         showBox("signin-status", "Signed in.");
       } catch (error) {
         showBox("signin-status", error.message);
@@ -111,13 +117,17 @@ function setupSubscriberModal() {
     event.preventDefault();
     try {
       const formData = new FormData(form);
+      validatePasswordConfirmation(formData.get("password"), formData.get("confirmPassword"));
       const signup = await createAccount({
         fullName: normalizeField(formData.get("fullName")),
         phoneNumber: normalizeField(formData.get("phoneNumber")),
         username: normalizeField(formData.get("username")),
         email: normalizeField(formData.get("email")),
         password: normalizeField(formData.get("password")),
-        role: "SUBSCRIBER"
+        role: "SUBSCRIBER",
+        subscriberTermsAccepted: formData.get("subscriberTermsAccepted") === "on",
+        dispatchOnlyLiabilityAccepted: formData.get("dispatchOnlyLiabilityAccepted") === "on",
+        noRefundPolicyAccepted: formData.get("noRefundPolicyAccepted") === "on"
       });
 
       const response = await apiFetch("/auth/subscriber/setup", {
@@ -130,7 +140,10 @@ function setupSubscriberModal() {
             model: normalizeField(formData.get("model")),
             color: normalizeField(formData.get("color"))
           },
-          paymentMethodMasked: buildSubscriberPaymentValue(formData)
+          paymentMethodMasked: buildSubscriberPaymentValue(formData),
+          subscriberTermsAccepted: formData.get("subscriberTermsAccepted") === "on",
+          dispatchOnlyLiabilityAccepted: formData.get("dispatchOnlyLiabilityAccepted") === "on",
+          noRefundPolicyAccepted: formData.get("noRefundPolicyAccepted") === "on"
         })
       });
       const payload = await response.json();
@@ -148,8 +161,8 @@ function setupSubscriberModal() {
       storeAuth(state.auth);
       await hydrateStoredSession();
       renderIdentity();
-      switchScreen("customer");
-      showBox(statusId, "Member account created and subscription activated.");
+      navigateToScreen("customer");
+      showBox(statusId, `Membership activated. Confirmation details were prepared for ${normalizeField(formData.get("email")) || "the email on file"}.`);
       hideModal("member-signup-modal");
       hideModal("subscriber-modal");
     } catch (error) {
@@ -168,13 +181,17 @@ function setupProviderSignup() {
     event.preventDefault();
     try {
       const formData = new FormData(form);
+      validatePasswordConfirmation(formData.get("password"), formData.get("confirmPassword"));
       const signup = await createAccount({
         fullName: normalizeField(formData.get("fullName")),
         phoneNumber: normalizeField(formData.get("phoneNumber")),
         username: normalizeField(formData.get("username")),
         email: normalizeField(formData.get("email")),
         password: normalizeField(formData.get("password")),
-        role: "PROVIDER"
+        role: "PROVIDER",
+        providerTermsAccepted: formData.get("providerTermsAccepted") === "on",
+        providerLiabilityAccepted: formData.get("providerLiabilityAccepted") === "on",
+        providerHoldHarmlessAccepted: formData.get("providerHoldHarmlessAccepted") === "on"
       });
       const selectedServices = collectCheckedValues(form, "services");
       if (selectedServices.length === 0) {
@@ -185,6 +202,14 @@ function setupProviderSignup() {
         method: "POST",
         headers: jsonHeaders(signup.sessionToken),
         body: JSON.stringify({
+          providerInfo: {
+            legalName: normalizeField(formData.get("legalName")) || normalizeField(formData.get("fullName")),
+            phoneNumber: normalizeField(formData.get("phoneNumber")),
+            email: normalizeField(formData.get("email")),
+            companyName: normalizeField(formData.get("companyName")),
+            w9Name: normalizeField(formData.get("w9Name")),
+            taxIdLast4: normalizeField(formData.get("taxIdLast4"))
+          },
           vehicleInfo: {
             year: normalizeField(formData.get("year")),
             make: normalizeField(formData.get("make")),
@@ -198,7 +223,14 @@ function setupProviderSignup() {
             helperId: formData.get("helperId") === "on"
           },
           experience: normalizeField(formData.get("experience")),
-          services: selectedServices
+          services: selectedServices,
+          serviceArea: normalizeField(formData.get("serviceArea")),
+          currentLocation: normalizeField(formData.get("currentLocation")),
+          hoursOfService: buildProviderHoursOfService(formData),
+          assessmentAnswers: buildProviderAssessmentAnswers(formData),
+          providerTermsAccepted: formData.get("providerTermsAccepted") === "on",
+          providerLiabilityAccepted: formData.get("providerLiabilityAccepted") === "on",
+          providerHoldHarmlessAccepted: formData.get("providerHoldHarmlessAccepted") === "on"
         })
       });
       const payload = await response.json();
@@ -216,13 +248,52 @@ function setupProviderSignup() {
       storeAuth(state.auth);
       await hydrateStoredSession();
       renderIdentity();
-      switchScreen("provider");
-      showBox("provider-signup-status", "Provider account created. Waiting for admin approval.");
+      navigateToScreen("provider-info");
+      showBox("provider-signup-status", "Provider account created. Profile review is now in progress.");
       hideModal("provider-signup-modal");
     } catch (error) {
       showBox("provider-signup-status", error.message);
     }
   });
+}
+
+function validatePasswordConfirmation(password, confirmation) {
+  const normalizedPassword = normalizeField(password);
+  const normalizedConfirmation = normalizeField(confirmation);
+  if (!normalizedPassword || normalizedPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+  if (normalizedPassword !== normalizedConfirmation) {
+    throw new Error("Password confirmation does not match.");
+  }
+}
+
+function buildProviderHoursOfService(formData) {
+  return {
+    timezone: normalizeField(formData.get("serviceTimezone")) || "America/New_York",
+    monday: normalizeField(formData.get("weekdayHours")),
+    tuesday: normalizeField(formData.get("weekdayHours")),
+    wednesday: normalizeField(formData.get("weekdayHours")),
+    thursday: normalizeField(formData.get("weekdayHours")),
+    friday: normalizeField(formData.get("weekdayHours")),
+    saturday: normalizeField(formData.get("weekendHours")),
+    sunday: normalizeField(formData.get("weekendHours"))
+  };
+}
+
+function buildProviderAssessmentAnswers(formData) {
+  return {
+    jumpstartProcedure: normalizeField(formData.get("jumpstartProcedure")),
+    jackPlacement: normalizeField(formData.get("jackPlacement")),
+    specialtyVehicleJack: normalizeField(formData.get("specialtyVehicleJack")),
+    spoolDefinition: normalizeField(formData.get("spoolDefinition")),
+    frozenLugNut: normalizeField(formData.get("frozenLugNut")),
+    lockoutTools: normalizeField(formData.get("lockoutTools")),
+    lockoutDamagePrevention: normalizeField(formData.get("lockoutDamagePrevention")),
+    incorrectLockoutDamage: normalizeField(formData.get("incorrectLockoutDamage")),
+    tirePlugKnowledge: normalizeField(formData.get("tirePlugKnowledge")),
+    severeDamageDecision: normalizeField(formData.get("severeDamageDecision"))
+  };
 }
 
 function setupSubscriberPaymentUi(form) {
@@ -308,10 +379,51 @@ function setupProviderSignin() {
       storeAuth(state.auth);
       await hydrateStoredSession();
       renderIdentity();
-      switchScreen("provider");
+      navigateToScreen("provider-info");
       showBox("provider-signin-status", "Provider signed in.");
     } catch (error) {
       showBox("provider-signin-status", error.message);
+    }
+  });
+}
+
+function setupProviderDocumentsPanel() {
+  const form = document.getElementById("provider-documents-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!state.auth?.sessionToken) {
+      showBox("provider-documents-status", "Sign in as a provider before uploading documents.");
+      return;
+    }
+
+    try {
+      const formData = new FormData(form);
+      const response = await apiFetch("/auth/provider/documents", {
+        method: "POST",
+        headers: jsonHeaders(true),
+        body: JSON.stringify({
+          documents: {
+            license: buildProviderDocumentPayload(formData.get("license"), "license.txt"),
+            insurance: buildProviderDocumentPayload(formData.get("insurance"), "insurance.txt"),
+            registration: buildProviderDocumentPayload(formData.get("registration"), "registration.txt"),
+            helperId: buildProviderDocumentPayload(formData.get("helperId"), "helper-id.txt")
+          }
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.userId) {
+        throw new Error(payload.message || payload.error || "Unable to upload provider documents.");
+      }
+
+      await hydrateStoredSession();
+      showBox("provider-documents-status", "Provider documents were saved for verification review.");
+    } catch (error) {
+      showBox("provider-documents-status", error.message);
     }
   });
 }
@@ -343,6 +455,8 @@ function setupRequestForm() {
         requestId,
         serviceType: state.pendingRequest.serviceType,
         location: state.pendingRequest.location,
+        fullName: state.pendingRequest.fullName,
+        phoneNumber: state.pendingRequest.phoneNumber,
         mode: state.auth?.userId ? "signed-in" : "guest",
         status: payload.status || "submitted"
       });
@@ -410,8 +524,8 @@ async function loadFrontendConfig() {
     applyPreviewVisibility();
     renderPublicPricing();
     setText("backend-status", "OFF");
-    setText("backend-service", "Service unavailable");
-    setText("api-status", `Unable to reach dispatch: ${error.message}`);
+    setText("backend-service", "Dispatch offline");
+    setText("api-status", `Unable to reach dispatch right now: ${formatUserFacingMessage(error.message)}`);
     setVariantState("offline", "Manifest unavailable");
   }
 }
@@ -468,7 +582,7 @@ async function loadPaymentConfig() {
     await ensurePaypalSdk(config.clientId, config.currency || "USD");
     renderPaypalButtons();
   } catch (error) {
-    setText("paypal-status", `Payment config failed: ${error.message}`);
+    setText("paypal-status", `Payment availability is being refreshed: ${formatUserFacingMessage(error.message)}`);
     togglePaypalContainer(false);
   }
 }
@@ -615,6 +729,49 @@ function setupPaymentAgreement() {
   }
 }
 
+function setupRequestFeedbackPanel() {
+  const form = document.getElementById("request-feedback-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const activeRequest = state.pendingRequest || state.requestHistory[0] || null;
+    const requestId = activeRequest?.requestId || activeRequest?.id || null;
+    if (!requestId) {
+      showBox("request-feedback-status", "Submit a request first so feedback can be matched.");
+      return;
+    }
+
+    try {
+      const formData = new FormData(form);
+      const response = await apiFetch(`/requests/${encodeURIComponent(requestId)}/feedback`, {
+        method: "POST",
+        headers: jsonHeaders(Boolean(state.auth?.sessionToken)),
+        body: JSON.stringify({
+          rating: Number.parseInt(normalizeField(formData.get("rating")), 10),
+          notes: normalizeField(formData.get("notes")),
+          phoneNumber: activeRequest.phoneNumber || document.getElementById("phone-number")?.value || "",
+          fullName: activeRequest.fullName || document.getElementById("full-name")?.value || ""
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.message || payload.error || "Unable to submit provider feedback.");
+      }
+      if (payload.request) {
+        state.pendingRequest = { ...(state.pendingRequest || {}), ...payload.request };
+        renderCustomerRequestState();
+      }
+      showBox("request-feedback-status", payload.message || "Provider rating recorded.");
+      form.reset();
+    } catch (error) {
+      showBox("request-feedback-status", error.message);
+    }
+  });
+}
+
 async function loadServicePaymentQuote() {
   const requestId = state.pendingRequest?.requestId;
   if (!requestId) {
@@ -662,8 +819,8 @@ async function createAccount(payload) {
     method: "POST",
     headers: jsonHeaders(),
     body: JSON.stringify({
-      ...payload,
-      termsAccepted: true
+      termsAccepted: true,
+      ...payload
     })
   });
   const data = await response.json();
@@ -676,6 +833,8 @@ async function createAccount(payload) {
 async function hydrateStoredSession() {
   if (!state.auth?.sessionToken) {
     renderProfileState(null);
+    state.providerWallet = null;
+    renderProviderWallet();
     return;
   }
 
@@ -695,10 +854,18 @@ async function hydrateStoredSession() {
     storeAuth(state.auth);
     renderProfileState(profile);
     renderIdentity();
+    if (Array.isArray(profile.roles) && profile.roles.includes("PROVIDER")) {
+      await loadProviderWallet();
+    } else {
+      state.providerWallet = null;
+      renderProviderWallet();
+    }
   } catch (error) {
     state.auth = null;
     storeAuth(null);
     renderProfileState(null);
+    state.providerWallet = null;
+    renderProviderWallet();
     renderIdentity();
     setText("identity-state", `Session expired: ${error.message}`);
   }
@@ -751,7 +918,8 @@ function setupAdminPanel() {
         storeAdmin(state.admin);
         renderAdminState();
         await loadAdminDashboard();
-        showBox("admin-login-status", "Admin session established.");
+        showBox("admin-login-status", "Admin access confirmed.");
+        navigateToScreen("admin-dashboard");
       } catch (error) {
         showBox("admin-login-status", error.message);
       }
@@ -765,7 +933,7 @@ function setupAdminPanel() {
     });
   }
 
-  document.querySelectorAll("#admin-subscriber-list, #admin-provider-list, #admin-service-history-list, #admin-financial-list")
+  document.querySelectorAll("#admin-subscriber-list, #admin-provider-list, #admin-service-history-list, #admin-financial-list, #admin-training-calendar-list")
     .forEach((container) => {
       container.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-admin-action]");
@@ -845,6 +1013,7 @@ async function loadAdminDashboard() {
     setText("admin-pending-providers", String(payload.stats?.pendingProviders ?? 0));
     setText("admin-overdue-subscribers", String(payload.stats?.overdueSubscriptions ?? 0));
     setText("admin-payouts-pending", String(payload.stats?.payoutsPending ?? 0));
+    setText("admin-training-scheduled", String(payload.stats?.trainingScheduled ?? 0));
     setText("admin-status-label", "Signed in");
     setText("admin-status-badge", payload.trustedZone || "Active");
     setText("admin-status-text", `Location zone: ${payload.locationZone || "not set"}.`);
@@ -951,6 +1120,18 @@ async function handleAdminAction(button) {
     body = {
       reference: window.prompt("Payout reference", "manual-payout") || "manual-payout"
     };
+  } else if (action === "schedule-training" || action === "complete-training") {
+    path = `/providers/${encodeURIComponent(userId)}/training`;
+    body = action === "schedule-training"
+      ? {
+          status: "SCHEDULED",
+          scheduledFor: window.prompt("Training ISO date/time", new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()) || "",
+          note: window.prompt("Training note", "Manual roadside retraining") || "Manual roadside retraining"
+        }
+      : {
+          status: "COMPLETED",
+          note: window.prompt("Completion note", "Training completed") || "Training completed"
+        };
   } else {
     return;
   }
@@ -1003,6 +1184,18 @@ function renderAdminCollections() {
     Array.isArray(state.adminDashboard?.financials) ? state.adminDashboard.financials : [],
     renderFinancialAdminItem,
     "Financial records will appear after login."
+  );
+  renderAdminList(
+    "admin-training-calendar-list",
+    Array.isArray(state.adminDashboard?.trainingCalendar) ? state.adminDashboard.trainingCalendar : [],
+    renderTrainingCalendarItem,
+    "Training schedule will appear after login."
+  );
+  renderAdminList(
+    "admin-event-stream-list",
+    Array.isArray(state.adminDashboard?.paymentEvents) ? state.adminDashboard.paymentEvents : [],
+    renderAdminEventStreamItem,
+    "Backend event history will appear after login."
   );
 }
 
@@ -1076,6 +1269,10 @@ function renderProviderAdminItem(provider) {
   const approveButton = provider.providerStatus === "PENDING_APPROVAL"
     ? `<button class="glow-button compact" type="button" data-admin-action="approve-provider" data-user-id="${escapeHtml(provider.id)}">Approve Provider</button>`
     : "";
+  const trainingStatus = provider.discipline?.training?.status || "NOT_REQUIRED";
+  const scheduleButton = provider.discipline?.currentSuspension?.indefinite
+    ? `<button class="glow-button alt compact" type="button" data-admin-action="schedule-training" data-user-id="${escapeHtml(provider.id)}">Schedule Training</button>`
+    : "";
 
   return `
     <article class="admin-item">
@@ -1089,8 +1286,11 @@ function renderProviderAdminItem(provider) {
       <div class="admin-item-meta">
         <span>State: ${escapeHtml(prettifyToken(provider.accountState || "ACTIVE"))}</span>
         <span>Services: ${escapeHtml((provider.services || []).map(labelServiceType).join(", ") || "Not set")}</span>
+        <span>Strikes: ${escapeHtml(String(provider.discipline?.strikeCount || 0))}</span>
+        <span>Training: ${escapeHtml(prettifyToken(trainingStatus))}</span>
       </div>
-      <div class="button-pair">${approveButton}</div>
+      <p class="muted">Rating: ${escapeHtml(formatRating(provider.rating))} · Suspension: ${escapeHtml(formatSuspensionSummary(provider.discipline?.currentSuspension))}</p>
+      <div class="button-pair">${approveButton}${scheduleButton}</div>
     </article>
   `;
 }
@@ -1131,6 +1331,11 @@ function renderAdminUserProfile(profile) {
   const providerApproveButton = provider?.providerStatus === "PENDING_APPROVAL"
     ? `<button class="glow-button compact" type="button" data-admin-action="approve-provider" data-user-id="${escapeHtml(user.id)}">Approve Provider</button>`
     : "";
+  const trainingButton = provider?.discipline?.currentSuspension?.indefinite
+    ? `<button class="glow-button alt compact" type="button" data-admin-action="schedule-training" data-user-id="${escapeHtml(user.id)}">Schedule Training</button>`
+    : provider?.discipline?.training?.status === "SCHEDULED" || provider?.discipline?.training?.status === "ENROLLED"
+      ? `<button class="glow-button alt compact" type="button" data-admin-action="complete-training" data-user-id="${escapeHtml(user.id)}">Mark Training Complete</button>`
+      : "";
 
   return `
     <article class="admin-item">
@@ -1155,9 +1360,11 @@ function renderAdminUserProfile(profile) {
       ${subscriber ? `<p class="muted">Subscriber status: ${escapeHtml(prettifyToken(subscriber.subscriptionStatus || "inactive"))} · Vehicles: ${escapeHtml((subscriber.savedVehicles || []).map(formatVehicleSummary).join(" | ") || "None")} · Billing: ${escapeHtml(formatTimestamp(subscriber.nextBillingDate))}</p>` : ""}
       ${provider ? `<p class="muted">Provider status: ${escapeHtml(labelUiStatus("providerStatus", provider.providerStatus || "DRAFT"))} · Service area: ${escapeHtml(provider.serviceArea || "Not set")} · Services: ${escapeHtml((provider.services || []).map(labelServiceType).join(", ") || "Not set")}</p>` : ""}
       ${provider ? `<p class="muted">Hours configured: ${provider.hoursOfService?.hasHours ? "Yes" : "No"} · Documents ready: ${provider.documentStatus?.meetsMinimumRequirements ? "Yes" : "No"} · PayPal email: ${escapeHtml(provider.paypal?.email || "Not linked")}</p>` : ""}
+      ${provider ? `<p class="muted">Rating: ${escapeHtml(formatRating(provider.rating))} · Strikes: ${escapeHtml(String(provider.discipline?.strikeCount || 0))} · Training: ${escapeHtml(prettifyToken(provider.discipline?.training?.status || "NOT_REQUIRED"))} · Suspension: ${escapeHtml(formatSuspensionSummary(provider.discipline?.currentSuspension))}</p>` : ""}
       <div class="button-pair">
         <button class="glow-button alt compact" type="button" data-admin-action="set-account-state" data-user-id="${escapeHtml(user.id)}" data-account-state="${escapeHtml(nextAccountState)}">${escapeHtml(nextAccountState === "SUSPENDED" ? "Suspend User" : "Reactivate User")}</button>
         ${providerApproveButton}
+        ${trainingButton}
       </div>
       <div class="admin-item-meta">
         <span>Recent customer requests: ${escapeHtml(String(customerRequests.length))}</span>
@@ -1165,6 +1372,24 @@ function renderAdminUserProfile(profile) {
       </div>
       ${customerRequests.length ? customerRequests.map((entry) => `<div class="muted">${escapeHtml(entry.requestId)} · ${escapeHtml(labelServiceType(entry.serviceType))} · ${escapeHtml(labelUiStatus("requestStatus", entry.status || "UNKNOWN"))} · ${escapeHtml(formatTimestamp(entry.submittedAt))}</div>`).join("") : '<div class="muted">No recent customer requests.</div>'}
       ${providerRequests.length ? providerRequests.map((entry) => `<div class="muted">${escapeHtml(entry.requestId)} · ${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(labelUiStatus("requestStatus", entry.status || "UNKNOWN"))} · ${escapeHtml(formatTimestamp(entry.submittedAt))}</div>`).join("") : '<div class="muted">No recent provider assignments.</div>'}
+    </article>
+  `;
+}
+
+function renderTrainingCalendarItem(entry) {
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(entry.fullName || `Provider ${entry.providerId}`)}</strong>
+          <small>#${escapeHtml(String(entry.providerId))} · ${escapeHtml(prettifyToken(entry.status || "SCHEDULED"))}</small>
+        </div>
+        <span class="badge">${escapeHtml(formatTimestamp(entry.scheduledFor))}</span>
+      </div>
+      <p class="muted">${escapeHtml(entry.note || "Manual roadside retraining scheduled.")}</p>
+      <div class="button-pair">
+        <button class="glow-button compact" type="button" data-admin-action="complete-training" data-user-id="${escapeHtml(entry.providerId)}">Mark Training Complete</button>
+      </div>
     </article>
   `;
 }
@@ -1184,6 +1409,8 @@ function renderServiceHistoryItem(entry) {
         <span>${escapeHtml(prettifyToken(entry.customerType || "UNKNOWN"))}</span>
         <span>${escapeHtml(entry.providerAssigned || "Unassigned")}</span>
         <span>${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</span>
+        <span>Rating: ${escapeHtml(entry.customerRating ? `${entry.customerRating}/8` : "None")}</span>
+        <span>Notes: ${escapeHtml(String(entry.noteCount || 0))}</span>
       </div>
       <p class="muted">Refund flag: ${entry.refundFlag ? "Yes" : "No"} · Dispute flag: ${entry.disputeFlag ? "Yes" : "No"} · Requested: ${escapeHtml(formatTimestamp(entry.requestDate))}</p>
       <div class="button-pair">
@@ -1212,6 +1439,24 @@ function renderFinancialAdminItem(entry) {
       <div class="button-pair">
         <button class="glow-button danger compact" type="button" data-admin-action="refund-request" data-request-id="${escapeHtml(entry.requestId)}">Refund User</button>
         <button class="glow-button compact" type="button" data-admin-action="complete-payout" data-request-id="${escapeHtml(entry.requestId)}">Mark Payout Complete</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminEventStreamItem(entry) {
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(labelPaymentEvent(entry.event || "backend-event"))}</strong>
+          <small>${escapeHtml(formatTimestamp(entry.capturedAt || entry.createdAt || entry.timestamp))}</small>
+        </div>
+        <span class="badge">${escapeHtml(labelUiStatus("paymentStatus", entry.status || "UNKNOWN"))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>Order: ${escapeHtml(entry.paypalOrderId || "Not set")}</span>
+        <span>Request: ${escapeHtml(entry.request?.requestId || entry.requestId || "Not set")}</span>
       </div>
     </article>
   `;
@@ -1259,6 +1504,17 @@ function setupProviderWorkPanel() {
   }
 
   renderProviderWorkList();
+}
+
+function setupProviderWalletPanel() {
+  const refreshButton = document.getElementById("provider-wallet-refresh");
+  if (!refreshButton) {
+    return;
+  }
+
+  refreshButton.addEventListener("click", async () => {
+    await loadProviderWallet(true);
+  });
 }
 
 async function loadProviderQueue() {
@@ -1319,6 +1575,11 @@ function renderProviderWorkList() {
           <div class="muted">ETA stage: ${escapeHtml(prettifyToken(request.etaStage || "pending"))} · Soft ETA: ${escapeHtml(String(request.softEtaMinutes ?? "Not set"))} · Hard ETA: ${escapeHtml(String(request.hardEtaMinutes ?? "Locked"))}</div>
           <div class="muted">Location access: ${escapeHtml(prettifyToken(request.locationDisclosureLevel || "masked"))} · Contact access: ${escapeHtml(prettifyToken(request.contactDisclosureLevel || "locked"))}</div>
           <div class="muted">Customer callback: ${escapeHtml(request.customerCallbackNumber || "Locked until payment and provider activation")}</div>
+          <label class="provider-note-field">
+            <span class="muted">Dispatch note</span>
+            <textarea class="field area" id="provider-note-${escapeHtml(requestId)}" placeholder="Short dispatch-safe note for this request">${escapeHtml(readProviderDraftNote(requestId))}</textarea>
+          </label>
+          ${renderProviderNoteExchange(request.noteExchange)}
         </div>
         <div class="provider-action-grid">
           ${renderProviderActionButton(requestId, "accept", "Accept")}
@@ -1327,6 +1588,7 @@ function renderProviderWorkList() {
           ${renderProviderActionButton(requestId, "hard-contact", "Hard Contact")}
           ${renderProviderActionButton(requestId, "arrived", "Arrived")}
           ${renderProviderActionButton(requestId, "completed", "Completed")}
+          ${renderProviderActionButton(requestId, "note", "Log Note")}
         </div>
       </div>`;
     })
@@ -1338,13 +1600,15 @@ function renderProviderActionButton(requestId, action, label) {
 }
 
 async function queueProviderAction(requestId, action) {
+  const providerPayload = readProviderActionPayload(requestId, action);
   const entry = {
     id: buildEventId("provider"),
     requestId,
     action,
     status: "queued-frontend",
     timestamp: new Date().toISOString(),
-    route: `/api/aw-roadside/requests/${requestId}/${action}`
+    route: `/api/aw-roadside/requests/${requestId}/${action}`,
+    note: providerPayload.note || ""
   };
   state.providerActionQueue = [entry, ...state.providerActionQueue].slice(0, 50);
   storeJson(providerActionQueueKey, state.providerActionQueue);
@@ -1369,9 +1633,7 @@ async function queueProviderAction(requestId, action) {
     const response = await apiFetch(`/requests/${encodeURIComponent(requestId)}/${action}`, {
       method: "POST",
       headers: jsonHeaders(true),
-      body: JSON.stringify({
-        note: `frontend provider action: ${action}`
-      })
+      body: JSON.stringify(providerPayload)
     });
     const payload = await response.json();
     entry.status = payload.committed === false ? "backend-pending" : "backend-committed";
@@ -1445,7 +1707,7 @@ function renderProcessingCenter() {
     const status = entry.httpStatus ? `${entry.status} ${entry.httpStatus}` : entry.status;
     return `<div class="item">
       <div class="value">${escapeHtml(labelProcessingEntry(entry.action || entry.method || "route"))} · ${escapeHtml(labelProcessingStatus(status || "pending"))}</div>
-      <div class="muted">${escapeHtml(entry.route || "local")} · ${formatTimestamp(entry.timestamp)}</div>
+      <div class="muted">${escapeHtml(formatTimestamp(entry.timestamp))}</div>
       ${entry.message ? `<div class="muted">${escapeHtml(entry.message)}</div>` : ""}
     </div>`;
   }, "No route events stored yet.");
@@ -1459,6 +1721,8 @@ function renderProcessingCenter() {
     <div class="value">${escapeHtml(labelPaymentEvent(entry.event || "payment"))} · ${escapeHtml(labelUiStatus("paymentStatus", entry.status || "pending"))}</div>
     <div class="muted">Order ${escapeHtml(entry.orderId || "not assigned")} · Request ${escapeHtml(entry.requestId || "pending")} · ${formatTimestamp(entry.timestamp)}</div>
   </div>`, "No payment events stored yet.");
+
+  renderCustomerRequestState();
 }
 
 function renderProviderActionQueue() {
@@ -1468,6 +1732,133 @@ function renderProviderActionQueue() {
     ${entry.backendStatus ? `<div class="muted">Current step: ${escapeHtml(labelUiStatus("requestStatus", entry.backendStatus))}</div>` : ""}
     ${entry.error ? `<div class="muted">${escapeHtml(entry.error)}</div>` : ""}
   </div>`, "No provider actions queued yet.");
+}
+
+async function loadProviderWallet(manualRefresh = false) {
+  if (!state.auth?.sessionToken) {
+    state.providerWallet = null;
+    renderProviderWallet();
+    if (manualRefresh) {
+      showBox("provider-wallet-status", "Sign in as a provider before loading wallet records.");
+    }
+    return;
+  }
+
+  if (!Array.isArray(state.auth?.roles) || !state.auth.roles.includes("PROVIDER")) {
+    state.providerWallet = null;
+    renderProviderWallet();
+    if (manualRefresh) {
+      showBox("provider-wallet-status", "Provider wallet records are available only for provider accounts.");
+    }
+    return;
+  }
+
+  try {
+    const payload = await fetchApiJsonWithFallback("/provider/wallet", [], {
+      headers: jsonHeaders(true)
+    });
+    state.providerWallet = payload;
+    renderProviderWallet();
+    showBox("provider-wallet-status", "Provider wallet records are up to date.");
+    recordProcessingEvent({
+      action: "provider-wallet",
+      route: "/provider/wallet",
+      status: "accepted",
+      message: `${Array.isArray(payload.ledger) ? payload.ledger.length : 0} payout record(s) loaded.`
+    });
+  } catch (error) {
+    state.providerWallet = null;
+    renderProviderWallet();
+    showBox("provider-wallet-status", error.message);
+    recordProcessingEvent({
+      action: "provider-wallet",
+      route: "/provider/wallet",
+      status: "error",
+      message: error.message
+    });
+  }
+}
+
+function renderProviderWallet() {
+  const wallet = state.providerWallet || null;
+  const summary = wallet?.summary || {};
+  const payoutTelemetry = wallet?.payoutTelemetry || {};
+  const paypalState = wallet?.paypalState || {};
+  const terms = wallet?.walletDisplayTerms || null;
+  const ledger = Array.isArray(wallet?.ledger) ? wallet.ledger : [];
+
+  setText(
+    "provider-wallet-summary-copy",
+    wallet
+      ? `Current payout totals for ${wallet.provider?.fullName || "your provider account"} are shown below.`
+      : "Wallet records will appear after provider wallet data is loaded."
+  );
+  setText(
+    "provider-wallet-paypal-email",
+    wallet
+      ? `Payout destination: ${paypalState.email || wallet.provider?.paypalEmail || "Provider payout destination not yet linked."}`
+      : "Payout destination will appear after provider wallet data is loaded."
+  );
+  setText(
+    "provider-wallet-telemetry",
+    wallet
+      ? `Latest payout status: ${labelUiStatus("payoutStatus", payoutTelemetry.lastStatus || "pending")} · Last event: ${prettifyToken(payoutTelemetry.lastEventType || "pending")} · Updated ${formatTimestamp(payoutTelemetry.lastEventAt || paypalState.lastWebhookAt)}.`
+      : "Provider payout activity will appear after wallet data is loaded."
+  );
+  setText(
+    "provider-wallet-terms-summary",
+    terms?.summary || "Wallet display terms will appear here after sign-in."
+  );
+  setText(
+    "provider-wallet-terms-detail",
+    terms
+      ? `${terms.thirdPartyResponsibility} ${terms.expectedParity} ${terms.discrepancyProcess}`
+      : "Payout timing and discrepancy guidance will appear after the wallet is loaded."
+  );
+
+  setText("provider-wallet-funds-available", formatUsd(summary.fundsAvailable || 0));
+  setText("provider-wallet-funds-pending", formatUsd(summary.fundsPending || 0));
+  setText("provider-wallet-funds-on-hold", formatUsd(summary.fundsOnHold || 0));
+  setText("provider-wallet-funds-dispute", formatUsd(summary.fundsDispute || 0));
+  setText("provider-wallet-funds-paid-out", formatUsd(summary.fundsPaidOut || 0));
+
+  setText(
+    "provider-wallet-funds-available-count",
+    wallet ? `${summary.completedPayoutCount || 0} completed payout(s) recorded.` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-pending-count",
+    wallet ? `${summary.pendingPayoutCount || 0} payout(s) pending or in motion.` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-on-hold-count",
+    wallet ? `${summary.onHoldCount || 0} payout(s) currently on hold.` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-dispute-count",
+    wallet ? `${summary.disputeCount || 0} payout dispute record(s).` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-paid-out-count",
+    wallet ? `${formatUsd(summary.totalEstimated || 0)} tracked across all provider payout records.` : "Waiting for provider payout data."
+  );
+
+  renderList(
+    "provider-wallet-ledger-list",
+    ledger,
+    (entry) => `<div class="item">
+      <div class="value">${escapeHtml(entry.requestId || "Pending request")} · ${escapeHtml(labelServiceType(entry.serviceType || "Service"))}</div>
+      <div class="muted">${escapeHtml(entry.customerName || "Customer")} · ${escapeHtml(prettifyToken(entry.customerTier || "guest"))} · ${escapeHtml(formatTimestamp(entry.updatedAt))}</div>
+      <div class="muted">Estimated payout: ${escapeHtml(formatUsd(entry.estimatedPayoutAmount || 0))} · Actual payout: ${escapeHtml(entry.actualPayoutAmount === null ? "Awaiting payout completion" : formatUsd(entry.actualPayoutAmount))}</div>
+      <div class="muted">Payout: ${escapeHtml(labelUiStatus("payoutStatus", entry.providerPayoutStatus || "UNASSIGNED"))} · Payment: ${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</div>
+      <div class="muted">Flags: Hold ${entry.holdFlag ? "Yes" : "No"} · Dispute ${entry.disputeFlag ? "Yes" : "No"} · Refund ${entry.refundFlag ? "Yes" : "No"}</div>
+      ${entry.payoutCompletedAt ? `<div class="muted">Paid out ${escapeHtml(formatTimestamp(entry.payoutCompletedAt))}</div>` : ""}
+      ${entry.payoutLastEventType ? `<div class="muted">Latest event: ${escapeHtml(prettifyToken(entry.payoutLastEventType))} · ${escapeHtml(formatTimestamp(entry.payoutLastEventAt))}</div>` : ""}
+    </div>`,
+    wallet
+      ? "No provider payout records are available yet."
+      : "Sign in as a provider to load payout records."
+  );
 }
 
 function renderList(id, entries, renderEntry, emptyMessage) {
@@ -1545,6 +1936,7 @@ function renderIdentity() {
   setText("provider-admin-status", auth?.providerStatus ? `Provider status: ${labelUiStatus("providerStatus", auth.providerStatus)}.` : "Provider status will appear after sign-in.");
   setText("provider-service-list", formatProviderServices(profile));
   setText("provider-vehicle-summary", formatProviderVehicle(profile));
+  renderCustomerRequestState();
 }
 
 function renderAdminState() {
@@ -1569,7 +1961,7 @@ function setupNavigation() {
         return;
       }
       event.preventDefault();
-      switchScreen(screen);
+      navigateToScreen(screen);
     });
   });
 
@@ -1581,13 +1973,37 @@ function setupNavigation() {
 
 function readScreenFromHash() {
   const pathname = window.location.pathname.toLowerCase();
+  if (pathname.endsWith("/home.html")) {
+    return "home";
+  }
   if (pathname.endsWith("/customer.html")) {
     return "customer";
+  }
+  if (pathname.endsWith("/subscriber-access.html")) {
+    return "home";
   }
   if (pathname.endsWith("/provider.html")) {
     return "provider";
   }
+  if (pathname.endsWith("/provider-info.html")) {
+    return "provider";
+  }
+  if (pathname.endsWith("/provider-work.html")) {
+    return "provider";
+  }
+  if (pathname.endsWith("/provider-wallet.html")) {
+    return "provider";
+  }
   if (pathname.endsWith("/admin.html")) {
+    return "admin";
+  }
+  if (pathname.endsWith("/admin-dashboard.html")) {
+    return "admin";
+  }
+  if (pathname.endsWith("/admin-accounts.html")) {
+    return "admin";
+  }
+  if (pathname.endsWith("/admin-financials.html")) {
     return "admin";
   }
   if (pathname.endsWith("/legacy-index.html")) {
@@ -1599,6 +2015,17 @@ function readScreenFromHash() {
     return value;
   }
   return "home";
+}
+
+function navigateToScreen(screen) {
+  const target = screenToPage(screen);
+  const pathname = window.location.pathname.toLowerCase();
+  const inShell = pathname.endsWith("/index.html") || pathname === "/" || pathname === "";
+  if (!inShell && target) {
+    window.location.href = target;
+    return;
+  }
+  switchScreen(screen);
 }
 
 function switchScreen(screen) {
@@ -1616,6 +2043,22 @@ function switchScreen(screen) {
   }
 }
 
+function screenToPage(screen) {
+  return {
+    home: "home.html",
+    customer: "customer.html",
+    provider: "provider.html",
+    "provider-info": "provider-info.html",
+    "provider-work": "provider-work.html",
+    "provider-wallet": "provider-wallet.html",
+    admin: "admin.html",
+    "admin-dashboard": "admin-dashboard.html",
+    "admin-accounts": "admin-accounts.html",
+    "admin-financials": "admin-financials.html",
+    security: "index.html#security"
+  }[screen] || "";
+}
+
 function renderWatchdogFiles(files) {
   const container = document.getElementById("watchdog-file-list");
   if (!container) {
@@ -1623,16 +2066,16 @@ function renderWatchdogFiles(files) {
   }
 
   if (!files.length) {
-    container.innerHTML = '<div class="item"><div class="value">No integrity drift detected.</div><div class="muted">Protected files match the trusted baseline.</div></div>';
+    container.innerHTML = '<div class="item"><div class="value">No integrity issues detected.</div><div class="muted">Protected records match the trusted baseline.</div></div>';
     return;
   }
 
   container.innerHTML = files
     .map((file) => {
       const detail = file.status === "modified"
-        ? `Baseline ${shortHash(file.baselineSha256)} / Current ${shortHash(file.currentSha256)}`
-        : "Review required.";
-      return `<div class="item"><div class="value">${escapeHtml(file.path)} · ${escapeHtml(file.status)}</div><div class="muted">${escapeHtml(detail)}</div></div>`;
+        ? "A protected record changed and should be reviewed."
+        : "A protected record needs attention.";
+      return `<div class="item"><div class="value">${escapeHtml(prettifyToken(file.status || "review"))}</div><div class="muted">${escapeHtml(detail)}</div></div>`;
     })
     .join("");
 }
@@ -1808,18 +2251,61 @@ function dedupeUrls(urls) {
 }
 
 function renderProfileState(profile) {
+  toggleProviderDocumentsPanel(profile);
   setText("provider-service-list", formatProviderServices(profile));
   setText("provider-vehicle-summary", formatProviderVehicle(profile));
 }
 
+function toggleProviderDocumentsPanel(profile) {
+  const panel = document.getElementById("provider-documents-panel");
+  if (!panel) {
+    return;
+  }
+
+  const isProvider = Array.isArray(profile?.roles) && profile.roles.includes("PROVIDER");
+  panel.hidden = !isProvider;
+}
+
+function buildProviderDocumentPayload(value, fallbackFileName) {
+  const raw = normalizeField(value);
+  if (!raw) {
+    return false;
+  }
+
+  const dataUrlMatch = raw.match(/^data:([^;]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    return {
+      dataUrl: raw,
+      fileName: fallbackFileName,
+      contentType: dataUrlMatch[1]
+    };
+  }
+
+  return {
+    dataBase64: base64EncodeUtf8(raw),
+    fileName: fallbackFileName,
+    contentType: "text/plain",
+    note: "Uploaded from provider info screen."
+  };
+}
+
+function base64EncodeUtf8(value) {
+  const bytes = new TextEncoder().encode(String(value || ""));
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return window.btoa(binary);
+}
+
 function formatProviderServices(profile) {
   const services = Array.isArray(profile?.services) ? profile.services.filter(Boolean) : [];
-  return services.length ? `Services: ${services.map(labelServiceType).join(", ")}` : "Services: not loaded.";
+  return services.length ? `Services: ${services.map(labelServiceType).join(", ")}` : "Services will appear after provider access is confirmed.";
 }
 
 function formatProviderVehicle(profile) {
   const vehicle = profile?.providerProfile?.vehicleInfo || profile?.subscriberProfile?.vehicle || null;
-  return vehicle ? `Vehicle profile: ${formatVehicleSummary(vehicle)}` : "Vehicle profile: not loaded.";
+  return vehicle ? `Vehicle profile: ${formatVehicleSummary(vehicle)}` : "Vehicle profile will appear after account details are loaded.";
 }
 
 function formatVehicleSummary(vehicle) {
@@ -2056,6 +2542,62 @@ function formatTimestamp(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
 }
 
+function formatRating(value) {
+  if (!value || typeof value !== "object") {
+    return "No ratings yet";
+  }
+  const average = Number(value.averageRating || 0);
+  const count = Number(value.ratingCount || 0);
+  return count > 0 ? `${average.toFixed(2)} / 8 (${count})` : "No ratings yet";
+}
+
+function formatSuspensionSummary(value) {
+  if (!value || !value.active) {
+    return "None active";
+  }
+  if (value.indefinite) {
+    return "Indefinite until admin training action";
+  }
+  return value.endsAt ? `Active until ${formatTimestamp(value.endsAt)}` : "Active";
+}
+
+function renderCustomerRequestState() {
+  const activeRequest = state.pendingRequest || state.requestHistory[0] || null;
+  const summary = activeRequest
+    ? `${labelServiceType(activeRequest.serviceType || "Service")} request ${activeRequest.requestId || "pending"} is ${labelUiStatus("requestStatus", activeRequest.status || "SUBMITTED")}.`
+    : "Submit a request to create a reference and unlock live request updates on this page.";
+  setText("customer-request-summary", summary);
+}
+
+function readProviderDraftNote(requestId) {
+  const entry = state.providerActionQueue.find((item) => String(item.requestId) === String(requestId) && item.action === "note" && typeof item.note === "string" && item.note.trim());
+  return entry?.note || "";
+}
+
+function renderProviderNoteExchange(noteExchange) {
+  const notes = Array.isArray(noteExchange) ? noteExchange.slice(0, 4) : [];
+  if (!notes.length) {
+    return '<div class="muted">No dispatch notes have been recorded on this request yet.</div>';
+  }
+  return `<div class="provider-note-history">${notes.map((entry) => `
+    <div class="muted">${escapeHtml(prettifyToken(entry.actorRole || "user"))}: ${escapeHtml(entry.message || "No note message.")} · ${escapeHtml(formatTimestamp(entry.createdAt))}</div>
+  `).join("")}</div>`;
+}
+
+function readProviderActionPayload(requestId, action) {
+  const payload = {};
+  const noteField = document.getElementById(`provider-note-${requestId}`);
+  const noteValue = normalizeField(noteField?.value);
+  if (action === "note") {
+    payload.note = noteValue || "Frontend provider note";
+  } else if (noteValue) {
+    payload.note = noteValue;
+  } else {
+    payload.note = `frontend provider action: ${action}`;
+  }
+  return payload;
+}
+
 function uiEventMap() {
   return state.adminDashboard?.policy?.uiEventMap || state.frontendConfig?.uiEventMap || state.paymentConfig?.uiEventMap || {};
 }
@@ -2130,6 +2672,33 @@ function formatUserFacingMessage(message) {
   }
   if (normalized.includes("backend")) {
     return text.replace(/backend/gi, "service");
+  }
+  if (normalized.includes("terms of agreement are required")) {
+    return "Please accept the account terms before continuing.";
+  }
+  if (normalized.includes("subscriber terms must be accepted")) {
+    return "Please accept the membership terms before continuing.";
+  }
+  if (normalized.includes("dispatch-only liability terms must be accepted")) {
+    return "Please accept the dispatch responsibility notice before continuing.";
+  }
+  if (normalized.includes("no-refund policy must be accepted")) {
+    return "Please accept the payment policy before continuing.";
+  }
+  if (normalized.includes("provider liability acknowledgement is required")) {
+    return "Please accept the provider responsibility notice before continuing.";
+  }
+  if (normalized.includes("provider service area is required")) {
+    return "Enter the area where you are available to take calls.";
+  }
+  if (normalized.includes("provider hours of service are required")) {
+    return "Enter your available hours before submitting your provider profile.";
+  }
+  if (normalized.includes("provider assessment incomplete")) {
+    return "Complete each provider readiness answer before submitting your application.";
+  }
+  if (normalized.includes("provider assessment did not meet safety requirements")) {
+    return "Review the provider readiness answers and resubmit with a safe service decision.";
   }
   if (normalized.includes("request failed with 5")) {
     return "Something went wrong on the service side. Please try again.";
