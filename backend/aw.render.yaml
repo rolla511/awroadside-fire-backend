@@ -6,6 +6,7 @@ services:
     rootDir: .
     buildFilter:
       paths:
+        - backend/storage/index.mjs
         - backend/**/*.mjs
         - backend/**/*.js
         - backend/**/*.json
@@ -36,7 +37,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: PUBLIC_BASE_URL
-        sync: false
+        value: https://awroadside-fire-backend-1.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: AW_DB_MODE
