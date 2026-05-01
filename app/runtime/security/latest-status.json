@@ -1,16 +1,16 @@
 {
   "layer": "aw-roadside-local-watchdog",
   "active": true,
-  "scannedAt": "2026-04-30T15:26:04.675Z",
+  "scannedAt": "2026-05-01T17:32:04.484Z",
   "baselineCreatedAt": "2026-04-02T18:36:13.771Z",
-  "watchedFiles": 20,
+  "watchedFiles": 21,
   "integrityOk": false,
   "suspiciousFiles": [
     {
       "path": "backend/server.mjs",
       "status": "modified",
       "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-      "currentSha256": "854b2083abf47760e32fa726ec762fc8b11c313ebf6fb7b6e3641bc8408eb6bf"
+      "currentSha256": "137ac5a8ae2b6a4651a1c5a3430f52d20af1e9e416db2007106c4b062d104373"
     },
     {
       "path": "backend/awroadsidedb-config.mjs",
@@ -58,7 +58,7 @@
       "path": "backend/subscription-controller.mjs",
       "status": "modified",
       "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-      "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+      "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
     },
     {
       "path": "backend/smtp-mailer.mjs",
@@ -68,13 +68,13 @@
       "path": "backend/request-service-controller.mjs",
       "status": "modified",
       "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-      "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
+      "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
     },
     {
       "path": "backend/admin-controller.mjs",
       "status": "modified",
       "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-      "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
+      "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
     },
     {
       "path": "web/app.js",
@@ -101,10 +101,14 @@
       "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
     },
     {
+      "path": "aw.render.yaml",
+      "status": "untracked"
+    },
+    {
       "path": "package.json",
       "status": "modified",
       "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-      "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
+      "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
     }
   ],
   "recentEvents": [
@@ -115,7 +119,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "854b2083abf47760e32fa726ec762fc8b11c313ebf6fb7b6e3641bc8408eb6bf"
+          "currentSha256": "137ac5a8ae2b6a4651a1c5a3430f52d20af1e9e416db2007106c4b062d104373"
         },
         {
           "path": "backend/awroadsidedb-config.mjs",
@@ -163,7 +167,7 @@
           "path": "backend/subscription-controller.mjs",
           "status": "modified",
           "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+          "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
         },
         {
           "path": "backend/smtp-mailer.mjs",
@@ -173,13 +177,13 @@
           "path": "backend/request-service-controller.mjs",
           "status": "modified",
           "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
+          "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
         },
         {
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
+          "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
         },
         {
           "path": "web/app.js",
@@ -206,13 +210,17 @@
           "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
         },
         {
+          "path": "aw.render.yaml",
+          "status": "untracked"
+        },
+        {
           "path": "package.json",
           "status": "modified",
           "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
+          "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
         }
       ],
-      "timestamp": "2026-04-30T15:26:04.746Z"
+      "timestamp": "2026-05-01T17:32:04.487Z"
     },
     {
       "event": "storage-authority-file-runtime",
@@ -224,7 +232,7 @@
         "providerWallet",
         "providerHistory"
       ],
-      "timestamp": "2026-04-30T15:25:51.246Z"
+      "timestamp": "2026-05-01T17:31:42.720Z"
     },
     {
       "event": "storage-authority-file-runtime",
@@ -238,10 +246,10 @@
         "providerWallet",
         "providerHistory"
       ],
-      "timestamp": "2026-04-30T15:25:51.243Z"
+      "timestamp": "2026-05-01T17:31:42.717Z"
     },
     {
-      "event": "db-config-initialized",
+      "event": "awroadsidedb-config-initialized",
       "layer": "awroadside-db-handoff",
       "backendEntry": "backend/server.mjs",
       "applicationName": "awroadside-server",
@@ -249,7 +257,7 @@
       "configured": false,
       "client": "postgres",
       "strict": false,
-      "timestamp": "2026-04-30T15:25:51.242Z"
+      "timestamp": "2026-05-01T17:31:42.706Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -258,7 +266,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "854b2083abf47760e32fa726ec762fc8b11c313ebf6fb7b6e3641bc8408eb6bf"
+          "currentSha256": "137ac5a8ae2b6a4651a1c5a3430f52d20af1e9e416db2007106c4b062d104373"
         },
         {
           "path": "backend/awroadsidedb-config.mjs",
@@ -306,7 +314,7 @@
           "path": "backend/subscription-controller.mjs",
           "status": "modified",
           "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+          "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
         },
         {
           "path": "backend/smtp-mailer.mjs",
@@ -316,13 +324,13 @@
           "path": "backend/request-service-controller.mjs",
           "status": "modified",
           "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
+          "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
         },
         {
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
+          "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
         },
         {
           "path": "web/app.js",
@@ -349,13 +357,17 @@
           "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
         },
         {
+          "path": "aw.render.yaml",
+          "status": "untracked"
+        },
+        {
           "path": "package.json",
           "status": "modified",
           "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
+          "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
         }
       ],
-      "timestamp": "2026-04-30T15:25:51.216Z"
+      "timestamp": "2026-05-01T17:31:42.634Z"
     },
     {
       "event": "storage-authority-file-runtime",
@@ -367,7 +379,7 @@
         "providerWallet",
         "providerHistory"
       ],
-      "timestamp": "2026-04-28T14:53:22.409Z"
+      "timestamp": "2026-05-01T17:31:37.135Z"
     },
     {
       "event": "storage-authority-file-runtime",
@@ -381,10 +393,10 @@
         "providerWallet",
         "providerHistory"
       ],
-      "timestamp": "2026-04-28T14:53:22.408Z"
+      "timestamp": "2026-05-01T17:31:37.130Z"
     },
     {
-      "event": "db-config-initialized",
+      "event": "awroadsidedb-config-initialized",
       "layer": "awroadside-db-handoff",
       "backendEntry": "backend/server.mjs",
       "applicationName": "awroadside-server",
@@ -392,7 +404,7 @@
       "configured": false,
       "client": "postgres",
       "strict": false,
-      "timestamp": "2026-04-28T14:53:22.403Z"
+      "timestamp": "2026-05-01T17:31:37.129Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -401,7 +413,7 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "ce72f4de67af57bf460d0ad1f4e1061b9a371f9719e5329e74e24aa690ba97c6"
+          "currentSha256": "137ac5a8ae2b6a4651a1c5a3430f52d20af1e9e416db2007106c4b062d104373"
         },
         {
           "path": "backend/awroadsidedb-config.mjs",
@@ -449,7 +461,7 @@
           "path": "backend/subscription-controller.mjs",
           "status": "modified",
           "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+          "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
         },
         {
           "path": "backend/smtp-mailer.mjs",
@@ -459,19 +471,19 @@
           "path": "backend/request-service-controller.mjs",
           "status": "modified",
           "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
+          "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
         },
         {
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
+          "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
         },
         {
           "path": "web/app.js",
           "status": "modified",
           "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "d0e256d545ff71a88d92dfcf1e3bd9e0e6199fc0aedea8f2168009d163f79058"
+          "currentSha256": "f6b5ff79423b22932854308d4ef34027b74b25fd38fd1571020d3e9f6edd773a"
         },
         {
           "path": "web/index.html",
@@ -483,22 +495,26 @@
           "path": "web/customer.html",
           "status": "modified",
           "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "536a71147ac0ff35f8a7625e427aaf3e08ee0395a758b5d41bf12076f58a9dca"
+          "currentSha256": "edcc671deb2eb6d77c716b75d645ef3d1a6a823666394ac4c5e77c501344f987"
         },
         {
           "path": "web/provider.html",
           "status": "modified",
           "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "764096a8d005ea53f264f42468ce17ef67187f5c399b1a820353ac1bef073bdb"
+          "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
+        },
+        {
+          "path": "aw.render.yaml",
+          "status": "untracked"
         },
         {
           "path": "package.json",
           "status": "modified",
           "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
+          "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
         }
       ],
-      "timestamp": "2026-04-28T14:53:22.386Z"
+      "timestamp": "2026-05-01T17:31:37.097Z"
     },
     {
       "event": "storage-authority-file-runtime",
@@ -510,7 +526,7 @@
         "providerWallet",
         "providerHistory"
       ],
-      "timestamp": "2026-04-28T05:54:15.984Z"
+      "timestamp": "2026-05-01T17:28:03.309Z"
     }
   ]
 }

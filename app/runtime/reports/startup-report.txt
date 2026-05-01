@@ -1,5 +1,9 @@
 Local Runtime Startup Report
-Started: 4/30/2026, 11:26:04 AM
+Started: 5/1/2026, 1:32:04 PM
+Blueprint: /Users/user/IdeaProjects/untitled/aw.render.yaml
+Blueprint Runtime: node
+Blueprint Node Version: 20
+Running Node Version: v20.20.2
 UI: http://127.0.0.1:3001/
 API: http://127.0.0.1:3001/api/aw-roadside/frontend-config
 Protected API: http://127.0.0.1:3001/api/aw-roadside

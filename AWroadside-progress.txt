@@ -22,6 +22,11 @@ Completed
 - Replaced shared frontend controller logic in web/app.js with sign-in, member/provider signup, stored identity, and request gating.
 - Replaced web/customer.html with a payment-ready request form.
 - Replaced web/app.js with frontend logic for request validation and PayPal button flow.
+- Migrated backend to a new modular structure including `location-service.mjs`, `provider-wallet-controller.mjs`, `smtp-mailer.mjs`, and a comprehensive `storage/` layer (Postgres-ready).
+- Verified backend runtime with local RUNTIME_ROOT and compatibility gateway.
+- Synchronized local authority state with GitHub remote.
+- Added debug logging and enhanced static file serving (mjs, png, jpeg) in `backend/server.mjs` to diagnose Render pathing issues.
+- Updated Android app (`awroadside-fire-work/App.js`) to correctly handle backend events and synchronize active request state.
 - Created path manifests:
   - /Users/user/IdeaProjects/untitled/AWroadside-final-paths.txt
   - /Users/user/Downloads/AWroadside/final-product-paths.txt

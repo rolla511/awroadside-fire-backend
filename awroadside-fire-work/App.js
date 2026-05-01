@@ -173,6 +173,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [activeRequest, setActiveRequest] = useState(null);
 
   const navItems = adminSession?.token ? [...topNavItems, { id: 'security', label: 'Security' }] : topNavItems;
   const api = createApiClient({
@@ -621,6 +622,9 @@ export default function App() {
       const result = await api.applyProviderAction(requestId, action, payload, auth.sessionToken);
       if (result?.request) {
         upsertSessionRequest(result.request);
+        if (String(result.request.id) === String(activeRequestId)) {
+          setActiveRequest(result.request);
+        }
       }
       await loadRequestQueue(frontendConfig, auth.sessionToken);
       setStatusMessage(formatUserFacingMessage(result?.message || `${labelProviderAction(action)} accepted for ${requestId}.`));
@@ -646,6 +650,7 @@ export default function App() {
       const result = await api.applyProviderAction(activeRequestId, action, {}, auth.sessionToken);
       if (result?.request) {
         upsertSessionRequest(result.request);
+        setActiveRequest(result.request);
       }
       await loadProfile(frontendConfig, auth.sessionToken);
       setStatusMessage(formatUserFacingMessage(result?.message || `${labelProviderAction(action)} confirmed for ${activeRequestId}.`));
@@ -677,6 +682,7 @@ export default function App() {
       );
       if (payload?.request) {
         upsertSessionRequest(payload.request);
+        setActiveRequest(payload.request);
         setLatestRequest(payload.request);
       }
       if (auth?.sessionToken) {

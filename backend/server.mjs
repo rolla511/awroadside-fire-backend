@@ -29,6 +29,13 @@ const webRoot = resolveWebRoot();
 const appRoot = path.join(projectRoot, "app");
 const runtimeRoot = resolveRuntimeRoot();
 const reportsRoot = path.join(runtimeRoot, "reports");
+
+console.log("[DEBUG_LOG] Runtime paths initialized:");
+console.log(`[DEBUG_LOG]   __dirname: ${__dirname}`);
+console.log(`[DEBUG_LOG]   projectRoot: ${projectRoot}`);
+console.log(`[DEBUG_LOG]   webRoot: ${webRoot}`);
+console.log(`[DEBUG_LOG]   runtimeRoot: ${runtimeRoot}`);
+console.log(`[DEBUG_LOG]   cwd: ${process.cwd()}`);
 const logsRoot = path.join(runtimeRoot, "logs");
 const paymentsRoot = path.join(runtimeRoot, "payments");
 const requestsRoot = path.join(runtimeRoot, "requests");
@@ -243,7 +250,10 @@ function resolveWebRoot() {
 
   for (const candidateRoot of new Set(candidateRoots)) {
     if (existsSync(path.join(candidateRoot, "index.html"))) {
+      console.log(`[DEBUG_LOG] Web root resolved to: ${candidateRoot}`);
       return candidateRoot;
+    } else {
+      console.log(`[DEBUG_LOG] Candidate web root does not contain index.html: ${candidateRoot}`);
     }
   }
 
@@ -4196,7 +4206,13 @@ function contentType(filePath) {
     case ".css":
       return "text/css; charset=utf-8";
     case ".js":
+    case ".mjs":
       return "application/javascript; charset=utf-8";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
     case ".json":
       return "application/json; charset=utf-8";
     case ".html":
