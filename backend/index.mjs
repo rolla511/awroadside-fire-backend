@@ -1,58 +1,110 @@
-import { STORAGE_SCHEMA_SQL } from "./schema.mjs";
 import { createPaymentsRepository } from "./payments-repository.mjs";
 import { createProviderHistoryRepository } from "./provider-history-repository.mjs";
 import { createProviderWalletRepository } from "./provider-wallet-repository.mjs";
 import { createRequestsRepository } from "./requests-repository.mjs";
+import { STORAGE_SCHEMA_SQL } from "./schema.mjs";
 import { createUsersRepository } from "./users-repository.mjs";
 
-export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
-  const usersRepository = createUsersRepository();
-  const requestsRepository = createRequestsRepository();
-  const paymentsRepository = createPaymentsRepository();
-  const providerWalletRepository = createProviderWalletRepository();
-  const providerHistoryRepository = createProviderHistoryRepository();
-  const repositories = Object.freeze({
-    users: usersRepository,
-    requests: requestsRepository,
-    payments: paymentsRepository,
-    providerWallet: providerWalletRepository,
-    providerHistory: providerHistoryRepository
+export function createAwRoadsideStorageKernel() {
+  return Object.freeze({
+    schemaSql: STORAGE_SCHEMA_SQL,
+    repositories: Object.freeze({
+      users: createUsersRepository(),
+      requests: createRequestsRepository(),
+      payments: createPaymentsRepository(),
+      providerWallet: createProviderWalletRepository(),
+      providerHistory: createProviderHistoryRepository()
+    })
   });
+}
 
+export function createAwRoadsideStorageAuthority({
+  awRoadsideDbConfig = null,
+  dbConfig = null,
+  localWatchdog = null,
+  storageKernel = createAwRoadsideStorageKernel()
+} = {}) {
+  const resolvedDbConfig = awRoadsideDbConfig || dbConfig;
+  if (!resolvedDbConfig || !resolvedDbConfig.authority) {
+    throw new Error("AW Roadside storage authority requires awRoadsideDbConfig.");
+  }
+
+  const repositories = Object.freeze(storageKernel.repositories || {});
+  const schemaSql = typeof storageKernel.schemaSql === "string" ? storageKernel.schemaSql : "";
   let sql = null;
   let enabled = false;
+  let status = {
+    initialized: false,
+    enabled: false,
+    mode: resolvedDbConfig.authority.mode,
+    configured: resolvedDbConfig.authority.configured,
+    client: resolvedDbConfig.authority.client,
+    database: resolvedDbConfig.authority.database || null,
+    strict: resolvedDbConfig.authority.strict,
+    repositories: Object.keys(repositories),
+    lastEvent: "created"
+  };
 
   return {
     repositories,
+    getStatus() {
+      return { ...status };
+    },
     async initialize() {
-      await dbConfig.recordTransition("db-config-initialized", {
-        mode: dbConfig.authority.mode,
-        configured: dbConfig.authority.configured,
-        client: dbConfig.authority.client,
-        strict: dbConfig.authority.strict
+      await resolvedDbConfig.recordTransition("awroadsidedb-config-initialized", {
+        mode: resolvedDbConfig.authority.mode,
+        configured: resolvedDbConfig.authority.configured,
+        client: resolvedDbConfig.authority.client,
+        strict: resolvedDbConfig.authority.strict
       });
+      status = {
+        ...status,
+        initialized: true,
+        lastEvent: "awroadsidedb-config-initialized"
+      };
 
-      if (!dbConfig.authority.configured || dbConfig.authority.mode === "file-runtime") {
+      if (!resolvedDbConfig.authority.configured || resolvedDbConfig.authority.mode === "file-runtime") {
+        status = {
+          ...status,
+          enabled: false,
+          lastEvent: "storage-authority-file-runtime"
+        };
         await record("storage-authority-file-runtime", {
           repositories: Object.keys(repositories)
         });
         return;
       }
 
-      if (dbConfig.authority.client !== "postgres") {
-        await handleFailure(new Error(`Unsupported DB client: ${dbConfig.authority.client}`), "storage-authority-unsupported-client");
+      if (!schemaSql || !repositories.users || !repositories.requests || !repositories.payments) {
+        await handleFailure(
+          new Error("AW Roadside storage kernel is incomplete."),
+          "storage-authority-incomplete-kernel"
+        );
+        return;
+      }
+
+      if (resolvedDbConfig.authority.client !== "postgres") {
+        await handleFailure(
+          new Error(`Unsupported DB client: ${resolvedDbConfig.authority.client}`),
+          "storage-authority-unsupported-client"
+        );
         return;
       }
 
       try {
         const { Pool } = await import("pg");
-        sql = new Pool(dbConfig.getConnectionConfig());
-        await sql.query(STORAGE_SCHEMA_SQL);
+        sql = new Pool(resolvedDbConfig.getConnectionConfig());
+        await sql.query(schemaSql);
         enabled = true;
+        status = {
+          ...status,
+          enabled: true,
+          lastEvent: "storage-authority-sql-ready"
+        };
         await record("storage-authority-sql-ready", {
           repositories: Object.keys(repositories),
-          client: dbConfig.authority.client,
-          database: dbConfig.authority.database || null
+          client: resolvedDbConfig.authority.client,
+          database: resolvedDbConfig.authority.database || null
         });
       } catch (error) {
         await handleFailure(error, "storage-authority-sql-unavailable");
@@ -63,8 +115,8 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
         return;
       }
       try {
-        await usersRepository.sync(sql, Array.isArray(users) ? users : []);
-        await providerHistoryRepository.syncFromUsers(sql, Array.isArray(users) ? users : []);
+        await repositories.users.sync(sql, Array.isArray(users) ? users : []);
+        await repositories.providerHistory.syncFromUsers(sql, Array.isArray(users) ? users : []);
       } catch (error) {
         await handleFailure(error, "storage-sync-users-failed");
       }
@@ -75,8 +127,8 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
       }
       try {
         const list = Array.isArray(requests) ? requests : [];
-        await requestsRepository.sync(sql, list);
-        await providerWalletRepository.syncFromRequests(sql, list);
+        await repositories.requests.sync(sql, list);
+        await repositories.providerWallet.syncFromRequests(sql, list);
       } catch (error) {
         await handleFailure(error, "storage-sync-requests-failed");
       }
@@ -86,7 +138,7 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
         return;
       }
       try {
-        await paymentsRepository.insert(sql, entry);
+        await repositories.payments.insert(sql, entry);
       } catch (error) {
         await handleFailure(error, "storage-sync-payment-failed");
       }
@@ -94,7 +146,7 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
   };
 
   async function record(event, details = {}) {
-    await dbConfig.recordTransition(event, details);
+    await resolvedDbConfig.recordTransition(event, details);
     if (localWatchdog && typeof localWatchdog.record === "function") {
       await localWatchdog.record(event, {
         layer: "awroadside-storage",
@@ -104,10 +156,16 @@ export function createAwRoadsideStorageAuthority({ dbConfig, localWatchdog }) {
   }
 
   async function handleFailure(error, event) {
+    status = {
+      ...status,
+      enabled: false,
+      lastEvent: event,
+      lastError: error instanceof Error ? error.message : String(error)
+    };
     await record(event, {
       message: error instanceof Error ? error.message : String(error)
     });
-    if (dbConfig.authority.strict) {
+    if (resolvedDbConfig.authority.strict) {
       throw error;
     }
   }
