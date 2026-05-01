@@ -166,7 +166,7 @@ export function createUniversalBridgeController() {
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           providerStatus: updatedUser.providerStatus,
-          providerMonthly: updatedUser.providerMonthly || 5.99,
+          providerMonthly: updatedUser.providerMonthly || helpers.getRoadsidePolicy?.().provider?.monthlyFee || 6,
           ...(sessionToken ? { sessionToken, token: sessionToken } : {})
         });
         return true;

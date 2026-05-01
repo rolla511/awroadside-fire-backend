@@ -1,6 +1,6 @@
 {
   "name": "awroadside-fire",
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "./index.js",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
@@ -10,14 +10,14 @@
     "build:android:development": "EAS_NO_VCS=1 npx eas-cli build --platform android --profile development --non-interactive"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~55.0.9",
-    "expo": "~55.0.12",
+    "@expo/metro-runtime": "~55.0.10",
+    "expo": "~55.0.17",
     "expo-dev-client": "~55.0.28",
-    "expo-splash-screen": "~55.0.16",
+    "expo-splash-screen": "~55.0.19",
     "expo-status-bar": "~55.0.5",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-native": "0.83.4",
+    "react-native": "0.83.6",
     "react-native-web": "~0.21.0"
   },
   "private": true,

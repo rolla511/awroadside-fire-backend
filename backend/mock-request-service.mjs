@@ -1,4 +1,4 @@
-import http from "node:http";
+import http from "http";
 
 const host = process.env.REQUEST_SERVICE_HOST || "127.0.0.1";
 const port = Number.parseInt(process.env.REQUEST_SERVICE_PORT || "3100", 10);

@@ -1,5 +1,5 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { promises as fs } from "fs";
+import path from "path";
 
 const DEFAULT_STALE_AFTER_MS = 5 * 60 * 1000;
 const DEFAULT_PROJECT_ID = "awroadside-family";

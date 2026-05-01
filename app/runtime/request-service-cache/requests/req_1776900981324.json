@@ -1,0 +1,53 @@
+{
+  "id": "req_1776900981324",
+  "requestId": "req_1776900981324",
+  "status": "EN_ROUTE",
+  "completionStatus": "OPEN",
+  "userId": null,
+  "roles": [],
+  "fullName": "Arrive Fail 1776900979008",
+  "phoneNumber": "555-5100",
+  "vehicleInfo": "Vehicle details not provided from app runtime",
+  "location": "Reassign Ave",
+  "serviceType": "Jump Start",
+  "notes": "failure to arrive test",
+  "assignedProviderId": 40,
+  "paymentStatus": "NOT_PAID",
+  "providerPayoutStatus": "PENDING",
+  "providerPayoutAmount": 39.5,
+  "amountCharged": 0,
+  "amountCollected": 0,
+  "platformShareAmount": 15.5,
+  "etaMinutes": 20,
+  "customerEtaAcceptedAt": null,
+  "arrivalConfirmedAt": null,
+  "completionConfirmedAt": null,
+  "paymentPromptedAt": null,
+  "noteExchange": [],
+  "providerActions": [
+    {
+      "action": "eta",
+      "providerUserId": 40,
+      "etaMinutes": 20,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.353Z"
+    },
+    {
+      "action": "accept",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.336Z"
+    }
+  ],
+  "acceptedAt": "2026-04-22T23:36:21.336Z",
+  "etaUpdatedAt": "2026-04-22T23:36:21.353Z",
+  "softContactedAt": null,
+  "hardContactedAt": null,
+  "arrivedAt": null,
+  "completedAt": null,
+  "createdAt": "2026-04-22T23:36:21.324Z",
+  "updatedAt": "2026-04-22T23:36:21.354Z"
+}

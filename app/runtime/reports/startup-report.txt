@@ -1,9 +1,11 @@
 Local Runtime Startup Report
-Started: 4/19/2026, 8:33:30 PM
-UI: http://127.0.0.1:3106/
-API: http://127.0.0.1:3106/api/aw-roadside/frontend-config
-Protected API: http://127.0.0.1:3106/api/aw-roadside
+Started: 4/30/2026, 11:26:04 AM
+UI: http://127.0.0.1:3001/
+API: http://127.0.0.1:3001/api/aw-roadside/frontend-config
+Protected API: http://127.0.0.1:3001/api/aw-roadside
 Runtime Folder: /Users/user/IdeaProjects/untitled/app/runtime
 Watchdog Status: /Users/user/IdeaProjects/untitled/app/runtime/security/latest-status.json
 PayPal Mode: sandbox
 PayPal Configured: no
+PayPal Webhook: http://127.0.0.1:3001/api/paypal/webhook
+PayPal Webhook ID: 4RN22635Y61567938

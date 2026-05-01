@@ -1,0 +1,61 @@
+{
+  "id": "req_1776900981381",
+  "requestId": "req_1776900981381",
+  "status": "ARRIVED",
+  "completionStatus": "OPEN",
+  "userId": null,
+  "roles": [],
+  "fullName": "Complete Fail 1776900979008",
+  "phoneNumber": "555-5200",
+  "vehicleInfo": "Vehicle details not provided from app runtime",
+  "location": "Force Complete Blvd",
+  "serviceType": "Lockout",
+  "notes": "failure to complete test",
+  "assignedProviderId": 40,
+  "paymentStatus": "NOT_PAID",
+  "providerPayoutStatus": "PENDING",
+  "providerPayoutAmount": 39.5,
+  "amountCharged": 0,
+  "amountCollected": 0,
+  "platformShareAmount": 15.5,
+  "etaMinutes": 16,
+  "customerEtaAcceptedAt": null,
+  "arrivalConfirmedAt": null,
+  "completionConfirmedAt": null,
+  "paymentPromptedAt": null,
+  "noteExchange": [],
+  "providerActions": [
+    {
+      "action": "arrived",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.430Z"
+    },
+    {
+      "action": "eta",
+      "providerUserId": 40,
+      "etaMinutes": 16,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.410Z"
+    },
+    {
+      "action": "accept",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.392Z"
+    }
+  ],
+  "acceptedAt": "2026-04-22T23:36:21.392Z",
+  "etaUpdatedAt": "2026-04-22T23:36:21.410Z",
+  "softContactedAt": null,
+  "hardContactedAt": null,
+  "arrivedAt": "2026-04-22T23:36:21.430Z",
+  "completedAt": null,
+  "createdAt": "2026-04-22T23:36:21.381Z",
+  "updatedAt": "2026-04-22T23:36:21.433Z"
+}

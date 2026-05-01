@@ -1,11 +1,169 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta http-equiv="refresh" content="0; url=index.html#provider"/>
-<title>Redirecting To Provider</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>A-Dub Roadside | Provider Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-<p>Redirecting to <a href="index.html#provider">Provider</a>.</p>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Provider Access</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="identity-role">Guest</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-art">
+        <img src="assets/roadside-home.png" alt="Provider and dispatch concept"/>
+      </div>
+      <div class="sidebar-copy">
+        <p class="eyebrow">Provider Access</p>
+        <h2>Provider sign-in and application entry.</h2>
+        <p id="identity-state" class="muted">Use this page to access provider sign-in or begin provider application.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="home.html">Home</a>
+        <a class="nav-link" href="customer.html">Customer Request</a>
+        <a class="nav-link active" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="provider-info.html">Provider Info</a>
+        <a class="nav-link" href="provider-work.html">Provider Work</a>
+        <a class="nav-link" href="provider-wallet.html">Provider Wallet</a>
+        <a class="nav-link" href="admin.html">Admin Access</a>
+      </nav>
+      <div class="sidebar-metrics">
+        <div class="metric-card">
+          <span>Service Line</span>
+          <strong id="api-port">24/7</strong>
+          <small id="backend-service">Checking availability</small>
+        </div>
+        <div class="metric-card">
+          <span>Dispatch Status</span>
+          <strong id="security-layer-state">Ready</strong>
+          <small id="security-layer-detail">Help is available when dispatch is online</small>
+        </div>
+        <div class="metric-card">
+          <span>Route</span>
+          <strong id="api-url">Provider access</strong>
+          <small id="api-status">Checking service availability...</small>
+        </div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="provider-grid">
+          <form class="panel signin-panel" id="provider-signin-form">
+            <p class="eyebrow">Provider Sign In</p>
+            <h3>Provider access</h3>
+            <label>
+              <span>Username or Email</span>
+              <input class="field" name="identifier" placeholder="Username or Email" required/>
+            </label>
+            <label>
+              <span>Password</span>
+              <input class="field" name="password" type="password" placeholder="Password" required/>
+            </label>
+            <button class="glow-button wide" type="submit">Provider Sign In</button>
+            <div class="feedback-box" id="provider-signin-status" style="display:none"></div>
+          </form>
+
+          <div class="panel detail-panel">
+            <p class="eyebrow">Provider Setup</p>
+            <h3>Application entry</h3>
+            <p class="muted" id="provider-identity-state">Create your provider account, complete the profile, and return here to sign in once your account is ready.</p>
+            <p class="muted" id="provider-admin-status">Provider status will appear after sign-in.</p>
+            <p class="muted" id="provider-service-list">Services will appear after provider access is confirmed.</p>
+            <p class="muted" id="provider-vehicle-summary">Vehicle profile will appear after account details are loaded.</p>
+            <div class="cta-row">
+              <button class="glow-button danger" id="provider-signup-open" type="button">Become Provider</button>
+              <a class="glow-button alt" href="provider-info.html">Provider Info</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal-shell" id="provider-signup-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-top">
+      <div>
+        <p class="eyebrow">Provider Setup</p>
+        <h3>Provider Sign Up</h3>
+      </div>
+      <button class="modal-close" id="provider-signup-close" type="button">Close</button>
+    </div>
+    <form class="form-grid" id="provider-signup-form">
+      <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+      <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+      <label><span>Username</span><input class="field" name="username" placeholder="Username" required/></label>
+      <label><span>Email</span><input class="field" name="email" placeholder="Email" required/></label>
+      <label><span>Password</span><input class="field" name="password" type="password" placeholder="Password" required/></label>
+      <label><span>Confirm Password</span><input class="field" name="confirmPassword" type="password" placeholder="Confirm Password" required/></label>
+      <label><span>Legal Name</span><input class="field" name="legalName" placeholder="Legal Name" required/></label>
+      <label><span>Business Name</span><input class="field" name="companyName" placeholder="Business Name (optional)"/></label>
+      <label><span>W-9 Name</span><input class="field" name="w9Name" placeholder="W-9 Name (optional)"/></label>
+      <label><span>Tax ID Last 4</span><input class="field" name="taxIdLast4" placeholder="Last 4 digits (optional)" maxlength="4"/></label>
+      <label><span>Vehicle Year</span><input class="field" name="year" placeholder="Vehicle Year" required/></label>
+      <label><span>Vehicle Make</span><input class="field" name="make" placeholder="Vehicle Make" required/></label>
+      <label><span>Vehicle Model</span><input class="field" name="model" placeholder="Vehicle Model" required/></label>
+      <label><span>Vehicle Color</span><input class="field" name="color" placeholder="Vehicle Color" required/></label>
+      <label class="full-span"><span>Service Area</span><input class="field" name="serviceArea" placeholder="Cities, neighborhoods, or coverage area" required/></label>
+      <label class="full-span"><span>Current Location</span><input class="field" name="currentLocation" placeholder="Current city or operating base" required/></label>
+      <label><span>Weekday Hours</span><input class="field" name="weekdayHours" placeholder="Example: 7 AM - 7 PM" required/></label>
+      <label><span>Weekend Hours</span><input class="field" name="weekendHours" placeholder="Example: 8 AM - 4 PM"/></label>
+      <label><span>Timezone</span><input class="field" name="serviceTimezone" placeholder="America/New_York" value="America/New_York" required/></label>
+      <div class="toggle-grid full-span">
+        <label class="toggle"><input type="checkbox" name="license" checked/><span>Driver License</span></label>
+        <label class="toggle"><input type="checkbox" name="registration" checked/><span>Vehicle Registration</span></label>
+        <label class="toggle"><input type="checkbox" name="insurance" checked/><span>Insurance</span></label>
+        <label class="toggle"><input type="checkbox" name="helperId"/><span>Helper ID</span></label>
+      </div>
+      <div class="toggle-grid full-span">
+        <label class="toggle"><input type="checkbox" name="services" value="LOCKOUT" checked/><span>Lockout</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="TIRE_CHANGE" checked/><span>Tire Change</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="JUMP_START" checked/><span>Jump Start</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="GAS_DELIVERY"/><span>Gas Delivery</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="BATTERY_INSTALL"/><span>Battery Install</span></label>
+      </div>
+      <label class="full-span"><span>Experience</span><textarea class="field area" name="experience" placeholder="Experience"></textarea></label>
+      <label class="full-span"><span>How do you safely perform a jumpstart?</span><textarea class="field area" name="jumpstartProcedure" placeholder="Describe your safe jumpstart process" required></textarea></label>
+      <label class="full-span"><span>Where do you place a jack on a car?</span><textarea class="field area" name="jackPlacement" placeholder="Describe jack point placement" required></textarea></label>
+      <label class="full-span"><span>What jack do you use on BMW, van, truck, or Benz platforms?</span><textarea class="field area" name="specialtyVehicleJack" placeholder="Describe the jack type and why" required></textarea></label>
+      <label class="full-span"><span>What is a spool?</span><textarea class="field area" name="spoolDefinition" placeholder="Explain what a spool is in roadside service context" required></textarea></label>
+      <label class="full-span"><span>How do you remove a frozen lug nut?</span><textarea class="field area" name="frozenLugNut" placeholder="Describe your safe approach" required></textarea></label>
+      <label class="full-span"><span>What tools do you use for a lockout?</span><textarea class="field area" name="lockoutTools" placeholder="List the tools you rely on" required></textarea></label>
+      <label class="full-span"><span>How do you prevent damage during a lockout?</span><textarea class="field area" name="lockoutDamagePrevention" placeholder="Describe your damage-prevention steps" required></textarea></label>
+      <label class="full-span"><span>What damage can happen if a lockout is done incorrectly?</span><textarea class="field area" name="incorrectLockoutDamage" placeholder="Describe the risks" required></textarea></label>
+      <label class="full-span"><span>Do you know how to plug a tire?</span><textarea class="field area" name="tirePlugKnowledge" placeholder="Explain your answer" required></textarea></label>
+      <label class="full-span"><span>If a service could cause severe damage, what do you do?</span><textarea class="field area" name="severeDamageDecision" placeholder="State that you would inform the customer before proceeding" required></textarea></label>
+      <label class="toggle full-span"><input type="checkbox" name="providerTermsAccepted" required/><span>I accept the provider program terms.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="providerLiabilityAccepted" required/><span>I understand I am responsible for the services I perform and any related damage or loss.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="providerHoldHarmlessAccepted" required/><span>I understand the platform coordinates dispatch and I accept the provider responsibility notice.</span></label>
+      <button class="glow-button wide full-span" type="submit">Create Provider Account</button>
+      <div class="feedback-box full-span" id="provider-signup-status" style="display:none"></div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>

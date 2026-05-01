@@ -1,9 +1,9 @@
 {
   "app": "local-node-runtime",
-  "host": "0.0.0.0",
-  "port": 3106,
-  "startedAt": "2026-04-20T00:33:30.178Z",
-  "uiUrl": "http://127.0.0.1:3106/",
-  "apiUrl": "http://127.0.0.1:3106/api/aw-roadside/frontend-config",
-  "protectedApiBaseUrl": "http://127.0.0.1:3106/api/aw-roadside"
+  "host": "127.0.0.1",
+  "port": 3001,
+  "startedAt": "2026-04-30T15:26:04.451Z",
+  "uiUrl": "http://127.0.0.1:3001/",
+  "apiUrl": "http://127.0.0.1:3001/api/aw-roadside/frontend-config",
+  "protectedApiBaseUrl": "http://127.0.0.1:3001/api/aw-roadside"
 }

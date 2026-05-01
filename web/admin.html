@@ -1,11 +1,93 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta http-equiv="refresh" content="0; url=index.html#admin"/>
-<title>Redirecting To Admin</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>A-Dub Roadside | Admin Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-<p>Redirecting to <a href="index.html#admin">Admin</a>.</p>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Admin Access</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Admin</span>
+        <strong id="admin-status-badge">Pending</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-copy">
+        <p class="eyebrow">Admin</p>
+        <h2>Admin login and access state.</h2>
+        <p id="identity-state" class="muted">Use this screen for admin sign-in, trusted zone handling, and dashboard access state.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="home.html">Home</a>
+        <a class="nav-link active" href="admin.html">Admin Access</a>
+        <a class="nav-link" href="admin-dashboard.html">Admin Dashboard</a>
+        <a class="nav-link" href="admin-accounts.html">Admin Accounts</a>
+        <a class="nav-link" href="admin-financials.html">Admin Financials</a>
+      </nav>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="admin-grid">
+          <form class="panel form-stack" id="admin-login-form">
+            <label><span>Admin Email</span><input class="field" name="email" placeholder="Admin Email" required/></label>
+            <label><span>Admin Password</span><input class="field" name="password" type="password" placeholder="Admin Password" required/></label>
+            <label><span>Location Zone</span><input class="field" name="locationZone" placeholder="Location Zone (optional)"/></label>
+            <label><span>2FA Code</span><input class="field" name="twoFactorCode" placeholder="2FA Code if required"/></label>
+            <button class="glow-button wide" type="submit">Admin Login</button>
+            <div class="feedback-box" id="admin-login-status" style="display:none"></div>
+          </form>
+
+          <div class="admin-stats">
+            <div class="panel stat-panel">
+              <span class="status-label">Status</span>
+              <strong id="admin-status-label">Signed out</strong>
+              <small id="admin-status-text">Use admin credentials to view dashboard status.</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Admin Email</span>
+              <strong id="admin-email">Not loaded</strong>
+              <small>Current admin identity</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Roles</span>
+              <strong id="admin-roles">None</strong>
+              <small>Admin access roles</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Request Count</span>
+              <strong id="admin-request-count">0</strong>
+              <small>Current request log count</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Payments</span>
+              <strong id="admin-payment-configured">Unknown</strong>
+              <small>PayPal service configuration</small>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
 </body>
 </html>

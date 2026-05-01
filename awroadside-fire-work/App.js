@@ -19,7 +19,10 @@ import { theme } from './theme';
 
 const homeGraphic = require('./assets/images/roadside-home.png');
 const subscriberGraphic = require('./assets/images/roadside-subscriber.png');
-const DEFAULT_BACKEND_URL = typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || '' : '';
+const DEFAULT_BACKEND_URL =
+  typeof process !== 'undefined'
+    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || ''
+    : '';
 
 const topNavItems = [
   { id: 'overview', label: 'Overview' },
@@ -53,16 +56,17 @@ const providerTabs = [
 const adminTabs = [
   { id: 'access', label: 'Sign In' },
   { id: 'work', label: 'Work' },
+  { id: 'directory', label: 'Directory' },
   { id: 'providers', label: 'Providers' },
   { id: 'subscribers', label: 'Subscribers' },
 ];
 
 const serviceOptions = [
-  { id: 'Jump Start', label: 'Jump Start', detail: 'Battery assistance' },
-  { id: 'Lockout', label: 'Lockout', detail: 'Vehicle entry' },
-  { id: 'Tire Change', label: 'Tire Change', detail: 'Wheel swap' },
-  { id: 'Gas Delivery', label: 'Gas Delivery', detail: 'Fuel drop' },
-  { id: 'Battery Install', label: 'Battery Install', detail: 'Install support' },
+  { id: 'Jump Start', label: 'Jump Start', detail: 'Back on the road fast' },
+  { id: 'Lockout', label: 'Lockout', detail: "Won't be locked out for long" },
+  { id: 'Tire Change', label: 'Tire Change', detail: 'Tires changed in a jiffy' },
+  { id: 'Gas Delivery', label: 'Gas Delivery', detail: 'Fuel arrives before the worry sets in' },
+  { id: 'Battery Install', label: 'Battery Install', detail: 'Fresh battery power without the hassle' },
 ];
 
 const providerServiceOptions = [
@@ -122,6 +126,11 @@ const initialAdminSignin = {
   twoFactorCode: '',
 };
 
+const initialFeedbackForm = {
+  rating: '8',
+  notes: '',
+};
+
 export default function App() {
   const [section, setSection] = useState('overview');
   const [guestView, setGuestView] = useState('request');
@@ -138,6 +147,10 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [adminSession, setAdminSession] = useState(null);
   const [adminDashboard, setAdminDashboard] = useState(null);
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [adminSearchRole, setAdminSearchRole] = useState('ALL');
+  const [adminSearchResults, setAdminSearchResults] = useState([]);
+  const [adminSelectedUserProfile, setAdminSelectedUserProfile] = useState(null);
   const [requests, setRequests] = useState([]);
   const [providerActions, setProviderActions] = useState({});
   const [sessionRequests, setSessionRequests] = useState([]);
@@ -156,6 +169,7 @@ export default function App() {
     payouts: {},
     resets: {},
   });
+  const [feedbackForm, setFeedbackForm] = useState(initialFeedbackForm);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -190,6 +204,7 @@ export default function App() {
   const adminProviders = Array.isArray(adminDashboard?.providers) ? adminDashboard.providers : [];
   const adminSubscribers = Array.isArray(adminDashboard?.subscribers) ? adminDashboard.subscribers : [];
   const uiEventMap = frontendConfig?.uiEventMap || paymentConfig?.uiEventMap || adminDashboard?.policy?.uiEventMap || null;
+  const pricingSource = paymentConfig || frontendConfig || null;
 
   async function loadBootstrap() {
     if (!backendUrl.trim()) {
@@ -432,7 +447,7 @@ export default function App() {
     }
     clearMessages();
     setServiceQuoteAccepted(true);
-    setStatusMessage(`Service quote accepted: ${servicePaymentQuote.amount?.value || '0.00'} ${servicePaymentQuote.amount?.currency_code || 'USD'}.`);
+    setStatusMessage(`Service price accepted: ${servicePaymentQuote.amount?.value || '0.00'} ${servicePaymentQuote.amount?.currency_code || 'USD'}.`);
   }
 
   async function handleCreatePaymentOrder() {
@@ -492,6 +507,9 @@ export default function App() {
         requestId: activeRequestId,
       });
       setPaymentOrder((current) => ({ ...(current || {}), ...payload, captured: true }));
+      if (payload?.request) {
+        upsertSessionRequest(payload.request);
+      }
       if (activeRequestId) {
         patchSessionRequest(activeRequestId, {
           paymentStatus: 'CAPTURED',
@@ -638,6 +656,41 @@ export default function App() {
     }
   }
 
+  async function handleSubmitRequestFeedback() {
+    if (!activeRequestId) {
+      setErrorMessage('Create or load a request before submitting provider feedback.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      const activeRequest = activeSessionRequest || sessionRequests[0] || null;
+      const payload = await api.submitRequestFeedback(
+        activeRequestId,
+        {
+          rating: Number.parseInt(feedbackForm.rating, 10) || 8,
+          notes: feedbackForm.notes,
+          phoneNumber: activeRequest?.phoneNumber || requestForm.phoneNumber,
+          fullName: activeRequest?.fullName || requestForm.fullName,
+        },
+        auth?.sessionToken || null
+      );
+      if (payload?.request) {
+        upsertSessionRequest(payload.request);
+        setLatestRequest(payload.request);
+      }
+      if (auth?.sessionToken) {
+        await loadProfile(frontendConfig, auth.sessionToken);
+      }
+      setFeedbackForm(initialFeedbackForm);
+      setStatusMessage(formatUserFacingMessage(payload?.message || 'Provider feedback recorded.'));
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleApproveProvider(providerId) {
     if (!adminSession?.token) {
       setErrorMessage('Admin login is required before approving providers.');
@@ -656,6 +709,69 @@ export default function App() {
       );
       await loadAdminDashboard(frontendConfig, adminSession);
       setStatusMessage(formatUserFacingMessage(payload.message || `Provider ${providerId} approved.`));
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleProviderTraining(providerId, status) {
+    if (!adminSession?.token) {
+      setErrorMessage('Admin login is required before updating provider training.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      const payload = await api.updateProviderTraining(
+        providerId,
+        status === 'COMPLETED'
+          ? {
+              status: 'COMPLETED',
+              note: 'Training completed',
+            }
+          : {
+              status: 'SCHEDULED',
+              scheduledFor: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              note: 'Manual roadside retraining',
+            },
+        adminSession.token,
+        createAdminHeaders()
+      );
+      await loadAdminDashboard(frontendConfig, adminSession);
+      if (adminSelectedUserProfile?.user?.id === providerId) {
+        const refreshedProfile = await api.getAdminUserProfile(providerId, adminSession.token, createAdminHeaders());
+        setAdminSelectedUserProfile(refreshedProfile);
+      }
+      setStatusMessage(formatUserFacingMessage(payload.message || `Training updated for ${providerId}.`));
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAdminAccountState(userId, accountState) {
+    if (!adminSession?.token) {
+      setErrorMessage('Admin login is required before changing account state.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      const payload = await api.setAdminAccountState(
+        userId,
+        { accountState },
+        adminSession.token,
+        createAdminHeaders()
+      );
+      await loadAdminDashboard(frontendConfig, adminSession);
+      if (adminSelectedUserProfile?.user?.id === userId) {
+        const refreshedProfile = await api.getAdminUserProfile(userId, adminSession.token, createAdminHeaders());
+        setAdminSelectedUserProfile(refreshedProfile);
+      }
+      setStatusMessage(formatUserFacingMessage(payload.message || `Account state updated for ${userId}.`));
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -731,6 +847,51 @@ export default function App() {
       );
       await loadAdminDashboard(frontendConfig, adminSession);
       setStatusMessage(formatUserFacingMessage(payload.message || `Request ${requestId} reset.`));
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAdminSearch() {
+    if (!adminSession?.token) {
+      setErrorMessage('Admin login is required before searching accounts.');
+      return;
+    }
+    if (!adminSearchQuery.trim()) {
+      setErrorMessage('Enter a name, email, phone number, service area, or account id.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      const payload = await api.searchAdminAccounts(
+        adminSearchQuery.trim(),
+        adminSearchRole,
+        adminSession.token,
+        createAdminHeaders()
+      );
+      setAdminSearchResults(Array.isArray(payload.users) ? payload.users : []);
+      setStatusMessage(`Matched ${Array.isArray(payload.users) ? payload.users.length : 0} account(s).`);
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLoadAdminUserProfile(userId) {
+    if (!adminSession?.token) {
+      setErrorMessage('Admin login is required before loading account profiles.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      const payload = await api.getAdminUserProfile(userId, adminSession.token, createAdminHeaders());
+      setAdminSelectedUserProfile(payload);
+      setStatusMessage(`Loaded account profile for ${payload?.user?.fullName || payload?.user?.email || `user ${userId}`}.`);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -815,6 +976,10 @@ export default function App() {
   function handleAdminLogout() {
     setAdminSession(null);
     setAdminDashboard(null);
+    setAdminSearchQuery('');
+    setAdminSearchRole('ALL');
+    setAdminSearchResults([]);
+    setAdminSelectedUserProfile(null);
     setSecurityStatus(null);
     setAdminSignin(initialAdminSignin);
     setSection('overview');
@@ -910,13 +1075,13 @@ export default function App() {
         {renderTabBar(guestTabs, guestView, setGuestView)}
         {guestView === 'request' ? (
           <>
-            {renderRequestComposer('Guest Request', 'Guest dispatch requests move into the service queue before payment.')}
+            {renderRequestComposer('Get Service Now', 'Fast roadside help starts here, with real-time dispatch flow and pricing confirmed before payment.')}
             <View style={styles.graphicPanel}>
               <Image source={subscriberGraphic} style={styles.secondaryGraphic} resizeMode="cover" />
               <View style={styles.graphicCopy}>
-                <Text style={styles.sectionTitle}>Guest Service Terms</Text>
+                <Text style={styles.sectionTitle}>Why Get Service Now</Text>
                 <Text style={styles.mutedText}>
-                  Guest requests use the current service pricing. Capture only after the service price and order are ready.
+                  From jump starts to lockouts and tire changes, the goal is simple: get help moving quickly and get you back on your way with confidence.
                 </Text>
               </View>
             </View>
@@ -924,6 +1089,7 @@ export default function App() {
         ) : (
           <>
             {renderRequestStatusPanel('Guest Request Status', false)}
+            {renderFeedbackPanel(false)}
             {renderPaymentPanel()}
           </>
         )}
@@ -956,7 +1122,7 @@ export default function App() {
 
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Subscriber Signup</Text>
-          <Text style={styles.mutedText}>Monthly fee: {formatMoney(paymentConfig?.subscriberMonthlyFee || 5)}</Text>
+          <Text style={styles.mutedText}>Monthly fee: {formatOptionalMoney(pricingSource?.subscriberMonthlyFee)}</Text>
           <Text style={styles.mutedText}>Vehicle and payment reference values are written into the subscriber profile at signup.</Text>
           {renderSubscriberSignupFields()}
           <Button label="Create Subscriber Account" onPress={handleSubscriberSignup} />
@@ -1022,6 +1188,7 @@ export default function App() {
           </View>
         </View>
 
+        {renderFeedbackPanel(true)}
         {renderPaymentPanel()}
       </>
     );
@@ -1072,7 +1239,7 @@ export default function App() {
     return (
       <View style={styles.panel}>
         <Text style={styles.sectionTitle}>Provider Info Form</Text>
-        <Text style={styles.mutedText}>Application fee: {formatMoney(paymentConfig?.providerMonthlyFee || 5.99)}</Text>
+        <Text style={styles.mutedText}>Monthly fee: {formatOptionalMoney(pricingSource?.providerMonthlyFee)}</Text>
         <Text style={styles.mutedText}>Vehicle, service selections, and document flags write into the provider application flow.</Text>
         {renderProviderSignupFields()}
         <Button label="Create Provider Account" onPress={handleProviderSignup} />
@@ -1086,7 +1253,7 @@ export default function App() {
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>Provider Profile</Text>
           <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'providerStatus', profile?.providerStatus || auth?.providerStatus || 'Not signed in')}</Text>
-          <Text style={styles.mutedText}>Monthly fee: {formatMoney(profile?.providerMonthly || paymentConfig?.providerMonthlyFee || 5.99)}</Text>
+          <Text style={styles.mutedText}>Monthly fee: {formatOptionalMoney(profile?.providerMonthly ?? pricingSource?.providerMonthlyFee)}</Text>
           <Text style={styles.mutedText}>
             Services: {Array.isArray(profile?.services) && profile.services.length ? profile.services.map((service) => labelServiceType(uiEventMap, service)).join(', ') : 'None loaded'}
           </Text>
@@ -1094,6 +1261,8 @@ export default function App() {
             Vehicle: {profile?.providerProfile?.vehicleInfo ? formatVehicle(profile.providerProfile.vehicleInfo) : 'No provider vehicle loaded'}
           </Text>
           <Text style={styles.mutedText}>Rating: {formatRating(profile?.providerRating)}</Text>
+          <Text style={styles.mutedText}>Discipline strikes: {profile?.providerDiscipline?.strikeCount ?? 0}</Text>
+          <Text style={styles.mutedText}>Training status: {profile?.providerDiscipline?.training?.status || 'NOT_REQUIRED'}</Text>
           <Text style={styles.mutedText}>Selection score: {profile?.providerSelection?.score ?? 'N/A'}</Text>
           <Text style={styles.mutedText}>Service area: {profile?.providerProfile?.serviceArea || 'Not set'}</Text>
           <View style={styles.buttonGrid}>
@@ -1286,6 +1455,7 @@ export default function App() {
 
         {adminView === 'access' ? renderAdminAccessScreen() : null}
         {adminView === 'work' ? renderAdminWorkScreen() : null}
+        {adminView === 'directory' ? renderAdminDirectoryScreen() : null}
         {adminView === 'providers' ? renderAdminProvidersScreen() : null}
         {adminView === 'subscribers' ? renderAdminSubscribersScreen() : null}
       </ScrollView>
@@ -1407,6 +1577,135 @@ export default function App() {
     );
   }
 
+  function renderAdminDirectoryScreen() {
+    if (!adminSession?.token) {
+      return renderRoleGate('Admin directory requires an admin session.');
+    }
+
+    const profilePayload = adminSelectedUserProfile;
+    const user = profilePayload?.user || null;
+    const subscriber = profilePayload?.subscriber || null;
+    const provider = profilePayload?.provider || null;
+    const supportSummary = profilePayload?.supportSummary || null;
+    const nextAccountState = user?.accountState === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED';
+
+    return (
+      <>
+        <View style={styles.panel}>
+          <Text style={styles.sectionTitle}>Admin Directory Search</Text>
+          <Text style={styles.mutedText}>Search providers and subscribers even when the issue is unrelated to an active service request.</Text>
+          <InputField label="Search Query" value={adminSearchQuery} onChangeText={setAdminSearchQuery} />
+          <InputField label="Role Filter" value={adminSearchRole} onChangeText={(value) => setAdminSearchRole((value || 'ALL').toUpperCase())} />
+          <View style={styles.buttonGrid}>
+            <Button label="Search Accounts" onPress={handleAdminSearch} />
+            <Button
+              label="Clear Search"
+              kind="secondary"
+              onPress={() => {
+                setAdminSearchQuery('');
+                setAdminSearchRole('ALL');
+                setAdminSearchResults([]);
+                setAdminSelectedUserProfile(null);
+              }}
+            />
+          </View>
+        </View>
+
+        <View style={styles.panel}>
+          <Text style={styles.sectionTitle}>Search Results</Text>
+          {adminSearchResults.length === 0 ? (
+            <Text style={styles.mutedText}>No directory results loaded yet.</Text>
+          ) : (
+            adminSearchResults.map((entry) => (
+              <View key={`admin-directory-${entry.id}`} style={styles.queueCard}>
+                <Text style={styles.queueTitle}>{entry.fullName || entry.email || `User ${entry.id}`}</Text>
+                <Text style={styles.mutedText}>#{entry.id} · {(entry.roles || []).join(', ') || 'No roles'}</Text>
+                <Text style={styles.mutedText}>State: {entry.accountState} · Provider: {entry.providerStatus || 'N/A'}</Text>
+                <Text style={styles.mutedText}>Requests: {entry.requestCount || 0} · Active: {entry.activeRequestCount || 0}</Text>
+                <Text style={styles.mutedText}>{entry.serviceArea || entry.currentLocation || 'No service-area or location note available.'}</Text>
+                <Button label="Open Profile" kind="secondary" onPress={() => handleLoadAdminUserProfile(entry.id)} />
+              </View>
+            ))
+          )}
+        </View>
+
+        <View style={styles.panel}>
+          <Text style={styles.sectionTitle}>Selected Account</Text>
+          {!user ? (
+            <Text style={styles.mutedText}>Select a result to view account status, support context, and recent request history.</Text>
+          ) : (
+            <>
+              <Text style={styles.queueTitle}>{user.fullName || user.email || `User ${user.id}`}</Text>
+              <Text style={styles.mutedText}>#{user.id} · {(user.roles || []).join(', ') || 'No roles'}</Text>
+              <Text style={styles.mutedText}>Email: {user.email || 'Not set'}</Text>
+              <Text style={styles.mutedText}>Phone: {user.phoneNumber || 'Not set'}</Text>
+              <Text style={styles.mutedText}>State: {user.accountState} · Signed up: {formatDate(user.signUpDate)}</Text>
+              {supportSummary ? (
+                <>
+                  <Text style={styles.mutedText}>Customer requests: {supportSummary.customerRequestCount || 0} · Active: {supportSummary.activeCustomerRequests || 0}</Text>
+                  <Text style={styles.mutedText}>Provider requests: {supportSummary.providerRequestCount || 0} · Active: {supportSummary.activeProviderRequests || 0}</Text>
+                </>
+              ) : null}
+              {subscriber ? (
+                <>
+                  <Text style={styles.mutedText}>Subscriber status: {subscriber.subscriptionStatus || 'INACTIVE'}</Text>
+                  <Text style={styles.mutedText}>Billing date: {formatDate(subscriber.nextBillingDate)}</Text>
+                  <Text style={styles.mutedText}>Saved vehicles: {Array.isArray(subscriber.savedVehicles) && subscriber.savedVehicles.length ? subscriber.savedVehicles.map(formatVehicle).join(' | ') : 'None'}</Text>
+                </>
+              ) : null}
+              {provider ? (
+                <>
+                  <Text style={styles.mutedText}>Provider status: {labelUiStatus(uiEventMap, 'providerStatus', provider.providerStatus)}</Text>
+                  <Text style={styles.mutedText}>Service area: {provider.serviceArea || 'Not set'}</Text>
+                  <Text style={styles.mutedText}>Services: {Array.isArray(provider.services) && provider.services.length ? provider.services.map((service) => labelServiceType(uiEventMap, service)).join(', ') : 'None'}</Text>
+                  <Text style={styles.mutedText}>Documents ready: {provider.documentStatus?.meetsMinimumRequirements ? 'Yes' : 'No'} · PayPal email: {provider.paypal?.email || 'Not linked'}</Text>
+                </>
+              ) : null}
+              <View style={styles.buttonGrid}>
+                <Button
+                  label={nextAccountState === 'SUSPENDED' ? 'Suspend User' : 'Reactivate User'}
+                  kind="secondary"
+                  onPress={() => handleAdminAccountState(user.id, nextAccountState)}
+                />
+                {provider?.providerStatus === 'PENDING_APPROVAL' ? (
+                  <Button label="Approve Provider" onPress={() => handleApproveProvider(user.id)} />
+                ) : null}
+              </View>
+
+              <Text style={styles.sectionTitle}>Recent Customer Requests</Text>
+              {Array.isArray(profilePayload?.recentCustomerRequests) && profilePayload.recentCustomerRequests.length ? (
+                profilePayload.recentCustomerRequests.map((entry) => (
+                  <View key={`admin-customer-request-${entry.requestId}`} style={styles.queueCard}>
+                    <Text style={styles.queueTitle}>{entry.requestId}</Text>
+                    <Text style={styles.mutedText}>{labelServiceType(uiEventMap, entry.serviceType || 'Service')}</Text>
+                    <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', entry.status)}</Text>
+                    <Text style={styles.mutedText}>Submitted: {formatDate(entry.submittedAt)}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.mutedText}>No recent customer requests.</Text>
+              )}
+
+              <Text style={styles.sectionTitle}>Recent Provider Assignments</Text>
+              {Array.isArray(profilePayload?.recentProviderRequests) && profilePayload.recentProviderRequests.length ? (
+                profilePayload.recentProviderRequests.map((entry) => (
+                  <View key={`admin-provider-request-${entry.requestId}`} style={styles.queueCard}>
+                    <Text style={styles.queueTitle}>{entry.requestId}</Text>
+                    <Text style={styles.mutedText}>{entry.fullName || 'Customer'} · {labelServiceType(uiEventMap, entry.serviceType || 'Service')}</Text>
+                    <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', entry.status)}</Text>
+                    <Text style={styles.mutedText}>Submitted: {formatDate(entry.submittedAt)}</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.mutedText}>No recent provider assignments.</Text>
+              )}
+            </>
+          )}
+        </View>
+      </>
+    );
+  }
+
   function renderAdminProvidersScreen() {
     if (!adminSession?.token) {
       return renderRoleGate('Admin provider view requires an admin session.');
@@ -1433,6 +1732,8 @@ export default function App() {
               <Text style={styles.mutedText}>Document readiness: {provider.documentStatus?.meetsMinimumRequirements ? 'Ready' : 'Missing items'}</Text>
               <Text style={styles.mutedText}>PayPal email: {provider.paypal?.email || 'Not linked'}</Text>
               <Text style={styles.mutedText}>Last payout event: {provider.paypal?.payouts?.lastEventType || 'None'}</Text>
+              <Text style={styles.mutedText}>Training: {provider.discipline?.training?.status || 'NOT_REQUIRED'} · Strikes: {provider.discipline?.strikeCount ?? 0}</Text>
+              <Text style={styles.mutedText}>Suspension: {provider.discipline?.currentSuspension?.indefinite ? 'Indefinite until training' : provider.discipline?.currentSuspension?.active ? `Active until ${formatDate(provider.discipline?.currentSuspension?.endsAt)}` : 'None active'}</Text>
               <InputField
                 label="Approval Note"
                 value={adminNotes.approvals[String(provider.id)] || ''}
@@ -1440,6 +1741,12 @@ export default function App() {
               />
               <View style={styles.buttonGrid}>
                 <Button label="Approve Provider" onPress={() => handleApproveProvider(provider.id)} />
+                {provider.discipline?.currentSuspension?.indefinite ? (
+                  <Button label="Schedule Training" onPress={() => handleProviderTraining(provider.id, 'SCHEDULED')} kind="secondary" />
+                ) : null}
+                {provider.discipline?.training?.status === 'SCHEDULED' || provider.discipline?.training?.status === 'ENROLLED' ? (
+                  <Button label="Mark Training Complete" onPress={() => handleProviderTraining(provider.id, 'COMPLETED')} kind="secondary" />
+                ) : null}
               </View>
             </View>
           ))
@@ -1495,7 +1802,7 @@ export default function App() {
           <Text style={styles.sectionTitle}>Runtime Status</Text>
           <Text style={styles.mutedText}>Protected API: {frontendConfig?.apiBaseUrl || 'Unavailable'}</Text>
           <Text style={styles.mutedText}>Raw API: {frontendConfig?.rawApiBaseUrl || 'Unavailable'}</Text>
-          <Text style={styles.mutedText}>Priority fee: {formatMoney(frontendConfig?.priorityServicePrice || 25)}</Text>
+          <Text style={styles.mutedText}>Optional priority payment: {formatOptionalMoney(pricingSource?.priorityServicePrice)}</Text>
           <Text style={styles.mutedText}>Compatibility manifest: {frontendConfig?.compatibilityManifestUrl || 'Unavailable'}</Text>
           <Text style={styles.mutedText}>Compatibility repository: {frontendConfig?.compatibilityRepositoryUrl || 'Unavailable'}</Text>
         </View>
@@ -1523,12 +1830,18 @@ export default function App() {
   }
 
   function renderRequestComposer(title, description) {
+    const customerTier = title.toLowerCase().includes('subscriber') ? 'SUBSCRIBER' : 'GUEST';
+    const serviceCharge = getCurrentServiceCharge(pricingSource, customerTier);
+    const priorityPayment = formatOptionalMoney(pricingSource?.priorityServicePrice);
     return (
       <View style={styles.panel}>
         <Text style={styles.sectionTitle}>{title}</Text>
         <Text style={styles.mutedText}>{description}</Text>
         <Text style={styles.mutedText}>
-          Current priority fee: {formatMoney(paymentConfig?.priorityServicePrice || frontendConfig?.priorityServicePrice || 25)}
+          Current service price: {formatOptionalMoney(serviceCharge)}
+        </Text>
+        <Text style={styles.mutedText}>
+          Optional priority payment: {priorityPayment}
         </Text>
         <View style={styles.serviceGrid}>
           {serviceOptions.map((service) => (
@@ -1536,8 +1849,8 @@ export default function App() {
               key={service.id}
               active={requestForm.serviceType === service.id}
               label={service.label}
-              price={formatMoney(paymentConfig?.priorityServicePrice || 25)}
-              detail={service.detail}
+              price={formatOptionalMoney(serviceCharge)}
+              detail={`${service.detail} · Optional priority ${priorityPayment}`}
               onPress={() => setRequestForm((current) => ({ ...current, serviceType: service.id }))}
             />
           ))}
@@ -1581,9 +1894,11 @@ export default function App() {
         <Text style={styles.queueTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {requestId}</Text>
         <Text style={styles.mutedText}>Customer: {request.fullName || 'Unknown'}</Text>
         <Text style={styles.mutedText}>Location: {request.location || 'Unknown'}</Text>
+        <Text style={styles.mutedText}>Location access: {request.locationDisclosureLevel || 'MASKED'} · Contact access: {request.contactDisclosureLevel || 'LOCKED'}</Text>
         <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', request.status || request.completionStatus || 'Unknown')}</Text>
         <Text style={styles.mutedText}>Payment: {labelUiStatus(uiEventMap, 'paymentStatus', request.paymentStatus || 'NOT_PAID')}</Text>
-        <Text style={styles.mutedText}>ETA: {request.etaMinutes ?? 'Not set'}</Text>
+        <Text style={styles.mutedText}>ETA: {request.etaMinutes ?? 'Not set'} · Soft: {request.softEtaMinutes ?? 'Not set'} · Hard: {request.hardEtaMinutes ?? 'Locked'}</Text>
+        <Text style={styles.mutedText}>Provider callback: {request.providerCallbackNumber || 'Available after payment and provider activation'}</Text>
         <Text style={styles.mutedText}>Accepted ETA: {formatDate(request.customerEtaAcceptedAt)}</Text>
         <Text style={styles.mutedText}>Arrival confirmed: {formatDate(request.arrivalConfirmedAt)}</Text>
         <Text style={styles.mutedText}>Completion confirmed: {formatDate(request.completionConfirmedAt)}</Text>
@@ -1611,6 +1926,50 @@ export default function App() {
     );
   }
 
+  function renderFeedbackPanel(subscriberMode) {
+    const request = activeSessionRequest || sessionRequests[0] || null;
+    const feedback = request?.customerFeedback || null;
+    const completed = normalizeValue(request?.status) === 'COMPLETED' || normalizeValue(request?.completionStatus) === 'COMPLETED';
+
+    return (
+      <View style={styles.panel}>
+        <Text style={styles.sectionTitle}>Provider Rating</Text>
+        <Text style={styles.mutedText}>
+          {subscriberMode
+            ? 'After service completion, submit a provider rating from 1 to 8 plus service notes.'
+            : 'Guest feedback stays tied to the request details stored in this app session.'}
+        </Text>
+        {!request ? (
+          <Text style={styles.mutedText}>No active request is available for feedback yet.</Text>
+        ) : feedback ? (
+          <>
+            <Text style={styles.mutedText}>Recorded rating: {feedback.rating} / 8</Text>
+            <Text style={styles.mutedText}>Submitted: {formatDate(feedback.submittedAt)}</Text>
+            <Text style={styles.mutedText}>Notes: {feedback.notes || 'No notes provided.'}</Text>
+          </>
+        ) : !completed ? (
+          <Text style={styles.mutedText}>Feedback unlocks after the provider marks the request completed.</Text>
+        ) : (
+          <>
+            <InputField
+              label="Rating (1-8)"
+              value={feedbackForm.rating}
+              onChangeText={(value) => setFeedbackForm((current) => ({ ...current, rating: value.replace(/[^\d]/g, '').slice(0, 1) || '8' }))}
+              keyboardType="number-pad"
+            />
+            <InputField
+              label="Service Notes"
+              value={feedbackForm.notes}
+              onChangeText={(value) => setFeedbackForm((current) => ({ ...current, notes: value }))}
+              multiline
+            />
+            <Button label="Submit Provider Rating" onPress={handleSubmitRequestFeedback} />
+          </>
+        )}
+      </View>
+    );
+  }
+
   function renderProviderQueueCard(request) {
     const local = providerActions[request.requestId || request.id] || {};
     const requestId = request.requestId || request.id;
@@ -1618,10 +1977,11 @@ export default function App() {
       <View key={requestId} style={styles.panel}>
         <Text style={styles.sectionTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {request.fullName || 'Unknown customer'}</Text>
         <Text style={styles.mutedText}>{request.location || 'No location'}</Text>
-        <Text style={styles.mutedText}>Phone: {request.phoneNumber || 'No phone number'}</Text>
+        <Text style={styles.mutedText}>Phone: {request.customerCallbackNumber || 'Locked until payment and provider activation'}</Text>
+        <Text style={styles.mutedText}>Location access: {request.locationDisclosureLevel || 'MASKED'} · Contact access: {request.contactDisclosureLevel || 'LOCKED'}</Text>
         <Text style={styles.mutedText}>Current status: {labelUiStatus(uiEventMap, 'requestStatus', request.status)}</Text>
         <Text style={styles.mutedText}>Assigned provider: {request.assignedProviderId || 'Unassigned'}</Text>
-        <Text style={styles.mutedText}>ETA minutes: {request.etaMinutes ?? 'Not set'}</Text>
+        <Text style={styles.mutedText}>ETA minutes: {request.etaMinutes ?? 'Not set'} · Soft: {request.softEtaMinutes ?? 'Not set'} · Hard: {request.hardEtaMinutes ?? 'Locked'}</Text>
         <InputField
           label="ETA"
           value={local.eta || ''}
@@ -1861,6 +2221,22 @@ function formatMoney(value) {
   }).format(numeric);
 }
 
+function formatOptionalMoney(value) {
+  if (!Number.isFinite(Number(value))) {
+    return 'Unavailable';
+  }
+  return formatMoney(value);
+}
+
+function getCurrentServiceCharge(pricing, customerTier) {
+  if (!pricing || typeof pricing !== 'object') {
+    return null;
+  }
+  return customerTier === 'SUBSCRIBER'
+    ? pricing.subscriberServicePrice
+    : pricing.guestServicePrice;
+}
+
 function formatDate(value) {
   if (!value) {
     return 'Not available';
@@ -1883,7 +2259,7 @@ function formatRating(summary) {
   }
   const average = Number(summary.averageRating || 0);
   const count = Number(summary.ratingCount || 0);
-  return `${average.toFixed(1)} / 5 (${count} ratings)`;
+  return count > 0 ? `${average.toFixed(1)} / 8 (${count} ratings)` : 'No rating data';
 }
 
 function formatPartnerBalance(balance) {

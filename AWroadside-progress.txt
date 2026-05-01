@@ -1,6 +1,14 @@
 Current saved progress
 
 Completed
+- Added backend Mapbox location foundation in `backend/location-service.mjs`.
+- Added location routes in `backend/aw-roadside-security.mjs`.
+- Added provider wallet controller in `backend/provider-wallet-controller.mjs`.
+- Added provider wallet frontend page and renderer.
+- Added provider document upload frontend binding in `web/app.js`.
+- Added page/event mapping in `UI_PAGE_EVENT_MAP.json`.
+- Added request location enrichment and acceptance-window storage in `backend/server.mjs`.
+- Added provider queue eligibility filtering by provider state, service match, radius, and acceptance expiry.
 - Added PayPal backend configuration and order endpoints in backend/server.mjs.
 - Added guest request submission and request storage in backend/server.mjs.
 - Added separate admin controller API with trusted-zone and 2FA rules in backend/admin-controller.mjs.
@@ -19,12 +27,12 @@ Completed
   - /Users/user/Downloads/AWroadside/final-product-paths.txt
 
 Still pending
-- Switch customer flow so guest submission works without payment and PayPal remains optional.
-- Add final PayPal container styling in web/styles.css.
-- Update README.md with PayPal and deployment environment variables.
-- Finish provider popup/sign-in UI wiring after interrupted edit.
-- Rebuild dist/ after final file edits.
-- Run live verification against a real local server environment.
+- Enforce provider assignment authority instead of queue visibility only.
+- Add request requeue logic after the `5` minute acceptance window expires.
+- Finalize provider location and coverage matching for live dispatch.
+- Add provider note UI for the existing backend action.
+- Add provider PayPal connect/status/refresh endpoints and frontend hooks.
+- Run live verification against a real backend/runtime environment.
 
 Request service API rules
 - GET /api/request-service/health

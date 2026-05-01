@@ -17,34 +17,45 @@ const state = {
   paymentLedger: readStoredArray(paymentLedgerKey),
   providerActionQueue: readStoredArray(providerActionQueueKey),
   providerQueue: [],
+  providerWallet: null,
   servicePaymentQuote: null,
   serviceQuoteAccepted: false,
   auth: readStoredAuth(),
   admin: readStoredAdmin(),
-  adminDashboard: null
+  adminDashboard: null,
+  adminSearchResults: [],
+  adminSearchRole: "ALL",
+  adminSearchQuery: "",
+  adminSelectedUserProfile: null
 };
 
 document.addEventListener("DOMContentLoaded", () => {
   initializeApp().catch((error) => {
-    setText("api-status", `Service unavailable: ${error.message}`);
+    setText("api-status", `Dispatch connection is not ready yet: ${formatUserFacingMessage(error.message)}`);
   });
 });
 
 async function initializeApp() {
+  applyPreviewVisibility();
+  renderPublicPricing();
   setupNavigation();
   renderIdentity();
   renderAdminState();
   setupHomeAuth();
   setupSubscriberModal();
-  applyRuntimeEntryState();
   setupProviderSignup();
   setupProviderSignin();
+  setupProviderDocumentsPanel();
   setupProviderWorkPanel();
+  setupProviderWalletPanel();
   setupPaymentAgreement();
+  setupRequestFeedbackPanel();
   setupAdminPanel();
   setupRequestForm();
   renderProcessingCenter();
+  renderCustomerRequestState();
   renderProviderActionQueue();
+  renderProviderWallet();
   await loadFrontendConfig();
   await acknowledgeRuntimeVariant();
   await hydrateStoredSession();
@@ -82,7 +93,7 @@ function setupHomeAuth() {
         storeAuth(state.auth);
         await hydrateStoredSession();
         renderIdentity();
-        switchScreen("customer");
+        navigateToScreen("customer");
         showBox("signin-status", "Signed in.");
       } catch (error) {
         showBox("signin-status", error.message);
@@ -106,13 +117,17 @@ function setupSubscriberModal() {
     event.preventDefault();
     try {
       const formData = new FormData(form);
+      validatePasswordConfirmation(formData.get("password"), formData.get("confirmPassword"));
       const signup = await createAccount({
         fullName: normalizeField(formData.get("fullName")),
         phoneNumber: normalizeField(formData.get("phoneNumber")),
         username: normalizeField(formData.get("username")),
         email: normalizeField(formData.get("email")),
         password: normalizeField(formData.get("password")),
-        role: "SUBSCRIBER"
+        role: "SUBSCRIBER",
+        subscriberTermsAccepted: formData.get("subscriberTermsAccepted") === "on",
+        dispatchOnlyLiabilityAccepted: formData.get("dispatchOnlyLiabilityAccepted") === "on",
+        noRefundPolicyAccepted: formData.get("noRefundPolicyAccepted") === "on"
       });
 
       const response = await apiFetch("/auth/subscriber/setup", {
@@ -125,7 +140,10 @@ function setupSubscriberModal() {
             model: normalizeField(formData.get("model")),
             color: normalizeField(formData.get("color"))
           },
-          paymentMethodMasked: buildSubscriberPaymentValue(formData)
+          paymentMethodMasked: buildSubscriberPaymentValue(formData),
+          subscriberTermsAccepted: formData.get("subscriberTermsAccepted") === "on",
+          dispatchOnlyLiabilityAccepted: formData.get("dispatchOnlyLiabilityAccepted") === "on",
+          noRefundPolicyAccepted: formData.get("noRefundPolicyAccepted") === "on"
         })
       });
       const payload = await response.json();
@@ -143,8 +161,8 @@ function setupSubscriberModal() {
       storeAuth(state.auth);
       await hydrateStoredSession();
       renderIdentity();
-      switchScreen("customer");
-      showBox(statusId, "Member account created and subscription activated.");
+      navigateToScreen("customer");
+      showBox(statusId, `Membership activated. Confirmation details were prepared for ${normalizeField(formData.get("email")) || "the email on file"}.`);
       hideModal("member-signup-modal");
       hideModal("subscriber-modal");
     } catch (error) {
@@ -163,13 +181,17 @@ function setupProviderSignup() {
     event.preventDefault();
     try {
       const formData = new FormData(form);
+      validatePasswordConfirmation(formData.get("password"), formData.get("confirmPassword"));
       const signup = await createAccount({
         fullName: normalizeField(formData.get("fullName")),
         phoneNumber: normalizeField(formData.get("phoneNumber")),
         username: normalizeField(formData.get("username")),
         email: normalizeField(formData.get("email")),
         password: normalizeField(formData.get("password")),
-        role: "PROVIDER"
+        role: "PROVIDER",
+        providerTermsAccepted: formData.get("providerTermsAccepted") === "on",
+        providerLiabilityAccepted: formData.get("providerLiabilityAccepted") === "on",
+        providerHoldHarmlessAccepted: formData.get("providerHoldHarmlessAccepted") === "on"
       });
       const selectedServices = collectCheckedValues(form, "services");
       if (selectedServices.length === 0) {
@@ -180,6 +202,14 @@ function setupProviderSignup() {
         method: "POST",
         headers: jsonHeaders(signup.sessionToken),
         body: JSON.stringify({
+          providerInfo: {
+            legalName: normalizeField(formData.get("legalName")) || normalizeField(formData.get("fullName")),
+            phoneNumber: normalizeField(formData.get("phoneNumber")),
+            email: normalizeField(formData.get("email")),
+            companyName: normalizeField(formData.get("companyName")),
+            w9Name: normalizeField(formData.get("w9Name")),
+            taxIdLast4: normalizeField(formData.get("taxIdLast4"))
+          },
           vehicleInfo: {
             year: normalizeField(formData.get("year")),
             make: normalizeField(formData.get("make")),
@@ -193,7 +223,14 @@ function setupProviderSignup() {
             helperId: formData.get("helperId") === "on"
           },
           experience: normalizeField(formData.get("experience")),
-          services: selectedServices
+          services: selectedServices,
+          serviceArea: normalizeField(formData.get("serviceArea")),
+          currentLocation: normalizeField(formData.get("currentLocation")),
+          hoursOfService: buildProviderHoursOfService(formData),
+          assessmentAnswers: buildProviderAssessmentAnswers(formData),
+          providerTermsAccepted: formData.get("providerTermsAccepted") === "on",
+          providerLiabilityAccepted: formData.get("providerLiabilityAccepted") === "on",
+          providerHoldHarmlessAccepted: formData.get("providerHoldHarmlessAccepted") === "on"
         })
       });
       const payload = await response.json();
@@ -211,13 +248,52 @@ function setupProviderSignup() {
       storeAuth(state.auth);
       await hydrateStoredSession();
       renderIdentity();
-      switchScreen("provider");
-      showBox("provider-signup-status", "Provider account created. Waiting for admin approval.");
+      navigateToScreen("provider-info");
+      showBox("provider-signup-status", "Provider account created. Profile review is now in progress.");
       hideModal("provider-signup-modal");
     } catch (error) {
       showBox("provider-signup-status", error.message);
     }
   });
+}
+
+function validatePasswordConfirmation(password, confirmation) {
+  const normalizedPassword = normalizeField(password);
+  const normalizedConfirmation = normalizeField(confirmation);
+  if (!normalizedPassword || normalizedPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+  if (normalizedPassword !== normalizedConfirmation) {
+    throw new Error("Password confirmation does not match.");
+  }
+}
+
+function buildProviderHoursOfService(formData) {
+  return {
+    timezone: normalizeField(formData.get("serviceTimezone")) || "America/New_York",
+    monday: normalizeField(formData.get("weekdayHours")),
+    tuesday: normalizeField(formData.get("weekdayHours")),
+    wednesday: normalizeField(formData.get("weekdayHours")),
+    thursday: normalizeField(formData.get("weekdayHours")),
+    friday: normalizeField(formData.get("weekdayHours")),
+    saturday: normalizeField(formData.get("weekendHours")),
+    sunday: normalizeField(formData.get("weekendHours"))
+  };
+}
+
+function buildProviderAssessmentAnswers(formData) {
+  return {
+    jumpstartProcedure: normalizeField(formData.get("jumpstartProcedure")),
+    jackPlacement: normalizeField(formData.get("jackPlacement")),
+    specialtyVehicleJack: normalizeField(formData.get("specialtyVehicleJack")),
+    spoolDefinition: normalizeField(formData.get("spoolDefinition")),
+    frozenLugNut: normalizeField(formData.get("frozenLugNut")),
+    lockoutTools: normalizeField(formData.get("lockoutTools")),
+    lockoutDamagePrevention: normalizeField(formData.get("lockoutDamagePrevention")),
+    incorrectLockoutDamage: normalizeField(formData.get("incorrectLockoutDamage")),
+    tirePlugKnowledge: normalizeField(formData.get("tirePlugKnowledge")),
+    severeDamageDecision: normalizeField(formData.get("severeDamageDecision"))
+  };
 }
 
 function setupSubscriberPaymentUi(form) {
@@ -303,10 +379,51 @@ function setupProviderSignin() {
       storeAuth(state.auth);
       await hydrateStoredSession();
       renderIdentity();
-      switchScreen("provider");
+      navigateToScreen("provider-info");
       showBox("provider-signin-status", "Provider signed in.");
     } catch (error) {
       showBox("provider-signin-status", error.message);
+    }
+  });
+}
+
+function setupProviderDocumentsPanel() {
+  const form = document.getElementById("provider-documents-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (!state.auth?.sessionToken) {
+      showBox("provider-documents-status", "Sign in as a provider before uploading documents.");
+      return;
+    }
+
+    try {
+      const formData = new FormData(form);
+      const response = await apiFetch("/auth/provider/documents", {
+        method: "POST",
+        headers: jsonHeaders(true),
+        body: JSON.stringify({
+          documents: {
+            license: buildProviderDocumentPayload(formData.get("license"), "license.txt"),
+            insurance: buildProviderDocumentPayload(formData.get("insurance"), "insurance.txt"),
+            registration: buildProviderDocumentPayload(formData.get("registration"), "registration.txt"),
+            helperId: buildProviderDocumentPayload(formData.get("helperId"), "helper-id.txt")
+          }
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.userId) {
+        throw new Error(payload.message || payload.error || "Unable to upload provider documents.");
+      }
+
+      await hydrateStoredSession();
+      showBox("provider-documents-status", "Provider documents were saved for verification review.");
+    } catch (error) {
+      showBox("provider-documents-status", error.message);
     }
   });
 }
@@ -338,15 +455,17 @@ function setupRequestForm() {
         requestId,
         serviceType: state.pendingRequest.serviceType,
         location: state.pendingRequest.location,
+        fullName: state.pendingRequest.fullName,
+        phoneNumber: state.pendingRequest.phoneNumber,
         mode: state.auth?.userId ? "signed-in" : "guest",
         status: payload.status || "submitted"
       });
       showBox("submit-status", `Request submitted. Reference ${requestId}.`);
       if (state.paymentConfig?.enabled) {
-        setText("paypal-status", "Optional skip-the-line priority upgrade is available. Service payment remains locked until backend hard ETA agreement.");
+        setText("paypal-status", "Optional skip-the-line priority service is available. Service payment unlocks after the arrival estimate is confirmed.");
         togglePaypalContainer(true);
       } else {
-        setText("paypal-status", "Request submitted. Optional priority upgrade is not configured. Service payment remains locked until backend hard ETA agreement.");
+        setText("paypal-status", "Request submitted. Optional priority service is not configured yet. Service payment unlocks after the arrival estimate is confirmed.");
         togglePaypalContainer(false);
       }
     } catch (error) {
@@ -386,6 +505,8 @@ async function loadFrontendConfig() {
       adminApiBaseUrl: resolveAdminApiBaseUrl(config?.adminApiBaseUrl || runtimeConfig.adminApiBaseUrl)
     };
     state.compatibilityManifest = manifest?.manifest || null;
+    applyPreviewVisibility();
+    renderPublicPricing(config);
 
     setText("backend-status", health.status.toUpperCase());
     setText("backend-service", "Service is available");
@@ -393,9 +514,6 @@ async function loadFrontendConfig() {
     setText("api-url", "Dispatch online");
     setText("api-status", "Service is available.");
     setText("security-layer-name", "Ready");
-    setText("priority-price", formatUsd(config.priorityServicePrice || 25));
-    setText("subscriber-monthly-price", "$5.00/mo");
-    setText("provider-monthly-price", "$5.99/mo");
     setVariantState(
       state.compatibilityManifest?.mode || "ready",
       state.compatibilityManifest
@@ -403,9 +521,11 @@ async function loadFrontendConfig() {
         : "Manifest loaded"
     );
   } catch (error) {
+    applyPreviewVisibility();
+    renderPublicPricing();
     setText("backend-status", "OFF");
-    setText("backend-service", "Service unavailable");
-    setText("api-status", `Unable to reach dispatch: ${error.message}`);
+    setText("backend-service", "Dispatch offline");
+    setText("api-status", `Unable to reach dispatch right now: ${formatUserFacingMessage(error.message)}`);
     setVariantState("offline", "Manifest unavailable");
   }
 }
@@ -452,17 +572,17 @@ async function loadPaymentConfig() {
     state.paymentConfig = config;
 
     if (!config.enabled || !config.clientId) {
-      setText("paypal-status", "PayPal priority upgrade is not configured.");
+      setText("paypal-status", "Optional priority payment is not configured.");
       togglePaypalContainer(false);
       return;
     }
 
-    setText("paypal-status", "Optional skip-the-line priority upgrade is available after request submission.");
-    setText("priority-price", formatUsd(config.priorityServicePrice || 25));
+    setText("paypal-status", "Optional priority payment is available after request submission.");
+    renderPublicPricing(config);
     await ensurePaypalSdk(config.clientId, config.currency || "USD");
     renderPaypalButtons();
   } catch (error) {
-    setText("paypal-status", `Payment config failed: ${error.message}`);
+    setText("paypal-status", `Payment availability is being refreshed: ${formatUserFacingMessage(error.message)}`);
     togglePaypalContainer(false);
   }
 }
@@ -550,6 +670,16 @@ function renderPaypalButtons() {
         throw new Error(payload.message || payload.error || "Unable to capture PayPal order.");
       }
 
+      if (payload.request) {
+        state.pendingRequest = { ...state.pendingRequest, ...payload.request };
+        rememberRequest({
+          requestId: payload.request.requestId || payload.request.id || state.pendingRequest?.requestId || null,
+          serviceType: payload.request.serviceType || state.pendingRequest?.serviceType || "",
+          status: payload.request.status || state.pendingRequest?.status || "SUBMITTED",
+          mode: state.auth?.subscriberActive ? "subscriber" : "guest"
+        });
+      }
+
       recordPaymentEvent({
         event: "order-captured",
         orderId: data.orderID,
@@ -581,7 +711,7 @@ function setupPaymentAgreement() {
   if (agreeButton) {
     agreeButton.addEventListener("click", () => {
       if (!state.servicePaymentQuote) {
-        showBox("service-payment-status", "Backend service quote is required before agreement.");
+        showBox("service-payment-status", "The current service price is required before agreement.");
         return;
       }
       state.serviceQuoteAccepted = true;
@@ -593,10 +723,53 @@ function setupPaymentAgreement() {
       });
       showBox(
         "service-payment-status",
-        `Agreed to backend quote ${state.servicePaymentQuote.amount.value} ${state.servicePaymentQuote.amount.currency_code}. Service checkout can proceed only through the backend.`
+        `Agreed to the current service price of ${state.servicePaymentQuote.amount.value} ${state.servicePaymentQuote.amount.currency_code}.`
       );
     });
   }
+}
+
+function setupRequestFeedbackPanel() {
+  const form = document.getElementById("request-feedback-form");
+  if (!form) {
+    return;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const activeRequest = state.pendingRequest || state.requestHistory[0] || null;
+    const requestId = activeRequest?.requestId || activeRequest?.id || null;
+    if (!requestId) {
+      showBox("request-feedback-status", "Submit a request first so feedback can be matched.");
+      return;
+    }
+
+    try {
+      const formData = new FormData(form);
+      const response = await apiFetch(`/requests/${encodeURIComponent(requestId)}/feedback`, {
+        method: "POST",
+        headers: jsonHeaders(Boolean(state.auth?.sessionToken)),
+        body: JSON.stringify({
+          rating: Number.parseInt(normalizeField(formData.get("rating")), 10),
+          notes: normalizeField(formData.get("notes")),
+          phoneNumber: activeRequest.phoneNumber || document.getElementById("phone-number")?.value || "",
+          fullName: activeRequest.fullName || document.getElementById("full-name")?.value || ""
+        })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.message || payload.error || "Unable to submit provider feedback.");
+      }
+      if (payload.request) {
+        state.pendingRequest = { ...(state.pendingRequest || {}), ...payload.request };
+        renderCustomerRequestState();
+      }
+      showBox("request-feedback-status", payload.message || "Provider rating recorded.");
+      form.reset();
+    } catch (error) {
+      showBox("request-feedback-status", error.message);
+    }
+  });
 }
 
 async function loadServicePaymentQuote() {
@@ -614,7 +787,7 @@ async function loadServicePaymentQuote() {
     });
     const payload = await response.json();
     if (!response.ok || !payload.quoteId) {
-      throw new Error(payload.message || payload.error || "Backend quote was not available.");
+      throw new Error(payload.message || payload.error || "The current service price is not available yet.");
     }
     state.servicePaymentQuote = payload;
     state.serviceQuoteAccepted = false;
@@ -626,7 +799,7 @@ async function loadServicePaymentQuote() {
     });
     showBox(
       "service-payment-status",
-      `Backend quote ready: ${payload.amount.value} ${payload.amount.currency_code}. Customer agreement is required before service payment.`
+      `Service price ready: ${payload.amount.value} ${payload.amount.currency_code}. Please agree before continuing.`
     );
   } catch (error) {
     state.servicePaymentQuote = null;
@@ -646,8 +819,8 @@ async function createAccount(payload) {
     method: "POST",
     headers: jsonHeaders(),
     body: JSON.stringify({
-      ...payload,
-      termsAccepted: true
+      termsAccepted: true,
+      ...payload
     })
   });
   const data = await response.json();
@@ -660,6 +833,8 @@ async function createAccount(payload) {
 async function hydrateStoredSession() {
   if (!state.auth?.sessionToken) {
     renderProfileState(null);
+    state.providerWallet = null;
+    renderProviderWallet();
     return;
   }
 
@@ -679,10 +854,18 @@ async function hydrateStoredSession() {
     storeAuth(state.auth);
     renderProfileState(profile);
     renderIdentity();
+    if (Array.isArray(profile.roles) && profile.roles.includes("PROVIDER")) {
+      await loadProviderWallet();
+    } else {
+      state.providerWallet = null;
+      renderProviderWallet();
+    }
   } catch (error) {
     state.auth = null;
     storeAuth(null);
     renderProfileState(null);
+    state.providerWallet = null;
+    renderProviderWallet();
     renderIdentity();
     setText("identity-state", `Session expired: ${error.message}`);
   }
@@ -721,7 +904,7 @@ function setupAdminPanel() {
           return;
         }
         if (!payload.token) {
-          throw new Error("Admin token missing from backend response.");
+          throw new Error("Admin token missing from service response.");
         }
 
         state.admin = {
@@ -735,7 +918,8 @@ function setupAdminPanel() {
         storeAdmin(state.admin);
         renderAdminState();
         await loadAdminDashboard();
-        showBox("admin-login-status", "Admin session established.");
+        showBox("admin-login-status", "Admin access confirmed.");
+        navigateToScreen("admin-dashboard");
       } catch (error) {
         showBox("admin-login-status", error.message);
       }
@@ -749,7 +933,7 @@ function setupAdminPanel() {
     });
   }
 
-  document.querySelectorAll("#admin-subscriber-list, #admin-provider-list, #admin-service-history-list, #admin-financial-list")
+  document.querySelectorAll("#admin-subscriber-list, #admin-provider-list, #admin-service-history-list, #admin-financial-list, #admin-training-calendar-list")
     .forEach((container) => {
       container.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-admin-action]");
@@ -760,6 +944,40 @@ function setupAdminPanel() {
         await handleAdminAction(button);
       });
     });
+
+  const adminDirectory = document.querySelectorAll("#admin-search-results, #admin-user-profile");
+  adminDirectory.forEach((container) => {
+    container.addEventListener("click", async (event) => {
+      const viewButton = event.target.closest("[data-admin-view-user]");
+      if (viewButton) {
+        event.preventDefault();
+        await loadAdminUserProfile(viewButton.getAttribute("data-admin-view-user"));
+        return;
+      }
+
+      const button = event.target.closest("[data-admin-action]");
+      if (!button) {
+        return;
+      }
+      event.preventDefault();
+      await handleAdminAction(button);
+      const selectedUserId = button.getAttribute("data-user-id");
+      if (selectedUserId) {
+        await loadAdminUserProfile(selectedUserId);
+      }
+    });
+  });
+
+  const adminSearchForm = document.getElementById("admin-search-form");
+  if (adminSearchForm) {
+    adminSearchForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const formData = new FormData(adminSearchForm);
+      state.adminSearchQuery = normalizeField(formData.get("query"));
+      state.adminSearchRole = normalizeField(formData.get("role")).toUpperCase() || "ALL";
+      await loadAdminSearch();
+    });
+  }
 
   const refreshButton = document.getElementById("watchdog-refresh-button");
   if (refreshButton) {
@@ -795,12 +1013,73 @@ async function loadAdminDashboard() {
     setText("admin-pending-providers", String(payload.stats?.pendingProviders ?? 0));
     setText("admin-overdue-subscribers", String(payload.stats?.overdueSubscriptions ?? 0));
     setText("admin-payouts-pending", String(payload.stats?.payoutsPending ?? 0));
+    setText("admin-training-scheduled", String(payload.stats?.trainingScheduled ?? 0));
     setText("admin-status-label", "Signed in");
     setText("admin-status-badge", payload.trustedZone || "Active");
     setText("admin-status-text", `Location zone: ${payload.locationZone || "not set"}.`);
     renderAdminCollections();
+    renderAdminDirectory();
   } catch (error) {
     showBox("admin-login-status", error.message);
+  }
+}
+
+async function loadAdminSearch() {
+  if (!state.admin?.token) {
+    showBox("admin-search-status", "Admin login is required.");
+    return;
+  }
+
+  const query = normalizeField(state.adminSearchQuery);
+  const role = normalizeField(state.adminSearchRole).toUpperCase() || "ALL";
+  if (!query) {
+    state.adminSearchResults = [];
+    state.adminSelectedUserProfile = null;
+    renderAdminDirectory();
+    showBox("admin-search-status", "Enter a name, email, phone number, service area, or account id.");
+    return;
+  }
+
+  try {
+    const searchParams = new URLSearchParams({ q: query, role });
+    const response = await adminFetch(`/search?${searchParams.toString()}`, {
+      method: "GET",
+      headers: adminAuthHeaders()
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.message || payload.error || "Unable to search admin accounts.");
+    }
+    state.adminSearchResults = Array.isArray(payload.users) ? payload.users : [];
+    renderAdminDirectory();
+    showBox("admin-search-status", `${state.adminSearchResults.length} account(s) matched.`);
+  } catch (error) {
+    showBox("admin-search-status", error.message);
+  }
+}
+
+async function loadAdminUserProfile(userId) {
+  if (!state.admin?.token) {
+    showBox("admin-search-status", "Admin login is required.");
+    return;
+  }
+  if (!userId) {
+    return;
+  }
+
+  try {
+    const response = await adminFetch(`/users/${encodeURIComponent(userId)}/profile`, {
+      method: "GET",
+      headers: adminAuthHeaders()
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.message || payload.error || "Unable to load account profile.");
+    }
+    state.adminSelectedUserProfile = payload;
+    renderAdminDirectory();
+  } catch (error) {
+    showBox("admin-search-status", error.message);
   }
 }
 
@@ -841,6 +1120,18 @@ async function handleAdminAction(button) {
     body = {
       reference: window.prompt("Payout reference", "manual-payout") || "manual-payout"
     };
+  } else if (action === "schedule-training" || action === "complete-training") {
+    path = `/providers/${encodeURIComponent(userId)}/training`;
+    body = action === "schedule-training"
+      ? {
+          status: "SCHEDULED",
+          scheduledFor: window.prompt("Training ISO date/time", new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()) || "",
+          note: window.prompt("Training note", "Manual roadside retraining") || "Manual roadside retraining"
+        }
+      : {
+          status: "COMPLETED",
+          note: window.prompt("Completion note", "Training completed") || "Training completed"
+        };
   } else {
     return;
   }
@@ -863,6 +1154,13 @@ async function handleAdminAction(button) {
 }
 
 function renderAdminCollections() {
+  const walletTerms = state.adminDashboard?.policy?.financial?.walletDisplayTerms || null;
+  setText(
+    "admin-financial-policy",
+    walletTerms
+      ? `${walletTerms.summary} ${walletTerms.thirdPartyResponsibility} ${walletTerms.expectedParity} ${walletTerms.discrepancyProcess}`
+      : "Financial record terms will appear after login."
+  );
   renderAdminList(
     "admin-subscriber-list",
     Array.isArray(state.adminDashboard?.subscribers) ? state.adminDashboard.subscribers : [],
@@ -887,6 +1185,41 @@ function renderAdminCollections() {
     renderFinancialAdminItem,
     "Financial records will appear after login."
   );
+  renderAdminList(
+    "admin-training-calendar-list",
+    Array.isArray(state.adminDashboard?.trainingCalendar) ? state.adminDashboard.trainingCalendar : [],
+    renderTrainingCalendarItem,
+    "Training schedule will appear after login."
+  );
+  renderAdminList(
+    "admin-event-stream-list",
+    Array.isArray(state.adminDashboard?.paymentEvents) ? state.adminDashboard.paymentEvents : [],
+    renderAdminEventStreamItem,
+    "Backend event history will appear after login."
+  );
+}
+
+function renderAdminDirectory() {
+  renderAdminList(
+    "admin-search-results",
+    Array.isArray(state.adminSearchResults) ? state.adminSearchResults : [],
+    renderAdminSearchResult,
+    state.admin?.token
+      ? "Search by name, email, phone, service area, or account id."
+      : "Search results will appear here after admin login."
+  );
+
+  const container = document.getElementById("admin-user-profile");
+  if (!container) {
+    return;
+  }
+
+  if (!state.adminSelectedUserProfile?.user) {
+    container.innerHTML = '<div class="admin-empty">Choose a search result to inspect account status, support context, and recent request history.</div>';
+    return;
+  }
+
+  container.innerHTML = renderAdminUserProfile(state.adminSelectedUserProfile);
 }
 
 function renderAdminList(id, items, renderer, emptyMessage) {
@@ -917,7 +1250,7 @@ function renderSubscriberAdminItem(subscriber) {
           <strong>${escapeHtml(subscriber.fullName || subscriber.email)}</strong>
           <small>${escapeHtml(subscriber.email || "No email")} · ${escapeHtml(subscriber.phoneNumber || "No phone")}</small>
         </div>
-        <span class="badge">${escapeHtml(subscriber.subscriptionStatus || "UNKNOWN")}</span>
+        <span class="badge">${escapeHtml(prettifyToken(subscriber.subscriptionStatus || "UNKNOWN"))}</span>
       </div>
       <div class="admin-item-meta">
         <span>Billing: ${escapeHtml(formatTimestamp(subscriber.nextBillingDate))}</span>
@@ -936,6 +1269,10 @@ function renderProviderAdminItem(provider) {
   const approveButton = provider.providerStatus === "PENDING_APPROVAL"
     ? `<button class="glow-button compact" type="button" data-admin-action="approve-provider" data-user-id="${escapeHtml(provider.id)}">Approve Provider</button>`
     : "";
+  const trainingStatus = provider.discipline?.training?.status || "NOT_REQUIRED";
+  const scheduleButton = provider.discipline?.currentSuspension?.indefinite
+    ? `<button class="glow-button alt compact" type="button" data-admin-action="schedule-training" data-user-id="${escapeHtml(provider.id)}">Schedule Training</button>`
+    : "";
 
   return `
     <article class="admin-item">
@@ -944,13 +1281,115 @@ function renderProviderAdminItem(provider) {
           <strong>${escapeHtml(provider.fullName || provider.email)}</strong>
           <small>${escapeHtml(provider.email || "No email")} · ${escapeHtml(provider.phoneNumber || "No phone")}</small>
         </div>
-        <span class="badge">${escapeHtml(provider.providerStatus || "DRAFT")}</span>
+        <span class="badge">${escapeHtml(labelUiStatus("providerStatus", provider.providerStatus || "DRAFT"))}</span>
       </div>
       <div class="admin-item-meta">
-        <span>State: ${escapeHtml(provider.accountState || "ACTIVE")}</span>
-        <span>Services: ${escapeHtml((provider.services || []).join(", ") || "Not set")}</span>
+        <span>State: ${escapeHtml(prettifyToken(provider.accountState || "ACTIVE"))}</span>
+        <span>Services: ${escapeHtml((provider.services || []).map(labelServiceType).join(", ") || "Not set")}</span>
+        <span>Strikes: ${escapeHtml(String(provider.discipline?.strikeCount || 0))}</span>
+        <span>Training: ${escapeHtml(prettifyToken(trainingStatus))}</span>
       </div>
-      <div class="button-pair">${approveButton}</div>
+      <p class="muted">Rating: ${escapeHtml(formatRating(provider.rating))} · Suspension: ${escapeHtml(formatSuspensionSummary(provider.discipline?.currentSuspension))}</p>
+      <div class="button-pair">${approveButton}${scheduleButton}</div>
+    </article>
+  `;
+}
+
+function renderAdminSearchResult(user) {
+  const roles = Array.isArray(user.roles) ? user.roles.join(", ") : "Unknown";
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(user.fullName || user.email || `User ${user.id}`)}</strong>
+          <small>#${escapeHtml(user.id)} · ${escapeHtml(user.email || "No email")} · ${escapeHtml(user.phoneNumber || "No phone")}</small>
+        </div>
+        <span class="badge">${escapeHtml(prettifyToken(roles))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>State: ${escapeHtml(prettifyToken(user.accountState || "ACTIVE"))}</span>
+        <span>Provider: ${escapeHtml(prettifyToken(user.providerStatus || "n/a"))}</span>
+        <span>Requests: ${escapeHtml(String(user.requestCount || 0))}</span>
+        <span>Active: ${escapeHtml(String(user.activeRequestCount || 0))}</span>
+      </div>
+      <p class="muted">${escapeHtml(user.serviceArea || user.currentLocation || "No service-area or location note available.")}</p>
+      <div class="button-pair">
+        <button class="glow-button compact" type="button" data-admin-view-user="${escapeHtml(user.id)}">Open Profile</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminUserProfile(profile) {
+  const user = profile.user || {};
+  const subscriber = profile.subscriber || null;
+  const provider = profile.provider || null;
+  const supportSummary = profile.supportSummary || {};
+  const nextAccountState = user.accountState === "SUSPENDED" ? "ACTIVE" : "SUSPENDED";
+  const customerRequests = Array.isArray(profile.recentCustomerRequests) ? profile.recentCustomerRequests : [];
+  const providerRequests = Array.isArray(profile.recentProviderRequests) ? profile.recentProviderRequests : [];
+  const providerApproveButton = provider?.providerStatus === "PENDING_APPROVAL"
+    ? `<button class="glow-button compact" type="button" data-admin-action="approve-provider" data-user-id="${escapeHtml(user.id)}">Approve Provider</button>`
+    : "";
+  const trainingButton = provider?.discipline?.currentSuspension?.indefinite
+    ? `<button class="glow-button alt compact" type="button" data-admin-action="schedule-training" data-user-id="${escapeHtml(user.id)}">Schedule Training</button>`
+    : provider?.discipline?.training?.status === "SCHEDULED" || provider?.discipline?.training?.status === "ENROLLED"
+      ? `<button class="glow-button alt compact" type="button" data-admin-action="complete-training" data-user-id="${escapeHtml(user.id)}">Mark Training Complete</button>`
+      : "";
+
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(user.fullName || user.email || `User ${user.id}`)}</strong>
+          <small>#${escapeHtml(user.id)} · ${escapeHtml((user.roles || []).join(", ") || "No roles")}</small>
+        </div>
+        <span class="badge">${escapeHtml(prettifyToken(user.accountState || "ACTIVE"))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>Email: ${escapeHtml(user.email || "Not set")}</span>
+        <span>Phone: ${escapeHtml(user.phoneNumber || "Not set")}</span>
+        <span>Signed up: ${escapeHtml(formatTimestamp(user.signUpDate))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>Customer requests: ${escapeHtml(String(supportSummary.customerRequestCount || 0))}</span>
+        <span>Provider requests: ${escapeHtml(String(supportSummary.providerRequestCount || 0))}</span>
+        <span>Customer live: ${escapeHtml(String(supportSummary.activeCustomerRequests || 0))}</span>
+        <span>Provider live: ${escapeHtml(String(supportSummary.activeProviderRequests || 0))}</span>
+      </div>
+      ${subscriber ? `<p class="muted">Subscriber status: ${escapeHtml(prettifyToken(subscriber.subscriptionStatus || "inactive"))} · Vehicles: ${escapeHtml((subscriber.savedVehicles || []).map(formatVehicleSummary).join(" | ") || "None")} · Billing: ${escapeHtml(formatTimestamp(subscriber.nextBillingDate))}</p>` : ""}
+      ${provider ? `<p class="muted">Provider status: ${escapeHtml(labelUiStatus("providerStatus", provider.providerStatus || "DRAFT"))} · Service area: ${escapeHtml(provider.serviceArea || "Not set")} · Services: ${escapeHtml((provider.services || []).map(labelServiceType).join(", ") || "Not set")}</p>` : ""}
+      ${provider ? `<p class="muted">Hours configured: ${provider.hoursOfService?.hasHours ? "Yes" : "No"} · Documents ready: ${provider.documentStatus?.meetsMinimumRequirements ? "Yes" : "No"} · PayPal email: ${escapeHtml(provider.paypal?.email || "Not linked")}</p>` : ""}
+      ${provider ? `<p class="muted">Rating: ${escapeHtml(formatRating(provider.rating))} · Strikes: ${escapeHtml(String(provider.discipline?.strikeCount || 0))} · Training: ${escapeHtml(prettifyToken(provider.discipline?.training?.status || "NOT_REQUIRED"))} · Suspension: ${escapeHtml(formatSuspensionSummary(provider.discipline?.currentSuspension))}</p>` : ""}
+      <div class="button-pair">
+        <button class="glow-button alt compact" type="button" data-admin-action="set-account-state" data-user-id="${escapeHtml(user.id)}" data-account-state="${escapeHtml(nextAccountState)}">${escapeHtml(nextAccountState === "SUSPENDED" ? "Suspend User" : "Reactivate User")}</button>
+        ${providerApproveButton}
+        ${trainingButton}
+      </div>
+      <div class="admin-item-meta">
+        <span>Recent customer requests: ${escapeHtml(String(customerRequests.length))}</span>
+        <span>Recent provider requests: ${escapeHtml(String(providerRequests.length))}</span>
+      </div>
+      ${customerRequests.length ? customerRequests.map((entry) => `<div class="muted">${escapeHtml(entry.requestId)} · ${escapeHtml(labelServiceType(entry.serviceType))} · ${escapeHtml(labelUiStatus("requestStatus", entry.status || "UNKNOWN"))} · ${escapeHtml(formatTimestamp(entry.submittedAt))}</div>`).join("") : '<div class="muted">No recent customer requests.</div>'}
+      ${providerRequests.length ? providerRequests.map((entry) => `<div class="muted">${escapeHtml(entry.requestId)} · ${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(labelUiStatus("requestStatus", entry.status || "UNKNOWN"))} · ${escapeHtml(formatTimestamp(entry.submittedAt))}</div>`).join("") : '<div class="muted">No recent provider assignments.</div>'}
+    </article>
+  `;
+}
+
+function renderTrainingCalendarItem(entry) {
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(entry.fullName || `Provider ${entry.providerId}`)}</strong>
+          <small>#${escapeHtml(String(entry.providerId))} · ${escapeHtml(prettifyToken(entry.status || "SCHEDULED"))}</small>
+        </div>
+        <span class="badge">${escapeHtml(formatTimestamp(entry.scheduledFor))}</span>
+      </div>
+      <p class="muted">${escapeHtml(entry.note || "Manual roadside retraining scheduled.")}</p>
+      <div class="button-pair">
+        <button class="glow-button compact" type="button" data-admin-action="complete-training" data-user-id="${escapeHtml(entry.providerId)}">Mark Training Complete</button>
+      </div>
     </article>
   `;
 }
@@ -963,13 +1402,15 @@ function renderServiceHistoryItem(entry) {
           <strong>${escapeHtml(entry.requestId || "Unknown request")}</strong>
           <small>${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(entry.phoneNumber || "No phone")}</small>
         </div>
-        <span class="badge">${escapeHtml(entry.completionStatus || "OPEN")}</span>
+        <span class="badge">${escapeHtml(labelUiStatus("requestStatus", entry.completionStatus || "OPEN"))}</span>
       </div>
       <div class="admin-item-meta">
-        <span>${escapeHtml(entry.serviceType || "Service")}</span>
-        <span>${escapeHtml(entry.customerType || "UNKNOWN")}</span>
+        <span>${escapeHtml(labelServiceType(entry.serviceType || "Service"))}</span>
+        <span>${escapeHtml(prettifyToken(entry.customerType || "UNKNOWN"))}</span>
         <span>${escapeHtml(entry.providerAssigned || "Unassigned")}</span>
-        <span>${escapeHtml(entry.paymentStatus || "UNKNOWN")}</span>
+        <span>${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</span>
+        <span>Rating: ${escapeHtml(entry.customerRating ? `${entry.customerRating}/8` : "None")}</span>
+        <span>Notes: ${escapeHtml(String(entry.noteCount || 0))}</span>
       </div>
       <p class="muted">Refund flag: ${entry.refundFlag ? "Yes" : "No"} · Dispute flag: ${entry.disputeFlag ? "Yes" : "No"} · Requested: ${escapeHtml(formatTimestamp(entry.requestDate))}</p>
       <div class="button-pair">
@@ -987,17 +1428,35 @@ function renderFinancialAdminItem(entry) {
           <strong>${escapeHtml(entry.requestId || "Unknown request")}</strong>
           <small>${escapeHtml(entry.fullName || "Customer")} · ${escapeHtml(entry.providerAssigned || "Unassigned")}</small>
         </div>
-        <span class="badge">${escapeHtml(entry.providerPayoutStatus || "UNASSIGNED")}</span>
+        <span class="badge">${escapeHtml(labelUiStatus("payoutStatus", entry.providerPayoutStatus || "UNASSIGNED"))}</span>
       </div>
       <div class="admin-item-meta">
         <span>Charged: ${escapeHtml(formatUsd(entry.amountCharged || 0))}</span>
         <span>Collected: ${escapeHtml(formatUsd(entry.amountCollected || 0))}</span>
-        <span>Payment: ${escapeHtml(entry.paymentStatus || "UNKNOWN")}</span>
+        <span>Payment: ${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</span>
       </div>
       <p class="muted">Refund issued: ${entry.refundIssued ? "Yes" : "No"} · Refund flag: ${entry.refundFlag ? "Yes" : "No"} · Dispute flag: ${entry.disputeFlag ? "Yes" : "No"}</p>
       <div class="button-pair">
         <button class="glow-button danger compact" type="button" data-admin-action="refund-request" data-request-id="${escapeHtml(entry.requestId)}">Refund User</button>
         <button class="glow-button compact" type="button" data-admin-action="complete-payout" data-request-id="${escapeHtml(entry.requestId)}">Mark Payout Complete</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderAdminEventStreamItem(entry) {
+  return `
+    <article class="admin-item">
+      <div class="admin-item-head">
+        <div>
+          <strong>${escapeHtml(labelPaymentEvent(entry.event || "backend-event"))}</strong>
+          <small>${escapeHtml(formatTimestamp(entry.capturedAt || entry.createdAt || entry.timestamp))}</small>
+        </div>
+        <span class="badge">${escapeHtml(labelUiStatus("paymentStatus", entry.status || "UNKNOWN"))}</span>
+      </div>
+      <div class="admin-item-meta">
+        <span>Order: ${escapeHtml(entry.paypalOrderId || "Not set")}</span>
+        <span>Request: ${escapeHtml(entry.request?.requestId || entry.requestId || "Not set")}</span>
       </div>
     </article>
   `;
@@ -1045,6 +1504,17 @@ function setupProviderWorkPanel() {
   }
 
   renderProviderWorkList();
+}
+
+function setupProviderWalletPanel() {
+  const refreshButton = document.getElementById("provider-wallet-refresh");
+  if (!refreshButton) {
+    return;
+  }
+
+  refreshButton.addEventListener("click", async () => {
+    await loadProviderWallet(true);
+  });
 }
 
 async function loadProviderQueue() {
@@ -1099,9 +1569,17 @@ function renderProviderWorkList() {
       const requestId = request.requestId || request.id || "unknown";
       return `<div class="provider-work-card">
         <div>
-          <div class="value">${escapeHtml(request.serviceType || "Service")} · ${escapeHtml(request.fullName || "Customer")}</div>
+          <div class="value">${escapeHtml(labelServiceType(request.serviceType || "Service"))} · ${escapeHtml(request.fullName || "Customer")}</div>
           <div class="muted">${escapeHtml(request.location || "Location not provided")}</div>
-          <div class="muted">Status: ${escapeHtml(request.status || "UNKNOWN")} · Reference ${escapeHtml(requestId)}</div>
+          <div class="muted">Status: ${escapeHtml(labelUiStatus("requestStatus", request.status || "UNKNOWN"))} · Reference ${escapeHtml(requestId)}</div>
+          <div class="muted">ETA stage: ${escapeHtml(prettifyToken(request.etaStage || "pending"))} · Soft ETA: ${escapeHtml(String(request.softEtaMinutes ?? "Not set"))} · Hard ETA: ${escapeHtml(String(request.hardEtaMinutes ?? "Locked"))}</div>
+          <div class="muted">Location access: ${escapeHtml(prettifyToken(request.locationDisclosureLevel || "masked"))} · Contact access: ${escapeHtml(prettifyToken(request.contactDisclosureLevel || "locked"))}</div>
+          <div class="muted">Customer callback: ${escapeHtml(request.customerCallbackNumber || "Locked until payment and provider activation")}</div>
+          <label class="provider-note-field">
+            <span class="muted">Dispatch note</span>
+            <textarea class="field area" id="provider-note-${escapeHtml(requestId)}" placeholder="Short dispatch-safe note for this request">${escapeHtml(readProviderDraftNote(requestId))}</textarea>
+          </label>
+          ${renderProviderNoteExchange(request.noteExchange)}
         </div>
         <div class="provider-action-grid">
           ${renderProviderActionButton(requestId, "accept", "Accept")}
@@ -1110,6 +1588,7 @@ function renderProviderWorkList() {
           ${renderProviderActionButton(requestId, "hard-contact", "Hard Contact")}
           ${renderProviderActionButton(requestId, "arrived", "Arrived")}
           ${renderProviderActionButton(requestId, "completed", "Completed")}
+          ${renderProviderActionButton(requestId, "note", "Log Note")}
         </div>
       </div>`;
     })
@@ -1121,13 +1600,15 @@ function renderProviderActionButton(requestId, action, label) {
 }
 
 async function queueProviderAction(requestId, action) {
+  const providerPayload = readProviderActionPayload(requestId, action);
   const entry = {
     id: buildEventId("provider"),
     requestId,
     action,
     status: "queued-frontend",
     timestamp: new Date().toISOString(),
-    route: `/api/aw-roadside/requests/${requestId}/${action}`
+    route: `/api/aw-roadside/requests/${requestId}/${action}`,
+    note: providerPayload.note || ""
   };
   state.providerActionQueue = [entry, ...state.providerActionQueue].slice(0, 50);
   storeJson(providerActionQueueKey, state.providerActionQueue);
@@ -1136,7 +1617,7 @@ async function queueProviderAction(requestId, action) {
     route: entry.route,
     status: "queued-frontend",
     requestId,
-    message: "Provider action sent through the backend controller."
+      message: "Provider action sent to dispatch."
   });
   renderProviderActionQueue();
   showBox("provider-work-status", `${labelProviderAction(action)} queued for ${requestId}.`);
@@ -1152,9 +1633,7 @@ async function queueProviderAction(requestId, action) {
     const response = await apiFetch(`/requests/${encodeURIComponent(requestId)}/${action}`, {
       method: "POST",
       headers: jsonHeaders(true),
-      body: JSON.stringify({
-        note: `frontend provider action: ${action}`
-      })
+      body: JSON.stringify(providerPayload)
     });
     const payload = await response.json();
     entry.status = payload.committed === false ? "backend-pending" : "backend-committed";
@@ -1166,8 +1645,8 @@ async function queueProviderAction(requestId, action) {
     showBox(
       "provider-work-status",
       payload.committed === false
-        ? `${labelProviderAction(action)} accepted by backend as pending for ${requestId}.`
-        : `${labelProviderAction(action)} committed by backend for ${requestId}.`
+        ? `${labelProviderAction(action)} saved for dispatch review for ${requestId}.`
+        : `${labelProviderAction(action)} recorded for ${requestId}.`
     );
     await loadProviderQueue();
   } catch (error) {
@@ -1185,13 +1664,6 @@ async function queueProviderAction(requestId, action) {
     renderProviderActionQueue();
     showBox("provider-work-status", error.message);
   }
-}
-
-function labelProviderAction(action) {
-  return action
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
 }
 
 function recordRequestHistory(entry) {
@@ -1234,30 +1706,159 @@ function renderProcessingCenter() {
   renderList("processing-log-list", state.processingLog, (entry) => {
     const status = entry.httpStatus ? `${entry.status} ${entry.httpStatus}` : entry.status;
     return `<div class="item">
-      <div class="value">${escapeHtml(entry.action || entry.method || "route")} · ${escapeHtml(status || "pending")}</div>
-      <div class="muted">${escapeHtml(entry.route || "local")} · ${formatTimestamp(entry.timestamp)}</div>
+      <div class="value">${escapeHtml(labelProcessingEntry(entry.action || entry.method || "route"))} · ${escapeHtml(labelProcessingStatus(status || "pending"))}</div>
+      <div class="muted">${escapeHtml(formatTimestamp(entry.timestamp))}</div>
       ${entry.message ? `<div class="muted">${escapeHtml(entry.message)}</div>` : ""}
     </div>`;
   }, "No route events stored yet.");
 
   renderList("request-history-list", state.requestHistory, (entry) => `<div class="item">
-    <div class="value">${escapeHtml(entry.requestId || "pending")} · ${escapeHtml(entry.serviceType || "service")}</div>
-    <div class="muted">${escapeHtml(entry.status || "submitted")} · ${escapeHtml(entry.mode || "guest")} · ${formatTimestamp(entry.timestamp)}</div>
+    <div class="value">${escapeHtml(entry.requestId || "pending")} · ${escapeHtml(labelServiceType(entry.serviceType || "service"))}</div>
+    <div class="muted">${escapeHtml(labelUiStatus("requestStatus", entry.status || "submitted"))} · ${escapeHtml(entry.mode || "guest")} · ${formatTimestamp(entry.timestamp)}</div>
   </div>`, "No request history stored yet.");
 
   renderList("payment-ledger-list", state.paymentLedger, (entry) => `<div class="item">
-    <div class="value">${escapeHtml(entry.event || "payment")} · ${escapeHtml(entry.status || "pending")}</div>
+    <div class="value">${escapeHtml(labelPaymentEvent(entry.event || "payment"))} · ${escapeHtml(labelUiStatus("paymentStatus", entry.status || "pending"))}</div>
     <div class="muted">Order ${escapeHtml(entry.orderId || "not assigned")} · Request ${escapeHtml(entry.requestId || "pending")} · ${formatTimestamp(entry.timestamp)}</div>
   </div>`, "No payment events stored yet.");
+
+  renderCustomerRequestState();
 }
 
 function renderProviderActionQueue() {
   renderList("provider-action-queue-list", state.providerActionQueue, (entry) => `<div class="item">
-    <div class="value">${escapeHtml(labelProviderAction(entry.action || "action"))} · ${escapeHtml(entry.status || "queued")}</div>
+    <div class="value">${escapeHtml(labelProviderAction(entry.action || "action"))} · ${escapeHtml(labelProcessingStatus(entry.status || "queued"))}</div>
     <div class="muted">Request ${escapeHtml(entry.requestId || "unknown")} · ${formatTimestamp(entry.updatedAt || entry.timestamp)}</div>
-    ${entry.backendStatus ? `<div class="muted">Backend status: ${escapeHtml(entry.backendStatus)}</div>` : ""}
+    ${entry.backendStatus ? `<div class="muted">Current step: ${escapeHtml(labelUiStatus("requestStatus", entry.backendStatus))}</div>` : ""}
     ${entry.error ? `<div class="muted">${escapeHtml(entry.error)}</div>` : ""}
   </div>`, "No provider actions queued yet.");
+}
+
+async function loadProviderWallet(manualRefresh = false) {
+  if (!state.auth?.sessionToken) {
+    state.providerWallet = null;
+    renderProviderWallet();
+    if (manualRefresh) {
+      showBox("provider-wallet-status", "Sign in as a provider before loading wallet records.");
+    }
+    return;
+  }
+
+  if (!Array.isArray(state.auth?.roles) || !state.auth.roles.includes("PROVIDER")) {
+    state.providerWallet = null;
+    renderProviderWallet();
+    if (manualRefresh) {
+      showBox("provider-wallet-status", "Provider wallet records are available only for provider accounts.");
+    }
+    return;
+  }
+
+  try {
+    const payload = await fetchApiJsonWithFallback("/provider/wallet", [], {
+      headers: jsonHeaders(true)
+    });
+    state.providerWallet = payload;
+    renderProviderWallet();
+    showBox("provider-wallet-status", "Provider wallet records are up to date.");
+    recordProcessingEvent({
+      action: "provider-wallet",
+      route: "/provider/wallet",
+      status: "accepted",
+      message: `${Array.isArray(payload.ledger) ? payload.ledger.length : 0} payout record(s) loaded.`
+    });
+  } catch (error) {
+    state.providerWallet = null;
+    renderProviderWallet();
+    showBox("provider-wallet-status", error.message);
+    recordProcessingEvent({
+      action: "provider-wallet",
+      route: "/provider/wallet",
+      status: "error",
+      message: error.message
+    });
+  }
+}
+
+function renderProviderWallet() {
+  const wallet = state.providerWallet || null;
+  const summary = wallet?.summary || {};
+  const payoutTelemetry = wallet?.payoutTelemetry || {};
+  const paypalState = wallet?.paypalState || {};
+  const terms = wallet?.walletDisplayTerms || null;
+  const ledger = Array.isArray(wallet?.ledger) ? wallet.ledger : [];
+
+  setText(
+    "provider-wallet-summary-copy",
+    wallet
+      ? `Current payout totals for ${wallet.provider?.fullName || "your provider account"} are shown below.`
+      : "Wallet records will appear after provider wallet data is loaded."
+  );
+  setText(
+    "provider-wallet-paypal-email",
+    wallet
+      ? `Payout destination: ${paypalState.email || wallet.provider?.paypalEmail || "Provider payout destination not yet linked."}`
+      : "Payout destination will appear after provider wallet data is loaded."
+  );
+  setText(
+    "provider-wallet-telemetry",
+    wallet
+      ? `Latest payout status: ${labelUiStatus("payoutStatus", payoutTelemetry.lastStatus || "pending")} · Last event: ${prettifyToken(payoutTelemetry.lastEventType || "pending")} · Updated ${formatTimestamp(payoutTelemetry.lastEventAt || paypalState.lastWebhookAt)}.`
+      : "Provider payout activity will appear after wallet data is loaded."
+  );
+  setText(
+    "provider-wallet-terms-summary",
+    terms?.summary || "Wallet display terms will appear here after sign-in."
+  );
+  setText(
+    "provider-wallet-terms-detail",
+    terms
+      ? `${terms.thirdPartyResponsibility} ${terms.expectedParity} ${terms.discrepancyProcess}`
+      : "Payout timing and discrepancy guidance will appear after the wallet is loaded."
+  );
+
+  setText("provider-wallet-funds-available", formatUsd(summary.fundsAvailable || 0));
+  setText("provider-wallet-funds-pending", formatUsd(summary.fundsPending || 0));
+  setText("provider-wallet-funds-on-hold", formatUsd(summary.fundsOnHold || 0));
+  setText("provider-wallet-funds-dispute", formatUsd(summary.fundsDispute || 0));
+  setText("provider-wallet-funds-paid-out", formatUsd(summary.fundsPaidOut || 0));
+
+  setText(
+    "provider-wallet-funds-available-count",
+    wallet ? `${summary.completedPayoutCount || 0} completed payout(s) recorded.` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-pending-count",
+    wallet ? `${summary.pendingPayoutCount || 0} payout(s) pending or in motion.` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-on-hold-count",
+    wallet ? `${summary.onHoldCount || 0} payout(s) currently on hold.` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-dispute-count",
+    wallet ? `${summary.disputeCount || 0} payout dispute record(s).` : "Waiting for provider payout data."
+  );
+  setText(
+    "provider-wallet-funds-paid-out-count",
+    wallet ? `${formatUsd(summary.totalEstimated || 0)} tracked across all provider payout records.` : "Waiting for provider payout data."
+  );
+
+  renderList(
+    "provider-wallet-ledger-list",
+    ledger,
+    (entry) => `<div class="item">
+      <div class="value">${escapeHtml(entry.requestId || "Pending request")} · ${escapeHtml(labelServiceType(entry.serviceType || "Service"))}</div>
+      <div class="muted">${escapeHtml(entry.customerName || "Customer")} · ${escapeHtml(prettifyToken(entry.customerTier || "guest"))} · ${escapeHtml(formatTimestamp(entry.updatedAt))}</div>
+      <div class="muted">Estimated payout: ${escapeHtml(formatUsd(entry.estimatedPayoutAmount || 0))} · Actual payout: ${escapeHtml(entry.actualPayoutAmount === null ? "Awaiting payout completion" : formatUsd(entry.actualPayoutAmount))}</div>
+      <div class="muted">Payout: ${escapeHtml(labelUiStatus("payoutStatus", entry.providerPayoutStatus || "UNASSIGNED"))} · Payment: ${escapeHtml(labelUiStatus("paymentStatus", entry.paymentStatus || "UNKNOWN"))}</div>
+      <div class="muted">Flags: Hold ${entry.holdFlag ? "Yes" : "No"} · Dispute ${entry.disputeFlag ? "Yes" : "No"} · Refund ${entry.refundFlag ? "Yes" : "No"}</div>
+      ${entry.payoutCompletedAt ? `<div class="muted">Paid out ${escapeHtml(formatTimestamp(entry.payoutCompletedAt))}</div>` : ""}
+      ${entry.payoutLastEventType ? `<div class="muted">Latest event: ${escapeHtml(prettifyToken(entry.payoutLastEventType))} · ${escapeHtml(formatTimestamp(entry.payoutLastEventAt))}</div>` : ""}
+    </div>`,
+    wallet
+      ? "No provider payout records are available yet."
+      : "Sign in as a provider to load payout records."
+  );
 }
 
 function renderList(id, entries, renderEntry, emptyMessage) {
@@ -1294,7 +1895,6 @@ function collectRequestFormData(form) {
   return {
     userId: state.auth?.userId || null,
     roles: state.auth?.roles || [],
-    subscriberActive: Boolean(state.auth?.subscriberActive),
     fullName: normalizeField(formData.get("fullName")),
     phoneNumber: normalizeField(formData.get("phoneNumber")),
     serviceType: normalizeField(formData.get("serviceType")),
@@ -1316,7 +1916,7 @@ function renderIdentity() {
   const profile = auth?.profile || null;
   const detail = auth
     ? auth.roles.includes("PROVIDER")
-      ? `Provider signed in${auth.providerStatus ? ` · ${auth.providerStatus}` : ""}`
+      ? `Provider signed in${auth.providerStatus ? ` · ${labelUiStatus("providerStatus", auth.providerStatus)}` : ""}`
       : auth.roles.includes("SUBSCRIBER")
         ? `Subscriber signed in${auth.subscriberActive ? " · membership active" : ""}`
         : "Signed in"
@@ -1333,9 +1933,10 @@ function renderIdentity() {
   );
   setText("provider-identity-role", roleText);
   setText("provider-identity-state", detail);
-  setText("provider-admin-status", auth?.providerStatus ? `Provider status: ${auth.providerStatus}.` : "Provider status will appear after sign-in.");
+  setText("provider-admin-status", auth?.providerStatus ? `Provider status: ${labelUiStatus("providerStatus", auth.providerStatus)}.` : "Provider status will appear after sign-in.");
   setText("provider-service-list", formatProviderServices(profile));
   setText("provider-vehicle-summary", formatProviderVehicle(profile));
+  renderCustomerRequestState();
 }
 
 function renderAdminState() {
@@ -1360,7 +1961,7 @@ function setupNavigation() {
         return;
       }
       event.preventDefault();
-      switchScreen(screen);
+      navigateToScreen(screen);
     });
   });
 
@@ -1371,69 +1972,60 @@ function setupNavigation() {
 }
 
 function readScreenFromHash() {
-  const forcedScreen = normalizeScreenValue(readForcedScreen());
-  if (forcedScreen) {
-    return forcedScreen;
-  }
-
   const pathname = window.location.pathname.toLowerCase();
+  if (pathname.endsWith("/home.html")) {
+    return "home";
+  }
   if (pathname.endsWith("/customer.html")) {
     return "customer";
+  }
+  if (pathname.endsWith("/subscriber-access.html")) {
+    return "home";
   }
   if (pathname.endsWith("/provider.html")) {
     return "provider";
   }
+  if (pathname.endsWith("/provider-info.html")) {
+    return "provider";
+  }
+  if (pathname.endsWith("/provider-work.html")) {
+    return "provider";
+  }
+  if (pathname.endsWith("/provider-wallet.html")) {
+    return "provider";
+  }
   if (pathname.endsWith("/admin.html")) {
+    return "admin";
+  }
+  if (pathname.endsWith("/admin-dashboard.html")) {
+    return "admin";
+  }
+  if (pathname.endsWith("/admin-accounts.html")) {
+    return "admin";
+  }
+  if (pathname.endsWith("/admin-financials.html")) {
     return "admin";
   }
   if (pathname.endsWith("/legacy-index.html")) {
     return "home";
   }
 
-  const value = normalizeScreenValue(window.location.hash.replace(/^#/, "").trim().toLowerCase());
-  if (isKnownScreen(value)) {
+  const value = window.location.hash.replace(/^#/, "").trim().toLowerCase();
+  if (["home", "customer", "provider", "admin", "security"].includes(value)) {
     return value;
   }
   return "home";
 }
 
-function readForcedScreen() {
-  const candidate =
-    normalizeUrlValue(runtimeConfig.frontendConfig?.forcedScreen) ||
-    normalizeUrlValue(runtimeConfig.forcedScreen);
-  const normalized = normalizeScreenValue(candidate);
-  return isKnownScreen(normalized) ? normalized : "";
-}
-
-function isKnownScreen(value) {
-  return ["home", "customer", "provider", "admin", "security"].includes(value);
-}
-
-function normalizeScreenValue(value) {
-  return value === "subscriber" ? "customer" : value;
-}
-
-function applyRuntimeEntryState() {
-  const query = new URLSearchParams(window.location.search);
-  const intent = normalizeField(
-    query.get("intent") ||
-    runtimeConfig.frontendConfig?.entryIntent ||
-    runtimeConfig.entryIntent
-  ).toLowerCase();
-  const autoOpenSubscriber = Boolean(runtimeConfig.frontendConfig?.autoOpenMemberSignup);
-
-  if (intent === "subscribe" || autoOpenSubscriber) {
-    switchScreen("customer");
-    showModal("member-signup-modal");
-  }
-}
-
-function showModal(id) {
-  const modal = document.getElementById(id);
-  if (!modal) {
+function navigateToScreen(screen) {
+  const target = screenToPage(screen);
+  const pathname = window.location.pathname.toLowerCase();
+  const inShell = pathname.endsWith("/index.html") || pathname === "/" || pathname === "";
+  if (!inShell && target) {
+    window.location.href = target;
     return;
   }
-  modal.hidden = false;
+  switchScreen(screen);
 }
 
 function switchScreen(screen) {
@@ -1451,6 +2043,22 @@ function switchScreen(screen) {
   }
 }
 
+function screenToPage(screen) {
+  return {
+    home: "home.html",
+    customer: "customer.html",
+    provider: "provider.html",
+    "provider-info": "provider-info.html",
+    "provider-work": "provider-work.html",
+    "provider-wallet": "provider-wallet.html",
+    admin: "admin.html",
+    "admin-dashboard": "admin-dashboard.html",
+    "admin-accounts": "admin-accounts.html",
+    "admin-financials": "admin-financials.html",
+    security: "index.html#security"
+  }[screen] || "";
+}
+
 function renderWatchdogFiles(files) {
   const container = document.getElementById("watchdog-file-list");
   if (!container) {
@@ -1458,16 +2066,16 @@ function renderWatchdogFiles(files) {
   }
 
   if (!files.length) {
-    container.innerHTML = '<div class="item"><div class="value">No integrity drift detected.</div><div class="muted">Protected files match the trusted baseline.</div></div>';
+    container.innerHTML = '<div class="item"><div class="value">No integrity issues detected.</div><div class="muted">Protected records match the trusted baseline.</div></div>';
     return;
   }
 
   container.innerHTML = files
     .map((file) => {
       const detail = file.status === "modified"
-        ? `Baseline ${shortHash(file.baselineSha256)} / Current ${shortHash(file.currentSha256)}`
-        : "Review required.";
-      return `<div class="item"><div class="value">${escapeHtml(file.path)} · ${escapeHtml(file.status)}</div><div class="muted">${escapeHtml(detail)}</div></div>`;
+        ? "A protected record changed and should be reviewed."
+        : "A protected record needs attention.";
+      return `<div class="item"><div class="value">${escapeHtml(prettifyToken(file.status || "review"))}</div><div class="muted">${escapeHtml(detail)}</div></div>`;
     })
     .join("");
 }
@@ -1613,7 +2221,7 @@ async function fetchJsonFromCandidates(urls, options = {}) {
       const response = await fetch(url, options);
       const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.message || payload.error || `Request failed with ${response.status}.`);
+        throw new Error(formatUserFacingMessage(payload.message || payload.error || `Request failed with ${response.status}.`));
       }
       recordProcessingEvent({
         action: "backend-route",
@@ -1643,18 +2251,61 @@ function dedupeUrls(urls) {
 }
 
 function renderProfileState(profile) {
+  toggleProviderDocumentsPanel(profile);
   setText("provider-service-list", formatProviderServices(profile));
   setText("provider-vehicle-summary", formatProviderVehicle(profile));
 }
 
+function toggleProviderDocumentsPanel(profile) {
+  const panel = document.getElementById("provider-documents-panel");
+  if (!panel) {
+    return;
+  }
+
+  const isProvider = Array.isArray(profile?.roles) && profile.roles.includes("PROVIDER");
+  panel.hidden = !isProvider;
+}
+
+function buildProviderDocumentPayload(value, fallbackFileName) {
+  const raw = normalizeField(value);
+  if (!raw) {
+    return false;
+  }
+
+  const dataUrlMatch = raw.match(/^data:([^;]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    return {
+      dataUrl: raw,
+      fileName: fallbackFileName,
+      contentType: dataUrlMatch[1]
+    };
+  }
+
+  return {
+    dataBase64: base64EncodeUtf8(raw),
+    fileName: fallbackFileName,
+    contentType: "text/plain",
+    note: "Uploaded from provider info screen."
+  };
+}
+
+function base64EncodeUtf8(value) {
+  const bytes = new TextEncoder().encode(String(value || ""));
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return window.btoa(binary);
+}
+
 function formatProviderServices(profile) {
   const services = Array.isArray(profile?.services) ? profile.services.filter(Boolean) : [];
-  return services.length ? `Services: ${services.join(", ")}` : "Services: not loaded.";
+  return services.length ? `Services: ${services.map(labelServiceType).join(", ")}` : "Services will appear after provider access is confirmed.";
 }
 
 function formatProviderVehicle(profile) {
   const vehicle = profile?.providerProfile?.vehicleInfo || profile?.subscriberProfile?.vehicle || null;
-  return vehicle ? `Vehicle profile: ${formatVehicleSummary(vehicle)}` : "Vehicle profile: not loaded.";
+  return vehicle ? `Vehicle profile: ${formatVehicleSummary(vehicle)}` : "Vehicle profile will appear after account details are loaded.";
 }
 
 function formatVehicleSummary(vehicle) {
@@ -1740,6 +2391,22 @@ function normalizeUrlValue(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function parseBooleanFlag(value, fallback = false) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+  return fallback;
+}
+
 function readRuntimeConfig() {
   const config = window.AWRoadsideConfig || window.awRoadsideConfig || {};
   return {
@@ -1751,7 +2418,9 @@ function readRuntimeConfig() {
     bootstrapFrontendConfigUrl: normalizeUrlValue(config.bootstrapFrontendConfigUrl),
     bootstrapManifestUrl: normalizeUrlValue(config.bootstrapManifestUrl),
     bootstrapAcknowledgeUrl: normalizeUrlValue(config.bootstrapAcknowledgeUrl),
-    frontendConfig: config.frontendConfig && typeof config.frontendConfig === "object" ? config.frontendConfig : null
+    frontendConfig: config.frontendConfig && typeof config.frontendConfig === "object" ? config.frontendConfig : null,
+    publicPricingVisible: parseBooleanFlag(config.publicPricingVisible, false),
+    showInternalPreviewData: parseBooleanFlag(config.showInternalPreviewData, false)
   };
 }
 
@@ -1789,7 +2458,7 @@ function showBox(id, message) {
   if (!element) {
     return;
   }
-  element.textContent = message;
+  element.textContent = formatUserFacingMessage(message);
   element.style.display = "block";
 }
 
@@ -1803,6 +2472,52 @@ function setText(id, value) {
 function setVariantState(mode, detail) {
   setText("variant-mode", String(mode || "unknown").toUpperCase());
   setText("variant-detail", detail || "Variant state unavailable.");
+}
+
+function shouldShowInternalPreviewData() {
+  return parseBooleanFlag(state.frontendConfig?.showInternalPreviewData, runtimeConfig.showInternalPreviewData);
+}
+
+function shouldShowPublicPricing() {
+  return parseBooleanFlag(state.frontendConfig?.publicPricingVisible, runtimeConfig.publicPricingVisible);
+}
+
+function applyPreviewVisibility() {
+  const showInternalPreviewData = shouldShowInternalPreviewData();
+  document.querySelectorAll("[data-internal-preview]").forEach((element) => {
+    element.hidden = !showInternalPreviewData;
+  });
+}
+
+function formatMonthlyUsd(amount) {
+  return `${formatUsd(amount)}/mo`;
+}
+
+function hasDisplayPrice(value) {
+  return Number.isFinite(Number(value));
+}
+
+function renderPublicPricing(config = null) {
+  const source = config || state.paymentConfig || state.frontendConfig || {};
+  if (shouldShowPublicPricing()) {
+    setText(
+      "priority-price",
+      hasDisplayPrice(source.priorityServicePrice) ? formatUsd(source.priorityServicePrice) : "Available after request"
+    );
+    setText(
+      "subscriber-monthly-price",
+      hasDisplayPrice(source.subscriberMonthlyFee) ? formatMonthlyUsd(source.subscriberMonthlyFee) : "pricing available on request"
+    );
+    setText(
+      "provider-monthly-price",
+      hasDisplayPrice(source.providerMonthlyFee) ? formatMonthlyUsd(source.providerMonthlyFee) : "approval-based pricing"
+    );
+    return;
+  }
+
+  setText("priority-price", "Available after request");
+  setText("subscriber-monthly-price", "pricing available on request");
+  setText("provider-monthly-price", "approval-based pricing");
 }
 
 function togglePaypalContainer(show) {
@@ -1825,6 +2540,177 @@ function formatTimestamp(value) {
   }
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString();
+}
+
+function formatRating(value) {
+  if (!value || typeof value !== "object") {
+    return "No ratings yet";
+  }
+  const average = Number(value.averageRating || 0);
+  const count = Number(value.ratingCount || 0);
+  return count > 0 ? `${average.toFixed(2)} / 8 (${count})` : "No ratings yet";
+}
+
+function formatSuspensionSummary(value) {
+  if (!value || !value.active) {
+    return "None active";
+  }
+  if (value.indefinite) {
+    return "Indefinite until admin training action";
+  }
+  return value.endsAt ? `Active until ${formatTimestamp(value.endsAt)}` : "Active";
+}
+
+function renderCustomerRequestState() {
+  const activeRequest = state.pendingRequest || state.requestHistory[0] || null;
+  const summary = activeRequest
+    ? `${labelServiceType(activeRequest.serviceType || "Service")} request ${activeRequest.requestId || "pending"} is ${labelUiStatus("requestStatus", activeRequest.status || "SUBMITTED")}.`
+    : "Submit a request to create a reference and unlock live request updates on this page.";
+  setText("customer-request-summary", summary);
+}
+
+function readProviderDraftNote(requestId) {
+  const entry = state.providerActionQueue.find((item) => String(item.requestId) === String(requestId) && item.action === "note" && typeof item.note === "string" && item.note.trim());
+  return entry?.note || "";
+}
+
+function renderProviderNoteExchange(noteExchange) {
+  const notes = Array.isArray(noteExchange) ? noteExchange.slice(0, 4) : [];
+  if (!notes.length) {
+    return '<div class="muted">No dispatch notes have been recorded on this request yet.</div>';
+  }
+  return `<div class="provider-note-history">${notes.map((entry) => `
+    <div class="muted">${escapeHtml(prettifyToken(entry.actorRole || "user"))}: ${escapeHtml(entry.message || "No note message.")} · ${escapeHtml(formatTimestamp(entry.createdAt))}</div>
+  `).join("")}</div>`;
+}
+
+function readProviderActionPayload(requestId, action) {
+  const payload = {};
+  const noteField = document.getElementById(`provider-note-${requestId}`);
+  const noteValue = normalizeField(noteField?.value);
+  if (action === "note") {
+    payload.note = noteValue || "Frontend provider note";
+  } else if (noteValue) {
+    payload.note = noteValue;
+  } else {
+    payload.note = `frontend provider action: ${action}`;
+  }
+  return payload;
+}
+
+function uiEventMap() {
+  return state.adminDashboard?.policy?.uiEventMap || state.frontendConfig?.uiEventMap || state.paymentConfig?.uiEventMap || {};
+}
+
+function labelUiStatus(group, value) {
+  const normalized = normalizeField(String(value || "")).toUpperCase();
+  const map = uiEventMap()?.[group] || {};
+  return map[normalized] || map[value] || prettifyToken(value || "Unknown");
+}
+
+function labelServiceType(value) {
+  const map = uiEventMap()?.serviceTypes || {};
+  return map[value] || map[normalizeField(String(value || "")).toUpperCase()] || prettifyToken(value || "Service");
+}
+
+function labelProviderAction(action) {
+  const map = uiEventMap()?.providerActions || {};
+  return map[action] || prettifyToken(action || "action");
+}
+
+function labelPaymentEvent(value) {
+  return prettifyToken(String(value || "payment").replace(/^order-/, "payment-"));
+}
+
+function labelProcessingEntry(value) {
+  return value === "backend-route" ? "Service event" : prettifyToken(value || "route");
+}
+
+function labelProcessingStatus(value) {
+  const normalized = normalizeField(String(value || "")).toLowerCase();
+  return {
+    accepted: "Accepted",
+    rejected: "Needs review",
+    "network-error": "Connection issue",
+    blocked: "Blocked",
+    queued: "Queued",
+    "queued-frontend": "Queued",
+    "backend-pending": "Pending",
+    "backend-committed": "Recorded",
+    "backend-error": "Action failed",
+    error: "Action failed",
+  }[normalized] || prettifyToken(value || "pending");
+}
+
+function formatUserFacingMessage(message) {
+  const text = normalizeField(message);
+  if (!text) {
+    return "";
+  }
+
+  const normalized = text.toLowerCase();
+  if (normalized.includes("hard eta")) {
+    return "Service payment will unlock once the provider records a soft ETA.";
+  }
+  if (normalized.includes("payment must be captured before live communication is unlocked")) {
+    return "Direct provider-to-customer communication unlocks only after payment is captured.";
+  }
+  if (normalized.includes("backend service quote")) {
+    return "The current service price is required before continuing.";
+  }
+  if (normalized.includes("backend quote")) {
+    return text.replace(/backend quote/gi, "service price");
+  }
+  if (normalized.includes("protected backend")) {
+    return text.replace(/protected backend/gi, "dispatch service");
+  }
+  if (normalized.includes("backend response")) {
+    return text.replace(/backend response/gi, "service response");
+  }
+  if (normalized.includes("backend admin routes")) {
+    return text.replace(/backend admin routes/gi, "admin service routes");
+  }
+  if (normalized.includes("backend")) {
+    return text.replace(/backend/gi, "service");
+  }
+  if (normalized.includes("terms of agreement are required")) {
+    return "Please accept the account terms before continuing.";
+  }
+  if (normalized.includes("subscriber terms must be accepted")) {
+    return "Please accept the membership terms before continuing.";
+  }
+  if (normalized.includes("dispatch-only liability terms must be accepted")) {
+    return "Please accept the dispatch responsibility notice before continuing.";
+  }
+  if (normalized.includes("no-refund policy must be accepted")) {
+    return "Please accept the payment policy before continuing.";
+  }
+  if (normalized.includes("provider liability acknowledgement is required")) {
+    return "Please accept the provider responsibility notice before continuing.";
+  }
+  if (normalized.includes("provider service area is required")) {
+    return "Enter the area where you are available to take calls.";
+  }
+  if (normalized.includes("provider hours of service are required")) {
+    return "Enter your available hours before submitting your provider profile.";
+  }
+  if (normalized.includes("provider assessment incomplete")) {
+    return "Complete each provider readiness answer before submitting your application.";
+  }
+  if (normalized.includes("provider assessment did not meet safety requirements")) {
+    return "Review the provider readiness answers and resubmit with a safe service decision.";
+  }
+  if (normalized.includes("request failed with 5")) {
+    return "Something went wrong on the service side. Please try again.";
+  }
+  return text;
+}
+
+function prettifyToken(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (match) => match.toUpperCase())
+    .trim() || "Unknown";
 }
 
 function shortHash(value) {

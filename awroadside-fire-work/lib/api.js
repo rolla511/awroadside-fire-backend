@@ -1,5 +1,7 @@
 const DEFAULT_BASE_URL =
-  typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || '' : '';
+  typeof process !== 'undefined'
+    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || ''
+    : '';
 
 export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
@@ -77,6 +79,13 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
         token: tokenOverride,
       });
     },
+    submitRequestFeedback(requestId, payload, tokenOverride = null) {
+      return request(`/api/aw-roadside/requests/${encodeURIComponent(requestId)}/feedback`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        token: tokenOverride,
+      });
+    },
     getServicePaymentQuote(payload, tokenOverride = null) {
       return request('/api/aw-roadside/payments/service-quote', {
         method: 'POST',
@@ -122,8 +131,40 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
         headers: extraHeaders,
       });
     },
+    searchAdminAccounts(query, role = 'ALL', tokenOverride = null, extraHeaders = {}) {
+      const params = new URLSearchParams({
+        q: query,
+        role,
+      });
+      return request(`/api/admin/search?${params.toString()}`, {
+        token: tokenOverride,
+        headers: extraHeaders,
+      });
+    },
+    getAdminUserProfile(userId, tokenOverride = null, extraHeaders = {}) {
+      return request(`/api/admin/users/${encodeURIComponent(userId)}/profile`, {
+        token: tokenOverride,
+        headers: extraHeaders,
+      });
+    },
+    setAdminAccountState(userId, payload, tokenOverride = null, extraHeaders = {}) {
+      return request(`/api/admin/users/${encodeURIComponent(userId)}/account-state`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        token: tokenOverride,
+        headers: extraHeaders,
+      });
+    },
     approveProvider(payload, tokenOverride = null, extraHeaders = {}) {
       return request('/api/admin/provider/approve', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        token: tokenOverride,
+        headers: extraHeaders,
+      });
+    },
+    updateProviderTraining(userId, payload, tokenOverride = null, extraHeaders = {}) {
+      return request(`/api/admin/providers/${encodeURIComponent(userId)}/training`, {
         method: 'POST',
         body: JSON.stringify(payload),
         token: tokenOverride,
@@ -183,7 +224,7 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
     }
 
     if (!response.ok) {
-      const error = new Error(payload.message || payload.error || `Request failed with ${response.status}.`);
+      const error = new Error(normalizeApiErrorMessage(payload, response.status));
       error.status = response.status;
       error.payload = payload;
       throw error;
@@ -204,4 +245,42 @@ function resolveToken(getToken) {
 function normalizeBaseUrl(value) {
   const candidate = typeof value === 'string' ? value.trim() : '';
   return (candidate || DEFAULT_BASE_URL).replace(/\/$/, '');
+}
+
+function normalizeApiErrorMessage(payload, status) {
+  const code = readValue(payload?.code || payload?.error).toLowerCase();
+
+  const mapped =
+    {
+      'hard-eta-required': 'Service payment will unlock once the provider confirms the arrival estimate.',
+      'customer-eta-acceptance-required': 'Please accept the arrival estimate before continuing.',
+      'service-quote-not-accepted': 'Please accept the current service price before continuing.',
+      'service-quote-mismatch': 'Refresh the current service price and try again.',
+      'invalid-admin-credentials': 'Admin sign-in details were not accepted.',
+      'missing-admin-credentials': 'Enter the admin email and password to continue.',
+      'admin-auth-required': 'Admin sign-in is required.',
+      'invalid-admin-session': 'Your admin session expired. Please sign in again.',
+      'admin-2fa-required': 'Enter the verification code to continue.',
+      'no-refund-policy': 'Refunds are not available after payment is submitted.',
+      'request-service-not-configured': 'Dispatch service is not ready yet.',
+      'payment-required-before-contact': 'Direct provider-to-customer communication unlocks only after payment is captured.',
+      'paypal-not-configured': 'Payments are not ready yet.',
+      'paypal-create-failed': 'Unable to start the payment right now.',
+      'paypal-capture-failed': 'Unable to complete the payment right now.',
+      'method-not-allowed': 'That action is not available right now.',
+    }[code];
+
+  if (mapped) {
+    return mapped;
+  }
+
+  if (status >= 500) {
+    return 'Something went wrong on the service side. Please try again.';
+  }
+
+  return readValue(payload?.message) || readValue(payload?.error) || `Request failed with ${status}.`;
+}
+
+function readValue(value) {
+  return typeof value === 'string' ? value.trim() : '';
 }

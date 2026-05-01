@@ -1,22 +1,31 @@
-import { promises as fs } from "node:fs";
-import crypto from "node:crypto";
-import http from "node:http";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { existsSync, promises as fs, readFileSync } from "fs";
+import crypto from "crypto";
+import http from "http";
+import path from "path";
+import { fileURLToPath } from "url";
 import * as paypal from "./paypal-client.mjs";
 import { createAdminController } from "./admin-controller.mjs";
 import { createAwRoadsideSecurityController } from "./aw-roadside-security.mjs";
 import { createCompatibilityGateway } from "./compatibility-gateway.mjs";
+import { createAwRoadsideDbConfig } from "./awroadsidedb-config.mjs";
 import { createLocalWatchdog } from "./local-watchdog.mjs";
+import { createLocationService } from "./location-service.mjs";
+import { createProviderWalletPayload } from "./provider-wallet-controller.mjs";
 import { createRequestServiceController } from "./request-service-controller.mjs";
 import { createRuntimeRepository } from "./runtime-repository.mjs";
+import { createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel } from "./storage/index.mjs";
 import { createSubscriptionController } from "./subscription-controller.mjs";
+import { createSmtpMailer } from "./smtp-mailer.mjs";
 import { createUniversalBridgeController } from "./universal-bridge-controller.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, "..");
-const webRoot = path.join(projectRoot, "web");
+const BLUEPRINT_RELATIVE_PATH = "aw.render.yaml";
+const runtimeFileRoot = path.resolve(__dirname, "..");
+const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
+const blueprintNodeContract = readBlueprintNodeContract(blueprintPath);
+const projectRoot = resolveProjectRoot(runtimeFileRoot, blueprintPath, blueprintNodeContract);
+const webRoot = resolveWebRoot();
 const appRoot = path.join(projectRoot, "app");
 const runtimeRoot = resolveRuntimeRoot();
 const reportsRoot = path.join(runtimeRoot, "reports");
@@ -31,12 +40,37 @@ const webhookLogPath = path.join(paymentsRoot, "paypal-webhooks.jsonl");
 const requestLogPath = path.join(requestsRoot, "service-requests.jsonl");
 const usersPath = path.join(authRoot, "users.json");
 const PROVIDER_DOCUMENT_TYPES = ["license", "registration", "insurance", "helperId"];
+const PROVIDER_RATING_MIN = 1;
+const PROVIDER_RATING_MAX = 8;
+const PROVIDER_LOW_RATING_THRESHOLD = 3;
+const PROVIDER_LOW_RATING_STRIKE_THRESHOLD = 3;
+const PROVIDER_LOW_RATING_WINDOW_MONTHS = 2;
+const PROVIDER_SUSPENSION_DURATIONS_DAYS = [14, 60];
+const PROVIDER_REINSTATEMENT_PROBATION_YEARS = 1;
+const PROVIDER_DISCIPLINE_POLICY_VERSION = "2026-04-27";
 const ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES = new Map([
   ["text/plain", ".txt"],
   ["image/jpeg", ".jpeg"]
 ]);
-const subscriberMonthlyFee = Number.parseFloat(process.env.SUBSCRIBER_MONTHLY_FEE || "5");
-const providerMonthlyFee = Number.parseFloat(process.env.PROVIDER_MONTHLY_FEE || "5.99");
+
+function readBooleanEnv(value, fallback = false) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "0", "no", "off"].includes(normalized)) {
+    return false;
+  }
+  return fallback;
+}
+
+const subscriberMonthlyFee = Number.parseFloat(process.env.SUBSCRIBER_MONTHLY_FEE || "7.99");
+const providerMonthlyFee = Number.parseFloat(process.env.PROVIDER_MONTHLY_FEE || "6");
+const publicPricingVisible = readBooleanEnv(process.env.PUBLIC_PRICING_VISIBLE, false);
+const showInternalPreviewData = readBooleanEnv(process.env.SHOW_INTERNAL_PREVIEW_DATA, false);
 const PROVIDER_ASSESSMENT_QUESTIONS = [
   { id: "jumpstartProcedure", prompt: "How do you safely perform a jumpstart?" },
   { id: "jackPlacement", prompt: "Where do you place a jack on a car?" },
@@ -82,7 +116,18 @@ const AW_ROADSIDE_POLICY = Object.freeze({
     termsVersion: "provider-2026-04-18",
     liabilityStatement:
       "Independent providers are responsible for civil or criminal damages resulting from their services.",
-    assessmentQuestions: PROVIDER_ASSESSMENT_QUESTIONS
+    assessmentQuestions: PROVIDER_ASSESSMENT_QUESTIONS,
+    ratingPolicy: {
+      ratingRange: `${PROVIDER_RATING_MIN} to ${PROVIDER_RATING_MAX}`,
+      lowRatingThreshold: PROVIDER_LOW_RATING_THRESHOLD,
+      lowRatingStrikeThreshold: PROVIDER_LOW_RATING_STRIKE_THRESHOLD,
+      rollingWindowMonths: PROVIDER_LOW_RATING_WINDOW_MONTHS,
+      suspensionDaysByStrike: PROVIDER_SUSPENSION_DURATIONS_DAYS,
+      thirdStrike: "indefinite suspension until admin-managed roadside training enrollment",
+      reinstatementProbationYears: PROVIDER_REINSTATEMENT_PROBATION_YEARS,
+      postTrainingRestriction:
+        "After third-strike training reinstatement, three low ratings inside one calendar year flags and restricts the provider from service."
+    }
   },
   financial: {
     noRefundsAfterPayment: true,
@@ -177,13 +222,144 @@ const host = process.env.HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const startedAt = new Date();
 const publicBaseUrl = resolvePublicBaseUrl();
+
+function resolveWebRoot() {
+  const configuredWebRoot = (process.env.WEB_ROOT || "").trim();
+  const cwd = process.cwd();
+  const parentRoot = path.dirname(projectRoot);
+  const candidateRoots = [
+    configuredWebRoot
+      ? path.isAbsolute(configuredWebRoot)
+        ? configuredWebRoot
+        : path.resolve(projectRoot, configuredWebRoot)
+      : null,
+    path.join(projectRoot, "web"),
+    path.join(cwd, "web"),
+    path.join(projectRoot, "dist", "web"),
+    path.join(cwd, "dist", "web"),
+    path.join(parentRoot, "web"),
+    path.join(parentRoot, "src", "web")
+  ].filter(Boolean);
+
+  for (const candidateRoot of new Set(candidateRoots)) {
+    if (existsSync(path.join(candidateRoot, "index.html"))) {
+      return candidateRoot;
+    }
+  }
+
+  throw new Error(
+    `Unable to resolve web root. Checked: ${candidateRoots.join(", ")}`
+  );
+}
+
+function resolveBlueprintPath(runtimeRootCandidate) {
+  const candidatePaths = [
+    path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH),
+    path.join(process.cwd(), BLUEPRINT_RELATIVE_PATH),
+    path.join(path.dirname(runtimeRootCandidate), BLUEPRINT_RELATIVE_PATH)
+  ];
+
+  for (const candidatePath of candidatePaths) {
+    if (existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH);
+}
+
+function resolveProjectRoot(runtimeRootCandidate, resolvedBlueprintPath, blueprintContract) {
+  const configuredRootDir = normalizeYamlScalar(blueprintContract?.rootDir);
+  if (!configuredRootDir) {
+    return runtimeRootCandidate;
+  }
+
+  return path.resolve(path.dirname(resolvedBlueprintPath), configuredRootDir);
+}
+
+function readBlueprintNodeContract(resolvedBlueprintPath) {
+  if (!existsSync(resolvedBlueprintPath)) {
+    return Object.freeze({
+      blueprintPath: resolvedBlueprintPath,
+      runtime: "",
+      rootDir: "",
+      startCommand: "",
+      healthCheckPath: "",
+      nodeVersion: "",
+      runtimeRoot: ""
+    });
+  }
+
+  const raw = readFileSync(resolvedBlueprintPath, "utf8");
+  return Object.freeze({
+    blueprintPath: resolvedBlueprintPath,
+    runtime: readYamlScalar(raw, "runtime"),
+    rootDir: readYamlScalar(raw, "rootDir"),
+    startCommand: readYamlScalar(raw, "startCommand"),
+    healthCheckPath: readYamlScalar(raw, "healthCheckPath"),
+    nodeVersion: readYamlEnvVarValue(raw, "NODE_VERSION"),
+    runtimeRoot: readYamlEnvVarValue(raw, "RUNTIME_ROOT")
+  });
+}
+
+function readYamlScalar(raw, key) {
+  const match = String(raw || "").match(new RegExp(`^\\s*${escapeRegExp(key)}:\\s*(.+?)\\s*$`, "m"));
+  return match ? normalizeYamlScalar(match[1]) : "";
+}
+
+function readYamlEnvVarValue(raw, envKey) {
+  const lines = String(raw || "").split("\n");
+  let activeKey = "";
+
+  for (const line of lines) {
+    const keyMatch = line.match(/^\s*-\s+key:\s+(.+?)\s*$/);
+    if (keyMatch) {
+      activeKey = normalizeYamlScalar(keyMatch[1]);
+      continue;
+    }
+
+    if (!activeKey) {
+      continue;
+    }
+
+    const valueMatch = line.match(/^\s*value:\s+(.+?)\s*$/);
+    if (valueMatch && activeKey === envKey) {
+      return normalizeYamlScalar(valueMatch[1]);
+    }
+  }
+
+  return "";
+}
+
+function normalizeYamlScalar(value) {
+  return String(value || "").trim().replace(/^['"]|['"]$/g, "");
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
+}
 const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
 const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
 const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
-const defaultPaypalWebhookId = "4RN22635Y61567938";
-const paypalWebhookId = (process.env.PAYPAL_WEBHOOK_ID || defaultPaypalWebhookId).trim();
+const PAYPAL_WEBHOOK_IDS = Object.freeze({
+  live: "27268198X79844346",
+  sandbox: "4RN22635Y61567938"
+});
+const paypalWebhookId =
+  (process.env.PAYPAL_WEBHOOK_ID || "").trim() || PAYPAL_WEBHOOK_IDS[paypalMode] || "";
 const paypalWebhookPath = "/api/paypal/webhook";
+const mapboxAccessToken = (process.env.MAPBOX_ACCESS_TOKEN || "").trim();
+const providerServiceRadiusMiles = Number.parseFloat(process.env.PROVIDER_SERVICE_RADIUS_MILES || "20");
+const requestAcceptanceWindowMinutes = Number.parseFloat(process.env.REQUEST_ACCEPTANCE_WINDOW_MINUTES || "5");
+const mailHost = (process.env.MAIL_HOST || "").trim();
+const mailPort = Number.parseInt(process.env.MAIL_PORT || "587", 10);
+const mailSecure = readBooleanEnv(process.env.MAIL_SECURE, false);
+const mailRequireStartTls = readBooleanEnv(process.env.MAIL_REQUIRE_STARTTLS, true);
+const mailUser = (process.env.MAIL_USER || "").trim();
+const mailPassword = (process.env.MAIL_PASSWORD || "").trim();
+const mailFrom = (process.env.MAIL_FROM || "").trim();
+const mailReplyTo = (process.env.MAIL_REPLY_TO || mailFrom).trim();
 const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
 const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
 const guestServicePrice = Number.parseFloat(process.env.GUEST_SERVICE_PRICE || `${serviceBasePrice}`);
@@ -209,9 +385,37 @@ const localWatchdog = createLocalWatchdog({
   projectRoot,
   runtimeRoot
 });
+const awRoadsideDbConfig = createAwRoadsideDbConfig({
+  env: process.env,
+  localWatchdog,
+  projectId: "awroadside-fire",
+  backendEntry: "backend/server.mjs"
+});
+const smtpMailer = createSmtpMailer({
+  host: mailHost,
+  port: mailPort,
+  secure: mailSecure,
+  requireStartTls: mailRequireStartTls,
+  username: mailUser,
+  password: mailPassword,
+  from: mailFrom,
+  replyTo: mailReplyTo,
+  localWatchdog
+});
+const storageKernel = createAwRoadsideStorageKernel();
+const storageAuthority = createAwRoadsideStorageAuthority({
+  awRoadsideDbConfig,
+  localWatchdog,
+  storageKernel
+});
 const universalBridgeController = createUniversalBridgeController();
 const runtimeRepository = createRuntimeRepository({
   runtimeRoot
+});
+const locationService = createLocationService({
+  accessToken: mapboxAccessToken,
+  defaultRadiusMiles: providerServiceRadiusMiles,
+  defaultAcceptanceWindowMinutes: requestAcceptanceWindowMinutes
 });
 const awRoadsideSecurityController = createAwRoadsideSecurityController({
   requestServiceController,
@@ -220,8 +424,11 @@ const awRoadsideSecurityController = createAwRoadsideSecurityController({
 
 await runtimeRepository.initialize();
 await localWatchdog.initialize();
+await auditBlueprintNodeRuntime();
 await localWatchdog.scanAndRecord();
+await storageAuthority.initialize();
 localWatchdog.startPeriodicScan(watchdogIntervalMs);
+await auditWebEntrypoint();
 await writeRuntimeArtifacts();
 
 const server = http.createServer(async (req, res) => {
@@ -272,12 +479,22 @@ const server = http.createServer(async (req, res) => {
       applyLocalRequestAction,
       getHealthPayload,
       getPaymentConfigPayload,
+      getProviderWalletPayload: (userId) => getProviderWalletPayload(userId),
       getFrontendConfigPayload: (request) => getFrontendConfigPayload(request),
+      getLocationConfigPayload: () => getLocationConfigPayload(),
+      forwardGeocodeLocation: (query, options) => locationService.forwardGeocode(query, options),
+      getLocationIsochrone: (longitude, latitude, options) => locationService.getIsochrone(longitude, latitude, options),
+      resolveProviderLocationMetadata: (payload) => resolveProviderLocationMetadata(payload),
+      filterRequestsForSession: (requests, session) => filterRequestsForSession(requests, session),
       getRoadsidePolicy: () => AW_ROADSIDE_POLICY,
+      presentRequestForSession: (request, session) => presentRequestForSession(request, session),
+      presentRequestsForSession: (requests, session) => presentRequestsForSession(requests, session),
       getWatchdogStatus: () => localWatchdog.getStatus(),
       recordSecurityEvent: (event, details) => localWatchdog.record(event, details),
       saveProviderDocuments: (userId, currentDocuments, documentsPayload) =>
         saveProviderDocuments(userId, currentDocuments, documentsPayload),
+      recordCustomerFeedback: (requestId, payload, session) => recordCustomerFeedback(requestId, payload, session),
+      sendSubscriberConfirmationEmail: (payload) => sendSubscriberConfirmationEmail(payload),
       recordCompatibilityAccess: (capability, descriptor, details) =>
         runtimeRepository.recordCapabilityAccess(capability, descriptor, details),
       getCompatibilityRepository: () => runtimeRepository.getSnapshot(),
@@ -669,14 +886,22 @@ const server = http.createServer(async (req, res) => {
           return;
         }
       } catch {
-        // Fall through to SPA entrypoint below.
+        // Fall through to explicit not-found handling below.
       }
     }
 
-    const indexPath = path.join(webRoot, "index.html");
-    const indexBody = await fs.readFile(indexPath);
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(indexBody);
+    if (pathname.startsWith("/api/")) {
+      await recordBlockedFallback(pathname, "unknown-api-route");
+      sendJson(res, 404, {
+        error: "not-found",
+        message: `No API route matches ${pathname}.`
+      });
+      return;
+    }
+
+    const fallbackType = path.extname(pathname) ? "missing-static-file" : "blocked-shell-fallback";
+    await recordBlockedFallback(pathname, fallbackType);
+    sendNotFound(res, pathname);
   } catch (error) {
     if (res.headersSent) {
       res.end();
@@ -696,6 +921,8 @@ server.listen(port, host, () => {
   console.log(`PayPal webhook: ${publicBaseUrl}${paypalWebhookPath}`);
   console.log(`Serving static files from ${webRoot}`);
   console.log(`Runtime artifacts in ${runtimeRoot}`);
+  console.log(`Blueprint node contract: ${blueprintNodeContract.blueprintPath}`);
+  console.log(`Running Node: ${process.version}`);
 });
 
 async function writeRuntimeArtifacts() {
@@ -712,6 +939,10 @@ async function writeRuntimeArtifacts() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    blueprintPath: blueprintNodeContract.blueprintPath,
+    blueprintRuntime: blueprintNodeContract.runtime || null,
+    blueprintNodeVersion: blueprintNodeContract.nodeVersion || null,
+    runningNodeVersion: process.version,
     uiUrl: `${publicBaseUrl}/`,
     apiUrl: `${publicBaseUrl}/api/aw-roadside/frontend-config`,
     protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`
@@ -727,6 +958,10 @@ async function writeRuntimeArtifacts() {
     [
       "Local Runtime Startup Report",
       `Started: ${startedAt.toLocaleString()}`,
+      `Blueprint: ${blueprintNodeContract.blueprintPath}`,
+      `Blueprint Runtime: ${blueprintNodeContract.runtime || "not set"}`,
+      `Blueprint Node Version: ${blueprintNodeContract.nodeVersion || "not set"}`,
+      `Running Node Version: ${process.version}`,
       `UI: ${publicBaseUrl}/`,
       `API: ${publicBaseUrl}/api/aw-roadside/frontend-config`,
       `Protected API: ${publicBaseUrl}/api/aw-roadside`,
@@ -751,6 +986,16 @@ async function createRuntimeStatus() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    blueprint: {
+      path: blueprintNodeContract.blueprintPath,
+      runtime: blueprintNodeContract.runtime || null,
+      nodeVersion: blueprintNodeContract.nodeVersion || null,
+      rootDir: blueprintNodeContract.rootDir || null,
+      runtimeRoot: blueprintNodeContract.runtimeRoot || null,
+      startCommand: blueprintNodeContract.startCommand || null,
+      healthCheckPath: blueprintNodeContract.healthCheckPath || null
+    },
+    runningNodeVersion: process.version,
     uiUrl: `${publicBaseUrl}/`,
     apiBaseUrl: `${publicBaseUrl}/api`,
     protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`,
@@ -778,7 +1023,8 @@ async function createRuntimeStatus() {
       active: true,
       intervalMs: watchdogIntervalMs,
       latestStatusPath: path.join(runtimeRoot, "security", "latest-status.json")
-    }
+    },
+    storage: typeof storageAuthority.getStatus === "function" ? storageAuthority.getStatus() : null
   };
 }
 
@@ -822,6 +1068,12 @@ function sendMethodNotAllowed(res, allowedMethod) {
     error: "method-not-allowed",
     message: `Use ${allowedMethod} for this endpoint.`
   });
+}
+
+function sendNotFound(res, pathname) {
+  const body = `Not found: ${pathname}\n`;
+  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(body);
 }
 
 async function readJsonBody(req) {
@@ -895,6 +1147,7 @@ function normalizeServiceRequest(payload) {
     phoneNumber,
     serviceType,
     location,
+    locationSummary: summarizeLocationForDispatch(location),
     notes,
     ...(vehicleInfo ? { vehicleInfo } : {}),
     ...(assignedProviderId ? { assignedProviderId } : {}),
@@ -907,6 +1160,25 @@ function normalizeServiceRequest(payload) {
       value: priorityServicePrice.toFixed(2)
     }
   };
+}
+
+function summarizeLocationForDispatch(location) {
+  const normalized = readOptionalString(location);
+  if (!normalized) {
+    return "Approximate service area pending.";
+  }
+
+  const segments = normalized.split(",").map((segment) => segment.trim()).filter(Boolean);
+  if (segments.length >= 2) {
+    return segments.slice(-2).join(", ");
+  }
+
+  const withoutLeadingStreetNumber = normalized.replace(/^\d+\s+/, "").trim();
+  if (withoutLeadingStreetNumber) {
+    return `Area near ${withoutLeadingStreetNumber.slice(0, 32)}`;
+  }
+
+  return "Approximate service area pending.";
 }
 
 function resolveCustomerTier(request) {
@@ -978,8 +1250,76 @@ async function getHealthPayload() {
     status: "ok",
     service: "local-node-runtime",
     timestamp: new Date().toISOString(),
-    policyVersion: AW_ROADSIDE_POLICY.termsVersion
+    policyVersion: AW_ROADSIDE_POLICY.termsVersion,
+    locationServicesConfigured: locationService.isConfigured()
   };
+}
+
+function getLocationConfigPayload() {
+  return {
+    providerServiceRadiusMiles,
+    requestAcceptanceWindowMinutes,
+    mapbox: locationService.getConfig()
+  };
+}
+
+async function resolveProviderLocationMetadata(payload = {}) {
+  const currentLocation = readOptionalString(payload.currentLocation);
+  const serviceArea = readOptionalString(payload.serviceArea);
+  const metadata = {
+    serviceRadiusMiles: providerServiceRadiusMiles
+  };
+
+  if (!locationService.isConfigured()) {
+    return metadata;
+  }
+
+  if (currentLocation) {
+    const currentLocationMatch = await tryForwardGeocode(currentLocation);
+    if (currentLocationMatch) {
+      metadata.currentLocationCoordinates = {
+        longitude: currentLocationMatch.longitude,
+        latitude: currentLocationMatch.latitude
+      };
+      metadata.currentLocationGeocodeSource = "mapbox-forward-geocode";
+      metadata.currentLocationGeocodedAt = new Date().toISOString();
+      metadata.currentLocationMapboxId = currentLocationMatch.mapboxId || null;
+    }
+  }
+
+  if (serviceArea) {
+    const serviceAreaMatch = await tryForwardGeocode(serviceArea);
+    if (serviceAreaMatch) {
+      metadata.serviceAreaCoordinates = {
+        longitude: serviceAreaMatch.longitude,
+        latitude: serviceAreaMatch.latitude
+      };
+      metadata.serviceAreaGeocodeSource = "mapbox-forward-geocode";
+      metadata.serviceAreaGeocodedAt = new Date().toISOString();
+      metadata.serviceAreaMapboxId = serviceAreaMatch.mapboxId || null;
+    }
+  }
+
+  return metadata;
+}
+
+async function tryForwardGeocode(query) {
+  try {
+    const result = await locationService.forwardGeocode(query, { limit: 1, autocomplete: false });
+    const match = Array.isArray(result.features) ? result.features[0] : null;
+    const longitude = Number.isFinite(Number(match?.routableLongitude)) ? Number(match.routableLongitude) : Number(match?.longitude);
+    const latitude = Number.isFinite(Number(match?.routableLatitude)) ? Number(match.routableLatitude) : Number(match?.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return null;
+    }
+    return {
+      longitude,
+      latitude,
+      mapboxId: match?.mapboxId || null
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function getPaymentConfigPayload() {
@@ -1009,6 +1349,25 @@ async function getPaymentConfigPayload() {
   };
 }
 
+async function sendSubscriberConfirmationEmail(payload) {
+  const recipientEmail = readOptionalString(payload?.recipientEmail);
+  const subject = readOptionalString(payload?.subject);
+  const body = readOptionalString(payload?.body);
+  if (!recipientEmail || !subject || !body) {
+    return {
+      deliveryStatus: "failed",
+      deliveredAt: null,
+      transport: "smtp",
+      message: "Confirmation email payload is incomplete."
+    };
+  }
+  return smtpMailer.sendTextEmail({
+    to: recipientEmail,
+    subject,
+    text: body
+  });
+}
+
 async function getUserProfile(userId) {
   const [users, requests] = await Promise.all([readUsers(), readRequestLog()]);
   const user = users.find((entry) => entry.id === Number(userId));
@@ -1018,7 +1377,7 @@ async function getUserProfile(userId) {
 
   const providerRating = calculateProviderRatingSummary(user);
   const providerSelection = calculateProviderSelectionSummary(user);
-  const subscriberRequestHistory = buildSubscriberRequestHistory(user, requests);
+  const subscriberRequestHistory = buildSubscriberRequestHistory(user, requests, users);
 
   return {
     userId: user.id,
@@ -1029,11 +1388,12 @@ async function getUserProfile(userId) {
     roles: Array.isArray(user.roles) ? user.roles : [],
     providerStatus: user.providerStatus || null,
     providerProfile: user.providerProfile || null,
-    providerMonthly: user.providerMonthly || 5.99,
+    providerMonthly: user.providerMonthly || providerMonthlyFee,
     services: Array.isArray(user.services) ? user.services : [],
     available: Boolean(user.available),
     activeShiftId: user.activeShiftId || null,
     providerRating,
+    providerDiscipline: createProviderDisciplineSnapshot(user),
     providerSelection,
     subscriberActive: Boolean(user.subscriberActive),
     subscriberProfile: user.subscriberProfile || null,
@@ -1053,7 +1413,18 @@ async function getUserProfile(userId) {
   };
 }
 
-function buildSubscriberRequestHistory(user, requests) {
+async function getProviderWalletPayload(userId) {
+  const [users, requests] = await Promise.all([readUsers(), readRequestLog()]);
+  const provider = users.find((entry) => Number(entry.id) === Number(userId));
+  return createProviderWalletPayload({
+    provider,
+    requests,
+    walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
+    normalizeProviderPaypalProfile
+  });
+}
+
+function buildSubscriberRequestHistory(user, requests, users = []) {
   if (!Array.isArray(user?.roles) || !user.roles.includes("SUBSCRIBER")) {
     return [];
   }
@@ -1079,24 +1450,252 @@ function buildSubscriberRequestHistory(user, requests) {
       providerPayoutStatus: request.providerPayoutStatus || null,
       fullName: request.fullName || "",
       phoneNumber: request.phoneNumber || "",
-      location: request.location || "",
+      location: canCustomerSeeExactLocation(request, user.id) ? request.location || "" : request.locationSummary || "",
+      exactLocation: canCustomerSeeExactLocation(request, user.id) ? request.location || "" : null,
       vehicleInfo: request.vehicleInfo || "",
       serviceType: request.serviceType || "",
       notes: request.notes || "",
-      etaMinutes: Number.isFinite(Number(request.etaMinutes)) ? Number(request.etaMinutes) : null,
+      etaMinutes: readNumericValue(request.etaMinutes),
+      softEtaMinutes: readNumericValue(request.softEtaMinutes),
+      hardEtaMinutes: readNumericValue(request.hardEtaMinutes),
+      etaStage: request.etaStage || null,
       assignedProviderId: request.assignedProviderId || null,
+      directCommunicationEnabled: isDirectCommunicationUnlocked(request),
+      customerCallbackNumber: request.phoneNumber || "",
+      providerCallbackNumber: resolveAssignedProviderPhoneNumber(request, users, { actorRole: "SUBSCRIBER", userId: user.id }),
+      locationDisclosureLevel: resolveLocationDisclosureLevel(request, { actorRole: "SUBSCRIBER", userId: user.id }),
+      contactDisclosureLevel: resolveContactDisclosureLevel(request, { actorRole: "SUBSCRIBER", userId: user.id }),
       customerEtaAcceptedAt: request.customerEtaAcceptedAt || null,
       arrivalConfirmedAt: request.arrivalConfirmedAt || null,
       completionConfirmedAt: request.completionConfirmedAt || null,
       paymentPromptedAt: request.paymentPromptedAt || null,
       amountCharged: Number(request.amountCharged || 0),
-      amountCollected: Number(request.amountCollected || 0)
+      amountCollected: Number(request.amountCollected || 0),
+      customerFeedback: normalizeRequestCustomerFeedback(request.customerFeedback)
     }))
     .sort((left, right) => {
       const leftTime = new Date(left.updatedAt || left.requestDate || 0).getTime();
       const rightTime = new Date(right.updatedAt || right.requestDate || 0).getTime();
       return rightTime - leftTime;
     });
+}
+
+function isPaymentCaptured(request) {
+  return readOptionalString(request?.paymentStatus).toUpperCase() === "CAPTURED";
+}
+
+function isProviderActivated(request) {
+  return Boolean(request?.providerActivatedAt || request?.hardContactedAt);
+}
+
+function isDirectCommunicationUnlocked(request) {
+  return isPaymentCaptured(request) && isProviderActivated(request);
+}
+
+function canCustomerSeeExactLocation(request, userId) {
+  return Number(request?.userId) === Number(userId);
+}
+
+function isGuestOwnerSession(request, session = {}) {
+  return session?.ownsRequest === true && readOptionalString(session.actorRole).toUpperCase() === "GUEST";
+}
+
+function canProviderSeeExactLocation(request, userId) {
+  return Number(request?.assignedProviderId) === Number(userId) && isDirectCommunicationUnlocked(request);
+}
+
+function resolveLocationDisclosureLevel(request, session = {}) {
+  const actorRole = readOptionalString(session.actorRole).toUpperCase();
+  if (actorRole === "ADMIN") {
+    return "EXACT";
+  }
+  if (actorRole === "SUBSCRIBER" && canCustomerSeeExactLocation(request, session.userId)) {
+    return "EXACT";
+  }
+  if (isGuestOwnerSession(request, session)) {
+    return "EXACT";
+  }
+  if (actorRole === "PROVIDER" && canProviderSeeExactLocation(request, session.userId)) {
+    return "EXACT";
+  }
+  return "MASKED";
+}
+
+function resolveContactDisclosureLevel(request, session = {}) {
+  const actorRole = readOptionalString(session.actorRole).toUpperCase();
+  if (actorRole === "ADMIN") {
+    return "UNLOCKED";
+  }
+  if (actorRole === "SUBSCRIBER" && canCustomerSeeExactLocation(request, session.userId)) {
+    return isDirectCommunicationUnlocked(request) ? "UNLOCKED" : "LOCKED";
+  }
+  if (isGuestOwnerSession(request, session)) {
+    return isDirectCommunicationUnlocked(request) ? "UNLOCKED" : "LOCKED";
+  }
+  if (actorRole === "PROVIDER" && Number(request?.assignedProviderId) === Number(session.userId)) {
+    return isDirectCommunicationUnlocked(request) ? "UNLOCKED" : "LOCKED";
+  }
+  return "LOCKED";
+}
+
+function resolveAssignedProviderPhoneNumber(request, users = [], session = {}) {
+  if (!isDirectCommunicationUnlocked(request)) {
+    return "";
+  }
+  if (readOptionalString(session.actorRole).toUpperCase() !== "SUBSCRIBER") {
+    return "";
+  }
+  const provider = users.find((entry) => Number(entry.id) === Number(request?.assignedProviderId));
+  return readOptionalString(provider?.phoneNumber);
+}
+
+async function presentRequestForSession(request, session = null) {
+  const declaredActorRole = readOptionalString(session?.actorRole).toUpperCase();
+  const actorRole = declaredActorRole || (session?.roles?.includes("ADMIN")
+    ? "ADMIN"
+    : session?.roles?.includes("PROVIDER")
+      ? "PROVIDER"
+      : session?.roles?.includes("SUBSCRIBER")
+        ? "SUBSCRIBER"
+        : "GUEST");
+  const visibleLocationLevel = resolveLocationDisclosureLevel(request, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
+  const visibleContactLevel = resolveContactDisclosureLevel(request, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
+  const users = actorRole === "SUBSCRIBER" && isDirectCommunicationUnlocked(request)
+    ? await readUsers()
+    : [];
+  const providerCallbackNumber = resolveAssignedProviderPhoneNumber(request, users, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
+
+  return {
+    ...request,
+    location: visibleLocationLevel === "EXACT" ? request.location || "" : request.locationSummary || "Exact location unlocks after payment.",
+    exactLocation: visibleLocationLevel === "EXACT" ? request.location || "" : null,
+    notes:
+      visibleLocationLevel === "EXACT"
+        ? request.notes || ""
+        : request.maskedNotes || "Detailed customer notes unlock after payment and provider activation.",
+    phoneNumber:
+      visibleContactLevel === "UNLOCKED" || actorRole === "SUBSCRIBER" || isGuestOwnerSession(request, session || {})
+        ? request.phoneNumber || ""
+        : "Locked until payment and provider activation",
+    customerCallbackNumber:
+      visibleContactLevel === "UNLOCKED" || actorRole === "SUBSCRIBER" || isGuestOwnerSession(request, session || {})
+        ? request.phoneNumber || ""
+        : "",
+    providerCallbackNumber,
+    directCommunicationEnabled: isDirectCommunicationUnlocked(request),
+    locationDisclosureLevel: visibleLocationLevel,
+    contactDisclosureLevel: visibleContactLevel,
+    softEtaMinutes: readNumericValue(request.softEtaMinutes),
+    hardEtaMinutes: readNumericValue(request.hardEtaMinutes),
+    etaStage: request.etaStage || null,
+    customerFeedback: normalizeRequestCustomerFeedback(request.customerFeedback)
+  };
+}
+
+async function presentRequestsForSession(requests, session = null) {
+  return Promise.all((Array.isArray(requests) ? requests : []).map((request) => presentRequestForSession(request, session)));
+}
+
+async function filterRequestsForSession(requests, session = null) {
+  const list = Array.isArray(requests) ? requests : [];
+  if (!session?.roles?.includes("PROVIDER") || !session?.userId) {
+    return list;
+  }
+
+  const users = await readUsers();
+  const provider = users.find((entry) => Number(entry.id) === Number(session.userId));
+  if (!provider) {
+    return [];
+  }
+
+  return list.filter((request) => isRequestEligibleForProvider(request, provider));
+}
+
+function isRequestEligibleForProvider(request, provider) {
+  const assignedProviderId = Number(request?.assignedProviderId);
+  if (Number.isInteger(assignedProviderId) && assignedProviderId === Number(provider?.id)) {
+    return true;
+  }
+
+  const status = readOptionalString(request?.status).toUpperCase();
+  if (!["SUBMITTED", "ASSIGNED", "EN_ROUTE", "ARRIVED"].includes(status)) {
+    return false;
+  }
+
+  if (status === "ASSIGNED" && request?.assignedProviderId) {
+    return false;
+  }
+
+  const requestServiceType = readOptionalString(request?.serviceType).toUpperCase();
+  const providerServices = Array.isArray(provider?.services)
+    ? provider.services.map((value) => readOptionalString(value).toUpperCase()).filter(Boolean)
+    : [];
+  if (requestServiceType && providerServices.length && !providerServices.includes(requestServiceType)) {
+    return false;
+  }
+
+  if (provider?.available !== true) {
+    return false;
+  }
+
+  if (provider?.providerStatus !== "APPROVED" && provider?.providerStatus !== "ACTIVE") {
+    return false;
+  }
+
+  if (isRequestAcceptanceExpired(request)) {
+    return false;
+  }
+
+  return isProviderWithinCoverage(request, provider);
+}
+
+function isRequestAcceptanceExpired(request) {
+  const expiry = readOptionalString(request?.requestAcceptanceExpiresAt);
+  if (!expiry) {
+    return false;
+  }
+  const time = new Date(expiry).getTime();
+  return Number.isFinite(time) ? time < Date.now() : false;
+}
+
+function isProviderWithinCoverage(request, provider) {
+  const requestCoordinates = normalizeCoordinateRecord(request?.locationCoordinates);
+  const providerCoordinates =
+    normalizeCoordinateRecord(provider?.providerProfile?.currentLocationCoordinates) ||
+    normalizeCoordinateRecord(provider?.providerProfile?.serviceAreaCoordinates);
+
+  if (requestCoordinates && providerCoordinates) {
+    return locationService.isWithinRadius(providerCoordinates, requestCoordinates, providerServiceRadiusMiles);
+  }
+
+  const requestLocation = readOptionalString(request?.locationFullAddress || request?.location || request?.locationSummary).toLowerCase();
+  const serviceArea = readOptionalString(provider?.providerProfile?.serviceArea).toLowerCase();
+  const currentLocation = readOptionalString(provider?.providerProfile?.currentLocation).toLowerCase();
+
+  if (!requestLocation) {
+    return false;
+  }
+
+  if (serviceArea && requestLocation.includes(serviceArea)) {
+    return true;
+  }
+  if (currentLocation && requestLocation.includes(currentLocation)) {
+    return true;
+  }
+
+  return false;
 }
 
 async function getFrontendConfigPayload(req = null) {
@@ -1115,6 +1714,8 @@ async function getFrontendConfigPayload(req = null) {
     subscriberServicePrice,
     subscriberMonthlyFee,
     providerMonthlyFee,
+    publicPricingVisible,
+    showInternalPreviewData,
     assignmentFee,
     guestDispatchFee,
     subscriberDispatchFee,
@@ -1135,16 +1736,16 @@ function createServicePaymentQuote(request) {
     throw new Error("A backend requestId is required before service payment.");
   }
 
-  const etaMinutes = readNumericValue(request?.etaMinutes);
+  const etaMinutes = readNumericValue(request?.softEtaMinutes ?? request?.etaMinutes);
   const status = readOptionalString(request?.status).toUpperCase();
   if (etaMinutes === null) {
-    const error = new Error("Service payment is locked until a provider hard ETA is recorded.");
+    const error = new Error("Service payment is locked until a provider soft ETA is recorded.");
     error.statusCode = 409;
     error.code = "hard-eta-required";
     throw error;
   }
   if (!request?.customerEtaAcceptedAt) {
-    const error = new Error("Service payment is locked until the customer accepts the hard ETA.");
+    const error = new Error("Service payment is locked until the customer accepts the soft ETA.");
     error.statusCode = 409;
     error.code = "customer-eta-acceptance-required";
     throw error;
@@ -1171,7 +1772,7 @@ function createServicePaymentQuote(request) {
     platformLiability: AW_ROADSIDE_POLICY.platform.liability,
     providerLiability: AW_ROADSIDE_POLICY.provider.liabilityStatement,
     terms:
-      "Service payment can be created only after the backend records a provider hard ETA and the customer accepts this backend quote."
+      "Service payment can be created only after the backend records a provider soft ETA and the customer accepts this backend quote."
   };
 }
 
@@ -1258,13 +1859,77 @@ function resolvePublicBaseUrl() {
 
 function resolveRuntimeRoot() {
   const configuredRuntimeRoot = (process.env.RUNTIME_ROOT || "").trim();
-  if (!configuredRuntimeRoot) {
+  const blueprintRuntimeRoot = normalizeYamlScalar(blueprintNodeContract.runtimeRoot);
+  const selectedRuntimeRoot = configuredRuntimeRoot || blueprintRuntimeRoot;
+  if (!selectedRuntimeRoot) {
     return path.join(appRoot, "runtime");
   }
 
-  return path.isAbsolute(configuredRuntimeRoot)
-    ? configuredRuntimeRoot
-    : path.resolve(projectRoot, configuredRuntimeRoot);
+  return path.isAbsolute(selectedRuntimeRoot)
+    ? selectedRuntimeRoot
+    : path.resolve(projectRoot, selectedRuntimeRoot);
+}
+
+async function auditBlueprintNodeRuntime() {
+  const issues = [];
+  const expectedRuntime = normalizeYamlScalar(blueprintNodeContract.runtime).toLowerCase();
+  const expectedNodeVersion = normalizeYamlScalar(blueprintNodeContract.nodeVersion);
+
+  if (expectedRuntime && expectedRuntime !== "node") {
+    issues.push(`Blueprint runtime is ${expectedRuntime}, expected node.`);
+  }
+
+  if (expectedNodeVersion && !matchesNodeVersionSpec(process.version, expectedNodeVersion)) {
+    issues.push(`Running Node ${process.version} does not match Blueprint NODE_VERSION ${expectedNodeVersion}.`);
+  }
+
+  if (issues.length === 0) {
+    return;
+  }
+
+  for (const issue of issues) {
+    console.error("[WARN]", issue);
+  }
+
+  try {
+    await localWatchdog.record("blueprint-node-mismatch", {
+      runtime: process.release?.name || "node",
+      runningNodeVersion: process.version,
+      expectedRuntime: expectedRuntime || null,
+      expectedNodeVersion: expectedNodeVersion || null,
+      issues
+    });
+  } catch (error) {
+    console.error("[WARN] Failed to record Blueprint node mismatch:", error);
+  }
+}
+
+function matchesNodeVersionSpec(version, spec) {
+  const currentMajor = extractMajorVersion(version);
+  const normalizedSpec = String(spec || "").trim();
+  if (!Number.isInteger(currentMajor) || !normalizedSpec) {
+    return true;
+  }
+
+  const exactMajorMatch = normalizedSpec.match(/^v?(\d+)(?:\.x)?$/i);
+  if (exactMajorMatch) {
+    return currentMajor === Number.parseInt(exactMajorMatch[1], 10);
+  }
+
+  const lowerBoundMatch = normalizedSpec.match(/>=\s*(\d+)/);
+  const upperBoundMatch = normalizedSpec.match(/<\s*(\d+)/);
+  if (lowerBoundMatch || upperBoundMatch) {
+    const lowerBound = lowerBoundMatch ? Number.parseInt(lowerBoundMatch[1], 10) : Number.NEGATIVE_INFINITY;
+    const upperBound = upperBoundMatch ? Number.parseInt(upperBoundMatch[1], 10) : Number.POSITIVE_INFINITY;
+    return currentMajor >= lowerBound && currentMajor < upperBound;
+  }
+
+  return true;
+}
+
+function extractMajorVersion(version) {
+  const match = String(version || "").match(/v?(\d+)/i);
+  return match ? Number.parseInt(match[1], 10) : Number.NaN;
 }
 
 async function saveProviderDocuments(userId, currentDocuments = {}, documentsPayload = {}) {
@@ -1526,7 +2191,6 @@ async function applyPaypalWebhookEvent(webhookEvent) {
 
 function isPaypalProviderWebhookEvent(eventType) {
   return (
-    eventType.startsWith("MERCHANT.") ||
     eventType.startsWith("CUSTOMER.ACCOUNT-ENTITIES.") ||
     eventType.startsWith("CUSTOMER.PARTNER-") ||
     eventType.startsWith("PAYMENT.PAYOUTSBATCH.") ||
@@ -1641,7 +2305,7 @@ async function applyPaypalProviderAccountWebhook(webhookEvent, eventType) {
 
     const nextPaypal = {
       ...paypalState,
-      merchantId: identifiers.merchantId || paypalState.merchantId || null,
+      providerAccountId: identifiers.providerAccountId || paypalState.providerAccountId || null,
       accountId: identifiers.accountId || paypalState.accountId || null,
       trackingId: identifiers.trackingId || paypalState.trackingId || null,
       payerId: identifiers.payerId || paypalState.payerId || null,
@@ -1798,7 +2462,7 @@ async function applyPaypalProviderPayoutWebhook(webhookEvent, eventType) {
 
       const nextPaypal = {
         ...paypalState,
-        merchantId: payoutIdentifiers.merchantId || paypalState.merchantId || null,
+        providerAccountId: payoutIdentifiers.providerAccountId || paypalState.providerAccountId || null,
         accountId: payoutIdentifiers.accountId || paypalState.accountId || null,
         email: payoutIdentifiers.email || paypalState.email || readOptionalString(provider.email) || null,
         lastWebhookEventId: readOptionalString(webhookEvent.id) || paypalState.lastWebhookEventId || null,
@@ -1911,8 +2575,9 @@ function isPaypalProviderMatch(user, identifiers) {
     return true;
   }
 
-  const candidateMerchantIds = new Set(
+  const candidateProviderAccountIds = new Set(
     [
+      readOptionalString(providerPaypal.providerAccountId),
       readOptionalString(providerPaypal.merchantId),
       readOptionalString(providerPaypal.accountId),
       readOptionalString(providerPaypal.trackingId),
@@ -1920,10 +2585,10 @@ function isPaypalProviderMatch(user, identifiers) {
     ].filter(Boolean)
   );
   if (
-    (identifiers.merchantId && candidateMerchantIds.has(identifiers.merchantId)) ||
-    (identifiers.accountId && candidateMerchantIds.has(identifiers.accountId)) ||
-    (identifiers.trackingId && candidateMerchantIds.has(identifiers.trackingId)) ||
-    (identifiers.payerId && candidateMerchantIds.has(identifiers.payerId))
+    (identifiers.providerAccountId && candidateProviderAccountIds.has(identifiers.providerAccountId)) ||
+    (identifiers.accountId && candidateProviderAccountIds.has(identifiers.accountId)) ||
+    (identifiers.trackingId && candidateProviderAccountIds.has(identifiers.trackingId)) ||
+    (identifiers.payerId && candidateProviderAccountIds.has(identifiers.payerId))
   ) {
     return true;
   }
@@ -1956,8 +2621,8 @@ function extractProviderPaypalIdentifiers(resource) {
 
   return {
     ...payoutIdentifiers,
-    merchantId: firstNonEmptyString([
-      payoutIdentifiers.merchantId,
+    providerAccountId: firstNonEmptyString([
+      payoutIdentifiers.providerAccountId,
       resource.merchant_id,
       resource.merchantId,
       resource.merchant_id_in_paypal,
@@ -2031,7 +2696,7 @@ function extractPaypalPayoutIdentifiers(resource) {
       resource.payoutId,
       resource.id
     ]),
-    merchantId: firstNonEmptyString([resource.merchant_id, resource.merchantId, resource?.payee?.merchant_id, resource?.payee?.merchantId]),
+    providerAccountId: firstNonEmptyString([resource.merchant_id, resource.merchantId, resource?.payee?.merchant_id, resource?.payee?.merchantId]),
     accountId: firstNonEmptyString([resource.account_id, resource.accountId]),
     email: firstNonEmptyString([resource.receiver_email, resource.receiver, resource.email, resource.email_address])
   };
@@ -2040,7 +2705,7 @@ function extractPaypalPayoutIdentifiers(resource) {
 function normalizeProviderPaypalProfile(value) {
   const paypal = value && typeof value === "object" ? value : {};
   return {
-    merchantId: readOptionalString(paypal.merchantId) || null,
+    providerAccountId: readOptionalString(paypal.providerAccountId) || readOptionalString(paypal.merchantId) || null,
     accountId: readOptionalString(paypal.accountId) || null,
     trackingId: readOptionalString(paypal.trackingId) || null,
     payerId: readOptionalString(paypal.payerId) || null,
@@ -2484,6 +3149,7 @@ async function safeJson(response) {
 async function appendPaymentLog(entry) {
   await fs.mkdir(paymentsRoot, { recursive: true });
   await fs.appendFile(paymentLogPath, `${JSON.stringify(entry)}\n`);
+  await storageAuthority.appendPaymentEvent(entry);
 }
 
 async function appendPaypalWebhookLog(entry) {
@@ -2594,10 +3260,530 @@ function signSessionBody(body) {
   return crypto.createHmac("sha256", sessionSecret).update(body).digest("base64url");
 }
 
+function normalizeRequestCustomerFeedback(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const rating = Number.parseInt(value.rating, 10);
+  if (!Number.isInteger(rating)) {
+    return null;
+  }
+
+  return {
+    rating: Math.max(PROVIDER_RATING_MIN, Math.min(PROVIDER_RATING_MAX, rating)),
+    notes: optionalString(value.notes) || "",
+    submittedAt: optionalIsoString(value.submittedAt) || null,
+    submittedByUserId: Number.isInteger(Number(value.submittedByUserId)) ? Number(value.submittedByUserId) : null,
+    customerName: optionalString(value.customerName) || "",
+    source: optionalString(value.source) || "customer"
+  };
+}
+
+function normalizeProviderTrainingRecord(value, required = false) {
+  const training = value && typeof value === "object" ? value : {};
+  const rawStatus = optionalString(training.status).toUpperCase();
+  const status = rawStatus || (required ? "REQUIRED" : "NOT_REQUIRED");
+  return {
+    status,
+    required: Boolean(required || status !== "NOT_REQUIRED"),
+    scheduledFor: optionalIsoString(training.scheduledFor),
+    enrolledAt: optionalIsoString(training.enrolledAt),
+    completedAt: optionalIsoString(training.completedAt),
+    note: optionalString(training.note) || null,
+    updatedAt: optionalIsoString(training.updatedAt),
+    updatedBy: optionalString(training.updatedBy) || null
+  };
+}
+
+function normalizeProviderDisciplineState(value) {
+  const discipline = value && typeof value === "object" ? value : {};
+  const lowRatingEvents = Array.isArray(discipline.lowRatingEvents)
+    ? discipline.lowRatingEvents
+      .map((entry, index) => normalizeProviderLowRatingEvent(entry, index))
+      .filter(Boolean)
+    : [];
+  const suspensionHistory = Array.isArray(discipline.suspensionHistory)
+    ? discipline.suspensionHistory
+      .map((entry, index) => normalizeProviderSuspensionRecord(entry, index))
+      .filter(Boolean)
+    : [];
+  const strikeCount = Number.isFinite(Number(discipline.strikeCount))
+    ? Number(discipline.strikeCount)
+    : suspensionHistory.length;
+  const currentSuspension = normalizeCurrentProviderSuspension(discipline.currentSuspension, suspensionHistory, strikeCount);
+  const training = normalizeProviderTrainingRecord(discipline.training, currentSuspension.indefinite);
+  const probation = normalizeProviderProbationRecord(discipline.probation);
+  const restriction = normalizeProviderRestrictionRecord(discipline.restriction);
+
+  return {
+    policyVersion: optionalString(discipline.policyVersion) || PROVIDER_DISCIPLINE_POLICY_VERSION,
+    strikeCount,
+    lowRatingEvents,
+    suspensionHistory,
+    currentSuspension,
+    training,
+    probation,
+    restriction,
+    clearedAt: optionalIsoString(discipline.clearedAt)
+  };
+}
+
+function normalizeProviderLowRatingEvent(value, index = 0) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const rating = Number.parseInt(value.rating, 10);
+  if (!Number.isInteger(rating)) {
+    return null;
+  }
+  const createdAt = optionalIsoString(value.submittedAt || value.createdAt);
+  return {
+    eventId: optionalString(value.eventId) || `low-rating-${index + 1}`,
+    requestId: optionalString(value.requestId) || null,
+    rating: Math.max(PROVIDER_RATING_MIN, Math.min(PROVIDER_RATING_MAX, rating)),
+    notes: optionalString(value.notes) || "",
+    submittedAt: createdAt,
+    submittedByUserId: Number.isInteger(Number(value.submittedByUserId)) ? Number(value.submittedByUserId) : null,
+    consumedBySuspensionId: optionalString(value.consumedBySuspensionId) || null,
+    consumedByRestrictionId: optionalString(value.consumedByRestrictionId) || null
+  };
+}
+
+function normalizeProviderProbationRecord(value) {
+  const probation = value && typeof value === "object" ? value : {};
+  return {
+    active: Boolean(probation.active),
+    reinstatedAt: optionalIsoString(probation.reinstatedAt),
+    endsAt: optionalIsoString(probation.endsAt),
+    clearedAt: optionalIsoString(probation.clearedAt),
+    sourceSuspensionId: optionalString(probation.sourceSuspensionId) || null
+  };
+}
+
+function normalizeProviderRestrictionRecord(value) {
+  const restriction = value && typeof value === "object" ? value : {};
+  return {
+    active: Boolean(restriction.active),
+    flaggedAt: optionalIsoString(restriction.flaggedAt),
+    reason: optionalString(restriction.reason) || null,
+    sourceProbationId: optionalString(restriction.sourceProbationId) || null,
+    note: optionalString(restriction.note) || null
+  };
+}
+
+function normalizeProviderSuspensionRecord(value, index = 0) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const level = Number.isFinite(Number(value.level)) ? Number(value.level) : index + 1;
+  const triggerRequestIds = Array.isArray(value.triggerRequestIds)
+    ? value.triggerRequestIds.map((entry) => optionalString(entry)).filter(Boolean)
+    : [];
+  return {
+    suspensionId: optionalString(value.suspensionId) || `provider-suspension-${index + 1}`,
+    level,
+    startedAt: optionalIsoString(value.startedAt),
+    endsAt: optionalIsoString(value.endsAt),
+    indefinite: Boolean(value.indefinite || level >= 3),
+    durationDays: Number.isFinite(Number(value.durationDays)) ? Number(value.durationDays) : null,
+    lowRatingWindowStart: optionalIsoString(value.lowRatingWindowStart),
+    lowRatingWindowEnd: optionalIsoString(value.lowRatingWindowEnd),
+    triggerRequestIds,
+    resolvedAt: optionalIsoString(value.resolvedAt),
+    previousProviderStatus: optionalString(value.previousProviderStatus) || "APPROVED"
+  };
+}
+
+function normalizeCurrentProviderSuspension(value, suspensionHistory = [], strikeCount = 0) {
+  if (value && typeof value === "object") {
+    return {
+      suspensionId: optionalString(value.suspensionId) || null,
+      active: Boolean(value.active),
+      level: Number.isFinite(Number(value.level)) ? Number(value.level) : strikeCount,
+      startedAt: optionalIsoString(value.startedAt),
+      endsAt: optionalIsoString(value.endsAt),
+      indefinite: Boolean(value.indefinite),
+      previousProviderStatus: optionalString(value.previousProviderStatus) || "APPROVED"
+    };
+  }
+
+  const latest = suspensionHistory[0] || null;
+  return {
+    suspensionId: latest?.suspensionId || null,
+    active: false,
+    level: latest?.level || strikeCount,
+    startedAt: latest?.startedAt || null,
+    endsAt: latest?.endsAt || null,
+    indefinite: Boolean(latest?.indefinite),
+    previousProviderStatus: latest?.previousProviderStatus || "APPROVED"
+  };
+}
+
+function createProviderDisciplineSnapshot(user) {
+  return normalizeProviderDisciplineState(user?.providerProfile?.discipline);
+}
+
+function reconcileProviderDiscipline(user) {
+  if (!user || typeof user !== "object") {
+    return user;
+  }
+  if (!Array.isArray(user.roles) || !user.roles.includes("PROVIDER")) {
+    return user;
+  }
+
+  const providerProfile = user.providerProfile && typeof user.providerProfile === "object" ? user.providerProfile : {};
+  const discipline = normalizeProviderDisciplineState(providerProfile.discipline);
+  const current = discipline.currentSuspension;
+  const now = Date.now();
+
+  if (current.active && !current.indefinite && current.endsAt) {
+    const endsAt = new Date(current.endsAt).getTime();
+    if (Number.isFinite(endsAt) && endsAt <= now) {
+      discipline.currentSuspension = {
+        ...current,
+        active: false
+      };
+      discipline.suspensionHistory = discipline.suspensionHistory.map((entry) =>
+        entry.suspensionId === current.suspensionId && !entry.resolvedAt
+          ? {
+              ...entry,
+              resolvedAt: new Date(now).toISOString()
+            }
+          : entry
+      );
+      if ((user.accountState || "ACTIVE") === "SUSPENDED") {
+        user.accountState = "ACTIVE";
+      }
+      if (optionalString(user.providerStatus).toUpperCase() === "SUSPENDED") {
+        user.providerStatus = current.previousProviderStatus || "APPROVED";
+      }
+    }
+  }
+
+  if (discipline.probation.active && discipline.probation.endsAt) {
+    const probationEndsAt = new Date(discipline.probation.endsAt).getTime();
+    if (Number.isFinite(probationEndsAt) && probationEndsAt <= now && !discipline.restriction.active) {
+      clearProviderDisciplineAfterSuccessfulProbation(discipline, new Date(now).toISOString());
+      user.accountState = "ACTIVE";
+      if (optionalString(user.providerStatus).toUpperCase() === "SUSPENDED") {
+        user.providerStatus = current.previousProviderStatus || "APPROVED";
+      }
+    }
+  }
+
+  if (discipline.restriction.active || discipline.currentSuspension.active) {
+    user.accountState = "SUSPENDED";
+    user.providerStatus = "SUSPENDED";
+    user.available = false;
+  }
+
+  user.providerProfile = {
+    ...providerProfile,
+    discipline
+  };
+  return user;
+}
+
+function isEligibleGuestFeedbackForRequest(request, payload) {
+  const requestPhone = normalizePhoneNumber(request?.phoneNumber);
+  const payloadPhone = normalizePhoneNumber(payload?.phoneNumber);
+  if (!requestPhone || !payloadPhone || requestPhone !== payloadPhone) {
+    return false;
+  }
+  const requestName = optionalString(request?.fullName).toLowerCase();
+  const payloadName = optionalString(payload?.fullName).toLowerCase();
+  return !payloadName || !requestName || requestName === payloadName;
+}
+
+function normalizePhoneNumber(value) {
+  return optionalString(value).replace(/\D/g, "");
+}
+
+function startOfRollingCalendarWindow(value, months = 0, years = 0) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  if (years) {
+    date.setFullYear(date.getFullYear() - years);
+  }
+  if (months) {
+    date.setMonth(date.getMonth() - months);
+  }
+  return date.getTime();
+}
+
+function addCalendarYears(value, years) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
+}
+
+function activateProviderProbation(discipline, reinstatedAt, suspensionId = null) {
+  discipline.probation = {
+    active: true,
+    reinstatedAt,
+    endsAt: addCalendarYears(reinstatedAt, PROVIDER_REINSTATEMENT_PROBATION_YEARS),
+    clearedAt: null,
+    sourceSuspensionId: suspensionId
+  };
+}
+
+function clearProviderDisciplineAfterSuccessfulProbation(discipline, clearedAt) {
+  discipline.strikeCount = 0;
+  discipline.currentSuspension = {
+    ...discipline.currentSuspension,
+    active: false,
+    level: 0,
+    suspensionId: null,
+    startedAt: null,
+    endsAt: null,
+    indefinite: false
+  };
+  discipline.probation = {
+    ...discipline.probation,
+    active: false,
+    clearedAt
+  };
+  discipline.training = normalizeProviderTrainingRecord({
+    ...discipline.training,
+    status: "NOT_REQUIRED",
+    required: false,
+    updatedAt: clearedAt
+  });
+  discipline.restriction = {
+    ...discipline.restriction,
+    active: false,
+    flaggedAt: null,
+    reason: null,
+    sourceProbationId: null,
+    note: null
+  };
+  discipline.clearedAt = clearedAt;
+}
+
+function buildSuspensionRecord(level, eventGroup, previousProviderStatus) {
+  const startedAt = new Date().toISOString();
+  const indefinite = level >= 3;
+  const durationDays = indefinite ? null : PROVIDER_SUSPENSION_DURATIONS_DAYS[Math.min(level, 2) - 1] || null;
+  return {
+    suspensionId: `provider-suspension-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    level,
+    startedAt,
+    endsAt: durationDays ? addDays(startedAt, durationDays) : null,
+    indefinite,
+    durationDays,
+    lowRatingWindowStart: eventGroup[0]?.submittedAt || null,
+    lowRatingWindowEnd: eventGroup[eventGroup.length - 1]?.submittedAt || null,
+    triggerRequestIds: eventGroup.map((entry) => entry.requestId).filter(Boolean),
+    resolvedAt: null,
+    previousProviderStatus: previousProviderStatus || "APPROVED"
+  };
+}
+
+async function recordCustomerFeedback(requestId, payload, session = null) {
+  const rating = Number.parseInt(payload?.rating, 10);
+  if (!Number.isInteger(rating) || rating < PROVIDER_RATING_MIN || rating > PROVIDER_RATING_MAX) {
+    const error = new Error(`Rating must be between ${PROVIDER_RATING_MIN} and ${PROVIDER_RATING_MAX}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const feedbackNotes = optionalString(payload?.notes) || "";
+  const source = optionalString(payload?.source) || (session?.userId ? "subscriber" : "guest");
+  const now = new Date().toISOString();
+  let feedbackRecord = null;
+
+  const updatedRequest = await updateRequestRecord(requestId, (request) => {
+    const providerUserId = Number(request?.assignedProviderId);
+    if (!Number.isInteger(providerUserId)) {
+      const error = new Error("This request does not have an assigned provider.");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (optionalString(request?.status).toUpperCase() !== "COMPLETED") {
+      const error = new Error("Customer feedback is available after service completion.");
+      error.statusCode = 409;
+      throw error;
+    }
+    if (request.customerFeedback) {
+      const error = new Error("Customer feedback has already been recorded for this request.");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const sessionRoles = Array.isArray(session?.roles) ? session.roles : [];
+    const authenticatedCustomer = session?.userId && sessionRoles.includes("SUBSCRIBER") && Number(request?.userId) === Number(session.userId);
+    const guestCustomer = !session?.userId && isEligibleGuestFeedbackForRequest(request, payload);
+    if (!authenticatedCustomer && !guestCustomer) {
+      const error = new Error("Customer feedback could not be matched to this request.");
+      error.statusCode = 403;
+      throw error;
+    }
+
+    feedbackRecord = {
+      rating,
+      notes: feedbackNotes,
+      submittedAt: now,
+      submittedByUserId: authenticatedCustomer ? Number(session.userId) : null,
+      customerName: optionalString(request.fullName) || optionalString(payload.fullName) || "",
+      source
+    };
+
+    return {
+      ...request,
+      customerFeedback: feedbackRecord
+    };
+  });
+
+  await mutateUsers(async (users) => {
+    const requestProviderId = Number(updatedRequest.assignedProviderId);
+    const provider = users.find((entry) => Number(entry.id) === requestProviderId);
+    if (!provider) {
+      throw new Error("Assigned provider was not found.");
+    }
+
+    const providerProfile = provider.providerProfile && typeof provider.providerProfile === "object" ? provider.providerProfile : {};
+    const rates = providerProfile.rates && typeof providerProfile.rates === "object" ? providerProfile.rates : {};
+    const discipline = normalizeProviderDisciplineState(providerProfile.discipline);
+
+    provider.providerProfile = {
+      ...providerProfile,
+      rates: {
+        ratingTotal: Number(rates.ratingTotal || 0) + rating,
+        ratingCount: Number(rates.ratingCount || 0) + 1
+      },
+      discipline
+    };
+
+    if (rating <= PROVIDER_LOW_RATING_THRESHOLD) {
+      const eventId = `low-rating-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+      const nextEvent = {
+        eventId,
+        requestId: optionalString(updatedRequest.id || updatedRequest.requestId) || null,
+        rating,
+        notes: feedbackNotes,
+        submittedAt: now,
+        submittedByUserId: feedbackRecord?.submittedByUserId || null,
+        consumedBySuspensionId: null
+      };
+      provider.providerProfile.discipline.lowRatingEvents = [nextEvent, ...discipline.lowRatingEvents];
+      const unconsumed = provider.providerProfile.discipline.lowRatingEvents
+        .filter((entry) => !entry.consumedBySuspensionId)
+        .sort((left, right) => String(left.submittedAt || "").localeCompare(String(right.submittedAt || "")));
+      const standardWindowStart = startOfRollingCalendarWindow(now, PROVIDER_LOW_RATING_WINDOW_MONTHS, 0);
+      const probationWindowStart = discipline.probation.active
+        ? new Date(discipline.probation.reinstatedAt || now).getTime()
+        : null;
+      const standardEligible = unconsumed.filter((entry) => {
+        const submittedAt = new Date(entry.submittedAt || "").getTime();
+        return Number.isFinite(submittedAt) && standardWindowStart !== null && submittedAt >= standardWindowStart;
+      });
+      const probationEligible = discipline.probation.active
+        ? unconsumed.filter((entry) => {
+            const submittedAt = new Date(entry.submittedAt || "").getTime();
+            return Number.isFinite(submittedAt) && probationWindowStart !== null && submittedAt >= probationWindowStart;
+          })
+        : [];
+
+      if (discipline.probation.active && probationEligible.length >= PROVIDER_LOW_RATING_STRIKE_THRESHOLD) {
+        const eventGroup = probationEligible.slice(0, PROVIDER_LOW_RATING_STRIKE_THRESHOLD);
+        const restrictionId = `provider-restriction-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+        provider.providerProfile.discipline.restriction = {
+          active: true,
+          flaggedAt: now,
+          reason: "Three low ratings during one-year post-training probation.",
+          sourceProbationId: restrictionId,
+          note: "Provider flagged and restricted from service after post-training probation failure."
+        };
+        provider.providerProfile.discipline.probation = {
+          ...discipline.probation,
+          active: false
+        };
+        provider.providerProfile.discipline.lowRatingEvents = provider.providerProfile.discipline.lowRatingEvents.map((entry) =>
+          eventGroup.some((candidate) => candidate.eventId === entry.eventId)
+            ? {
+                ...entry,
+                consumedByRestrictionId: restrictionId
+              }
+            : entry
+        );
+        provider.accountState = "SUSPENDED";
+        provider.providerStatus = "SUSPENDED";
+        provider.available = false;
+      } else if (!discipline.probation.active && standardEligible.length >= PROVIDER_LOW_RATING_STRIKE_THRESHOLD) {
+        const eventGroup = standardEligible.slice(0, PROVIDER_LOW_RATING_STRIKE_THRESHOLD);
+        const nextStrikeLevel = Number(provider.providerProfile.discipline.strikeCount || 0) + 1;
+        const previousProviderStatus = optionalString(provider.providerStatus).toUpperCase() || "APPROVED";
+        const suspension = buildSuspensionRecord(nextStrikeLevel, eventGroup, previousProviderStatus);
+        provider.providerProfile.discipline.strikeCount = nextStrikeLevel;
+        provider.providerProfile.discipline.currentSuspension = {
+          suspensionId: suspension.suspensionId,
+          active: true,
+          level: suspension.level,
+          startedAt: suspension.startedAt,
+          endsAt: suspension.endsAt,
+          indefinite: suspension.indefinite,
+          previousProviderStatus
+        };
+        provider.providerProfile.discipline.suspensionHistory = [
+          suspension,
+          ...provider.providerProfile.discipline.suspensionHistory
+        ];
+        provider.providerProfile.discipline.lowRatingEvents = provider.providerProfile.discipline.lowRatingEvents.map((entry) =>
+          eventGroup.some((candidate) => candidate.eventId === entry.eventId)
+            ? {
+                ...entry,
+                consumedBySuspensionId: suspension.suspensionId
+              }
+            : entry
+        );
+        provider.providerProfile.discipline.training = normalizeProviderTrainingRecord(
+          provider.providerProfile.discipline.training,
+          suspension.indefinite
+        );
+        if (suspension.indefinite) {
+          provider.providerProfile.discipline.training.status = "REQUIRED";
+        }
+        provider.providerProfile.discipline.probation = {
+          ...discipline.probation,
+          active: false
+        };
+        provider.providerProfile.discipline.restriction = {
+          ...discipline.restriction,
+          active: false,
+          flaggedAt: null,
+          reason: null,
+          sourceProbationId: null,
+          note: null
+        };
+        provider.providerProfile.discipline.clearedAt = null;
+        provider.accountState = "SUSPENDED";
+        provider.providerStatus = "SUSPENDED";
+        provider.available = false;
+      }
+    }
+  });
+
+  const provider = (await readUsers()).find((entry) => Number(entry.id) === Number(updatedRequest.assignedProviderId));
+
+  return {
+    message: "Customer feedback recorded.",
+    request: await presentRequestForSession(updatedRequest, session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }),
+    providerRating: calculateProviderRatingSummary(provider),
+    providerDiscipline: createProviderDisciplineSnapshot(provider)
+  };
+}
+
 async function readUsers() {
   try {
     const raw = await fs.readFile(usersPath, "utf8");
-    return JSON.parse(raw);
+    const users = JSON.parse(raw);
+    return Array.isArray(users) ? users.map((user) => reconcileProviderDiscipline(user)) : [];
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
       return [];
@@ -2608,7 +3794,9 @@ async function readUsers() {
 
 async function writeUsers(users) {
   await fs.mkdir(authRoot, { recursive: true });
-  await fs.writeFile(usersPath, `${JSON.stringify(users, null, 2)}\n`);
+  const normalizedUsers = (Array.isArray(users) ? users : []).map((user) => reconcileProviderDiscipline(user));
+  await fs.writeFile(usersPath, `${JSON.stringify(normalizedUsers, null, 2)}\n`);
+  await storageAuthority.syncUsers(normalizedUsers);
 }
 
 function mutateUsers(mutator) {
@@ -2668,6 +3856,7 @@ async function createServiceRequest(serviceRequest) {
   const now = new Date().toISOString();
   const requestId = `req_${Date.now()}`;
   const customerType = resolveCustomerTier(serviceRequest);
+  const resolvedLocation = await resolveRequestLocation(serviceRequest);
   const pricing = resolveServicePricing({
     ...serviceRequest,
     customerTier: customerType
@@ -2678,6 +3867,14 @@ async function createServiceRequest(serviceRequest) {
     status: "SUBMITTED",
     completionStatus: "OPEN",
     paymentStatus: "NOT_PAID",
+    locationDisclosureLevel: "MASKED",
+    contactDisclosureLevel: "LOCKED",
+    softEtaMinutes: null,
+    hardEtaMinutes: null,
+    etaStage: "PENDING",
+    providerActivatedAt: null,
+    exactLocationUnlockedAt: null,
+    contactUnlockedAt: null,
     customerEtaAcceptedAt: null,
     arrivalConfirmedAt: null,
     completionConfirmedAt: null,
@@ -2696,10 +3893,14 @@ async function createServiceRequest(serviceRequest) {
     dispatchFee: pricing.dispatchFee,
     platformShareAmount: pricing.platformShare,
     providerPayoutAmount: pricing.providerPayout,
+    requestAcceptanceWindowMinutes,
+    requestAcceptanceExpiresAt: addMinutes(now, requestAcceptanceWindowMinutes),
     submittedAt: now,
     createdAt: now,
     updatedAt: now,
     ...serviceRequest,
+    ...resolvedLocation,
+    maskedNotes: "Detailed customer notes unlock after payment and provider activation.",
     customerTier: pricing.customerTier,
     pricing,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
@@ -2709,6 +3910,84 @@ async function createServiceRequest(serviceRequest) {
   await fs.appendFile(requestLogPath, `${JSON.stringify(savedRequest)}\n`);
 
   return savedRequest;
+}
+
+async function resolveRequestLocation(serviceRequest) {
+  const explicitCoordinates = normalizeCoordinateRecord(
+    serviceRequest?.locationCoordinates || {
+      longitude: serviceRequest?.longitude,
+      latitude: serviceRequest?.latitude
+    }
+  );
+  if (explicitCoordinates) {
+    return {
+      locationCoordinates: explicitCoordinates,
+      locationGeocodeSource: "provided-coordinates",
+      locationGeocodedAt: new Date().toISOString()
+    };
+  }
+
+  if (!locationService.isConfigured()) {
+    return {};
+  }
+
+  const location = readOptionalString(serviceRequest?.location);
+  if (!location) {
+    return {};
+  }
+
+  try {
+    const result = await locationService.forwardGeocode(location, { limit: 1, autocomplete: false });
+    const match = Array.isArray(result.features) ? result.features[0] : null;
+    const longitude = Number.isFinite(Number(match?.routableLongitude)) ? Number(match.routableLongitude) : Number(match?.longitude);
+    const latitude = Number.isFinite(Number(match?.routableLatitude)) ? Number(match.routableLatitude) : Number(match?.latitude);
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+      return {};
+    }
+
+    return {
+      locationCoordinates: {
+        longitude,
+        latitude
+      },
+      locationGeocodeSource: "mapbox-forward-geocode",
+      locationGeocodedAt: new Date().toISOString(),
+      locationMapboxId: match?.mapboxId || null,
+      locationFullAddress: match?.fullAddress || serviceRequest.location,
+      locationAccuracy: match?.accuracy || null
+    };
+  } catch {
+    return {};
+  }
+}
+
+function normalizeCoordinateRecord(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const longitude = Number(value.longitude);
+  const latitude = Number(value.latitude);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return null;
+  }
+
+  if (longitude < -180 || longitude > 180 || latitude < -90 || latitude > 90) {
+    return null;
+  }
+
+  return {
+    longitude,
+    latitude
+  };
+}
+
+function addMinutes(value, minutes) {
+  const base = new Date(value);
+  if (Number.isNaN(base.getTime())) {
+    return value;
+  }
+  return new Date(base.getTime() + Number(minutes || 0) * 60 * 1000).toISOString();
 }
 
 async function readRequestLog() {
@@ -2735,6 +4014,7 @@ async function writeRequestLog(requests) {
     .map((entry) => JSON.stringify(entry))
     .join("\n");
   await fs.writeFile(requestLogPath, serialized ? `${serialized}\n` : "");
+  await storageAuthority.syncRequests(requests);
 }
 
 function mutateRequests(mutator) {
@@ -2784,14 +4064,33 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.acceptedAt = now;
       next.providerPayoutStatus = request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus;
     } else if (normalizedAction === "eta") {
+      const nextEta = Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : request.etaMinutes ?? null;
       next.status = "EN_ROUTE";
-      next.etaMinutes = Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : request.etaMinutes ?? null;
+      next.etaMinutes = nextEta;
       next.etaUpdatedAt = now;
+      if (isDirectCommunicationUnlocked(request)) {
+        next.hardEtaMinutes = nextEta;
+        next.etaStage = "HARD";
+      } else {
+        next.softEtaMinutes = nextEta;
+        next.etaStage = "SOFT";
+      }
     } else if (normalizedAction === "soft-contact") {
       next.softContactedAt = now;
       next.status = request.status === "SUBMITTED" ? "ASSIGNED" : request.status;
     } else if (normalizedAction === "hard-contact") {
+      if (!isPaymentCaptured(request)) {
+        const error = new Error("Payment must be captured before live communication is unlocked.");
+        error.statusCode = 409;
+        error.code = "payment-required-before-contact";
+        throw error;
+      }
       next.hardContactedAt = now;
+      next.providerActivatedAt = now;
+      next.exactLocationUnlockedAt = now;
+      next.contactUnlockedAt = now;
+      next.locationDisclosureLevel = "EXACT";
+      next.contactDisclosureLevel = "UNLOCKED";
       next.status = "EN_ROUTE";
     } else if (normalizedAction === "arrived" || normalizedAction === "force-arrived") {
       next.status = "ARRIVED";
@@ -2872,7 +4171,7 @@ function calculateProviderRatingSummary(user) {
     ratingTotal,
     ratingCount,
     averageRating,
-    ratingRange: "1 to 8"
+    ratingRange: `${PROVIDER_RATING_MIN} to ${PROVIDER_RATING_MAX}`
   };
 }
 
@@ -2903,5 +4202,42 @@ function contentType(filePath) {
     case ".html":
     default:
       return "text/html; charset=utf-8";
+  }
+}
+
+async function auditWebEntrypoint() {
+  try {
+    const indexPath = path.join(webRoot, "index.html");
+    const indexBody = await fs.readFile(indexPath, "utf8");
+    if (!looksLikeExpoShell(indexBody)) {
+      return;
+    }
+
+    console.error("[SECURITY] web/index.html contains Expo shell markers.");
+    await localWatchdog.record("expo-shell-detected", {
+      path: "web/index.html"
+    });
+  } catch (error) {
+    console.error("[WARN] Web entrypoint audit failed:", error);
+  }
+}
+
+function looksLikeExpoShell(body) {
+  const value = String(body || "");
+  return (
+    value.includes("expo/AppEntry.bundle") ||
+    value.includes("Use static rendering with Expo Router") ||
+    value.includes("react-native-web")
+  );
+}
+
+async function recordBlockedFallback(pathname, reason) {
+  try {
+    await localWatchdog.record("blocked-web-fallback", {
+      pathname,
+      reason
+    });
+  } catch (error) {
+    console.error("[WARN] Failed to record blocked fallback:", error);
   }
 }

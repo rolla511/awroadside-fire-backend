@@ -1,70 +1,110 @@
 {
   "layer": "aw-roadside-local-watchdog",
   "active": true,
-  "scannedAt": "2026-04-20T01:00:32.184Z",
+  "scannedAt": "2026-04-30T15:26:04.675Z",
   "baselineCreatedAt": "2026-04-02T18:36:13.771Z",
-  "watchedFiles": 10,
+  "watchedFiles": 20,
   "integrityOk": false,
   "suspiciousFiles": [
     {
       "path": "backend/server.mjs",
       "status": "modified",
       "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-      "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
+      "currentSha256": "854b2083abf47760e32fa726ec762fc8b11c313ebf6fb7b6e3641bc8408eb6bf"
+    },
+    {
+      "path": "backend/awroadsidedb-config.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/index.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/users-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/requests-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/provider-wallet-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/provider-history-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/payments-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/schema.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/sql-helpers.mjs",
+      "status": "untracked"
     },
     {
       "path": "backend/aw-roadside-security.mjs",
       "status": "modified",
       "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-      "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
+      "currentSha256": "3c77e6025585202df5e8487c83368cc44f12032587bff2edec2597d9930efbc9"
     },
     {
       "path": "backend/subscription-controller.mjs",
       "status": "modified",
       "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-      "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
+      "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+    },
+    {
+      "path": "backend/smtp-mailer.mjs",
+      "status": "untracked"
     },
     {
       "path": "backend/request-service-controller.mjs",
       "status": "modified",
       "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-      "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
+      "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
     },
     {
       "path": "backend/admin-controller.mjs",
       "status": "modified",
       "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-      "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
+      "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
     },
     {
       "path": "web/app.js",
       "status": "modified",
       "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-      "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
+      "currentSha256": "f6b5ff79423b22932854308d4ef34027b74b25fd38fd1571020d3e9f6edd773a"
     },
     {
       "path": "web/index.html",
       "status": "modified",
       "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-      "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
+      "currentSha256": "9c8c87db4ea94b69c51315cfa6956f8a7db7fdce0d4977d4b67f6ed914ee9ce8"
     },
     {
       "path": "web/customer.html",
       "status": "modified",
       "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-      "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
+      "currentSha256": "edcc671deb2eb6d77c716b75d645ef3d1a6a823666394ac4c5e77c501344f987"
     },
     {
       "path": "web/provider.html",
       "status": "modified",
       "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-      "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
+      "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
     },
     {
       "path": "package.json",
       "status": "modified",
       "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-      "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
+      "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
     }
   ],
   "recentEvents": [
@@ -75,64 +115,141 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
+          "currentSha256": "854b2083abf47760e32fa726ec762fc8b11c313ebf6fb7b6e3641bc8408eb6bf"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/users-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/requests-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-wallet-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-history-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/payments-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/sql-helpers.mjs",
+          "status": "untracked"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
           "status": "modified",
           "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
+          "currentSha256": "3c77e6025585202df5e8487c83368cc44f12032587bff2edec2597d9930efbc9"
         },
         {
           "path": "backend/subscription-controller.mjs",
           "status": "modified",
           "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
+          "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
         },
         {
           "path": "backend/request-service-controller.mjs",
           "status": "modified",
           "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
+          "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
         },
         {
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
+          "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
         },
         {
           "path": "web/app.js",
           "status": "modified",
           "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
+          "currentSha256": "f6b5ff79423b22932854308d4ef34027b74b25fd38fd1571020d3e9f6edd773a"
         },
         {
           "path": "web/index.html",
           "status": "modified",
           "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
+          "currentSha256": "9c8c87db4ea94b69c51315cfa6956f8a7db7fdce0d4977d4b67f6ed914ee9ce8"
         },
         {
           "path": "web/customer.html",
           "status": "modified",
           "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
+          "currentSha256": "edcc671deb2eb6d77c716b75d645ef3d1a6a823666394ac4c5e77c501344f987"
         },
         {
           "path": "web/provider.html",
           "status": "modified",
           "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
+          "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
         },
         {
           "path": "package.json",
           "status": "modified",
           "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
+          "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
         }
       ],
-      "timestamp": "2026-04-20T01:00:32.189Z"
+      "timestamp": "2026-04-30T15:26:04.746Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-04-30T15:25:51.246Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-04-30T15:25:51.243Z"
+    },
+    {
+      "event": "db-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "mode": "file-runtime",
+      "configured": false,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-04-30T15:25:51.242Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -141,64 +258,141 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
+          "currentSha256": "854b2083abf47760e32fa726ec762fc8b11c313ebf6fb7b6e3641bc8408eb6bf"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/users-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/requests-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-wallet-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-history-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/payments-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/sql-helpers.mjs",
+          "status": "untracked"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
           "status": "modified",
           "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
+          "currentSha256": "3c77e6025585202df5e8487c83368cc44f12032587bff2edec2597d9930efbc9"
         },
         {
           "path": "backend/subscription-controller.mjs",
           "status": "modified",
           "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
+          "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
         },
         {
           "path": "backend/request-service-controller.mjs",
           "status": "modified",
           "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
+          "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
         },
         {
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
+          "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
         },
         {
           "path": "web/app.js",
           "status": "modified",
           "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
+          "currentSha256": "f6b5ff79423b22932854308d4ef34027b74b25fd38fd1571020d3e9f6edd773a"
         },
         {
           "path": "web/index.html",
           "status": "modified",
           "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
+          "currentSha256": "9c8c87db4ea94b69c51315cfa6956f8a7db7fdce0d4977d4b67f6ed914ee9ce8"
         },
         {
           "path": "web/customer.html",
           "status": "modified",
           "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
+          "currentSha256": "edcc671deb2eb6d77c716b75d645ef3d1a6a823666394ac4c5e77c501344f987"
         },
         {
           "path": "web/provider.html",
           "status": "modified",
           "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
+          "currentSha256": "b60bd6116b03f01a10b2406e2a73026374a4c03479f67c61ae8f24ba2d35ddda"
         },
         {
           "path": "package.json",
           "status": "modified",
           "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
+          "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
         }
       ],
-      "timestamp": "2026-04-20T01:00:21.024Z"
+      "timestamp": "2026-04-30T15:25:51.216Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-04-28T14:53:22.409Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-04-28T14:53:22.408Z"
+    },
+    {
+      "event": "db-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "mode": "file-runtime",
+      "configured": false,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-04-28T14:53:22.403Z"
     },
     {
       "event": "integrity-drift-detected",
@@ -207,526 +401,116 @@
           "path": "backend/server.mjs",
           "status": "modified",
           "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
+          "currentSha256": "ce72f4de67af57bf460d0ad1f4e1061b9a371f9719e5329e74e24aa690ba97c6"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/users-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/requests-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-wallet-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-history-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/payments-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/sql-helpers.mjs",
+          "status": "untracked"
         },
         {
           "path": "backend/aw-roadside-security.mjs",
           "status": "modified",
           "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
+          "currentSha256": "3c77e6025585202df5e8487c83368cc44f12032587bff2edec2597d9930efbc9"
         },
         {
           "path": "backend/subscription-controller.mjs",
           "status": "modified",
           "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
+          "currentSha256": "7ccc94cbea8329835d9b0b0ea20dc668e1c3c75bff72999afa3f472c6114b37e"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
         },
         {
           "path": "backend/request-service-controller.mjs",
           "status": "modified",
           "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
+          "currentSha256": "86bdda64de165e28568b005fd8423f815443f9950f6e0e26f2cebe74369a526d"
         },
         {
           "path": "backend/admin-controller.mjs",
           "status": "modified",
           "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
+          "currentSha256": "ecf5b09c8c462d9a072f97d4567b1b967e5d294264d3585d0662920524b6c7db"
         },
         {
           "path": "web/app.js",
           "status": "modified",
           "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
+          "currentSha256": "d0e256d545ff71a88d92dfcf1e3bd9e0e6199fc0aedea8f2168009d163f79058"
         },
         {
           "path": "web/index.html",
           "status": "modified",
           "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
+          "currentSha256": "9c8c87db4ea94b69c51315cfa6956f8a7db7fdce0d4977d4b67f6ed914ee9ce8"
         },
         {
           "path": "web/customer.html",
           "status": "modified",
           "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
+          "currentSha256": "536a71147ac0ff35f8a7625e427aaf3e08ee0395a758b5d41bf12076f58a9dca"
         },
         {
           "path": "web/provider.html",
           "status": "modified",
           "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
+          "currentSha256": "764096a8d005ea53f264f42468ce17ef67187f5c399b1a820353ac1bef073bdb"
         },
         {
           "path": "package.json",
           "status": "modified",
           "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
+          "currentSha256": "a91d06d27bccf5e17f07b51f69c642c9322f4ff06d5c6c35429d0eabe375fa44"
         }
       ],
-      "timestamp": "2026-04-20T00:55:32.279Z"
+      "timestamp": "2026-04-28T14:53:22.386Z"
     },
     {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
       ],
-      "timestamp": "2026-04-20T00:55:21.013Z"
-    },
-    {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
-      ],
-      "timestamp": "2026-04-20T00:50:32.253Z"
-    },
-    {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
-      ],
-      "timestamp": "2026-04-20T00:50:21.045Z"
-    },
-    {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
-      ],
-      "timestamp": "2026-04-20T00:45:32.251Z"
-    },
-    {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
-      ],
-      "timestamp": "2026-04-20T00:45:21.046Z"
-    },
-    {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
-      ],
-      "timestamp": "2026-04-20T00:40:32.231Z"
-    },
-    {
-      "event": "integrity-drift-detected",
-      "suspiciousFiles": [
-        {
-          "path": "backend/server.mjs",
-          "status": "modified",
-          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
-          "currentSha256": "199f1e71051de6ba856ba3a29b86c8e318c3d06026a36a6eeb96664ff6193494"
-        },
-        {
-          "path": "backend/aw-roadside-security.mjs",
-          "status": "modified",
-          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
-          "currentSha256": "f431259ff540c7870281d410206c1117e1729f20b4ad2ef2ce2581f162ef037a"
-        },
-        {
-          "path": "backend/subscription-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
-          "currentSha256": "949cc1bd4f38d34f515b6669555838af3d6482f5b348973d118d781b95cc63a4"
-        },
-        {
-          "path": "backend/request-service-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
-          "currentSha256": "de7558bdd9bf5adec6b4aba8c19eeade5516fa7a9b960d81924c7f7c4ab475d9"
-        },
-        {
-          "path": "backend/admin-controller.mjs",
-          "status": "modified",
-          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
-          "currentSha256": "59dc7d94897813081b95c489508bf5ea426b1d38711d90185a858d309b200e87"
-        },
-        {
-          "path": "web/app.js",
-          "status": "modified",
-          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
-          "currentSha256": "4d9d011d1b4760b50ea08632c3c2934f6c1f6eebe24951ccbbc51540d7d80810"
-        },
-        {
-          "path": "web/index.html",
-          "status": "modified",
-          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
-          "currentSha256": "4e349c1fd22cf24ace0a582b0f24d2b7b8539c69635dcdb6965a5f83fcde4841"
-        },
-        {
-          "path": "web/customer.html",
-          "status": "modified",
-          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
-          "currentSha256": "9e2b4af488bbf70b6bf2fc581e7805ff596175d9ad4549bc8af6b1dbaabd2047"
-        },
-        {
-          "path": "web/provider.html",
-          "status": "modified",
-          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
-          "currentSha256": "492389cbac8063ba439d5101d0f95873fc3e8cbcb597b56463f5da2578f036bb"
-        },
-        {
-          "path": "package.json",
-          "status": "modified",
-          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
-          "currentSha256": "b22923c21ffc3625f74d539cd060f5b1716976b580621b0fce68e31a50f29db4"
-        }
-      ],
-      "timestamp": "2026-04-20T00:40:21.045Z"
+      "timestamp": "2026-04-28T05:54:15.984Z"
     }
   ]
 }

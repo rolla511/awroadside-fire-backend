@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-04-16T03:42:30.979Z",
+  "updatedAt": "2026-04-28T05:56:20.999Z",
   "manifest": {
     "projectId": "awroadside-family",
     "activeVariantId": "awroadside-web-backend",
@@ -59,18 +59,18 @@
       "cacheAllowed": true,
       "legacyFallback": false,
       "staleAfterMs": 60000,
-      "requestCount": 1,
-      "successCount": 1,
+      "requestCount": 3,
+      "successCount": 3,
       "failureCount": 0,
-      "lastRequestedAt": "2026-04-08T20:22:50.911Z",
-      "lastServedAt": "2026-04-08T20:22:50.911Z",
+      "lastRequestedAt": "2026-04-28T05:56:20.945Z",
+      "lastServedAt": "2026-04-28T05:56:20.945Z",
       "lastStatus": "success",
       "lastSource": "compatibility-gateway",
-      "lastRequester": "curl/8.7.1",
+      "lastRequester": "node",
       "lastNote": "gateway-status",
       "lastError": null,
-      "staleAt": "2026-04-08T20:23:50.911Z",
-      "lastUpdatedAt": "2026-04-08T20:22:50.911Z"
+      "staleAt": "2026-04-28T05:57:20.945Z",
+      "lastUpdatedAt": "2026-04-28T05:56:20.945Z"
     },
     "frontendConfig": {
       "capability": "frontendConfig",
@@ -101,18 +101,18 @@
       "cacheAllowed": true,
       "legacyFallback": false,
       "staleAfterMs": 60000,
-      "requestCount": 2,
-      "successCount": 2,
+      "requestCount": 6,
+      "successCount": 6,
       "failureCount": 0,
-      "lastRequestedAt": "2026-04-16T03:42:23.616Z",
-      "lastServedAt": "2026-04-16T03:42:23.616Z",
+      "lastRequestedAt": "2026-04-28T05:56:20.959Z",
+      "lastServedAt": "2026-04-28T05:56:20.959Z",
       "lastStatus": "success",
       "lastSource": "compatibility-gateway",
-      "lastRequester": "curl/8.7.1",
+      "lastRequester": "node",
       "lastNote": "gateway-manifest",
       "lastError": null,
-      "staleAt": "2026-04-16T03:43:23.616Z",
-      "lastUpdatedAt": "2026-04-16T03:42:23.616Z"
+      "staleAt": "2026-04-28T05:57:20.959Z",
+      "lastUpdatedAt": "2026-04-28T05:56:20.959Z"
     },
     "acknowledge": {
       "capability": "acknowledge",
@@ -134,6 +134,27 @@
       "lastError": null,
       "staleAt": "2026-04-09T04:51:14.419Z",
       "lastUpdatedAt": "2026-04-09T04:46:14.419Z"
+    },
+    "health": {
+      "capability": "health",
+      "method": "GET",
+      "path": "/api/aw-roadside/health",
+      "authority": "current-protected-backend",
+      "cacheAllowed": true,
+      "legacyFallback": false,
+      "staleAfterMs": 60000,
+      "requestCount": 2,
+      "successCount": 2,
+      "failureCount": 0,
+      "lastRequestedAt": "2026-04-28T05:56:20.999Z",
+      "lastServedAt": "2026-04-28T05:56:20.999Z",
+      "lastStatus": "success",
+      "lastSource": "compatibility-gateway",
+      "lastRequester": "node",
+      "lastNote": "/api/aw-roadside/health",
+      "lastError": null,
+      "staleAt": "2026-04-28T05:57:20.999Z",
+      "lastUpdatedAt": "2026-04-28T05:56:20.999Z"
     }
   },
   "acknowledgedVariants": [

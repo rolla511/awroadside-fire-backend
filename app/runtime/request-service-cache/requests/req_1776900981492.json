@@ -1,0 +1,69 @@
+{
+  "id": "req_1776900981492",
+  "requestId": "req_1776900981492",
+  "status": "COMPLETED",
+  "completionStatus": "COMPLETED",
+  "userId": null,
+  "roles": [],
+  "fullName": "Clean Flow 1776900979008",
+  "phoneNumber": "555-5400",
+  "vehicleInfo": "Vehicle details not provided from app runtime",
+  "location": "Clean Street",
+  "serviceType": "Battery Install",
+  "notes": "clean walkthrough",
+  "assignedProviderId": 40,
+  "paymentStatus": "NOT_PAID",
+  "providerPayoutStatus": "PENDING",
+  "providerPayoutAmount": 39.5,
+  "amountCharged": 0,
+  "amountCollected": 0,
+  "platformShareAmount": 15.5,
+  "etaMinutes": 8,
+  "customerEtaAcceptedAt": null,
+  "arrivalConfirmedAt": null,
+  "completionConfirmedAt": null,
+  "paymentPromptedAt": null,
+  "noteExchange": [],
+  "providerActions": [
+    {
+      "action": "completed",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.576Z"
+    },
+    {
+      "action": "arrived",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.545Z"
+    },
+    {
+      "action": "eta",
+      "providerUserId": 40,
+      "etaMinutes": 8,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.527Z"
+    },
+    {
+      "action": "accept",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.505Z"
+    }
+  ],
+  "acceptedAt": "2026-04-22T23:36:21.505Z",
+  "etaUpdatedAt": "2026-04-22T23:36:21.527Z",
+  "softContactedAt": null,
+  "hardContactedAt": null,
+  "arrivedAt": "2026-04-22T23:36:21.545Z",
+  "completedAt": "2026-04-22T23:36:21.576Z",
+  "createdAt": "2026-04-22T23:36:21.492Z",
+  "updatedAt": "2026-04-22T23:36:21.583Z"
+}

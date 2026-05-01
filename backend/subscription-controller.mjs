@@ -1,9 +1,14 @@
-import crypto from "node:crypto";
+import crypto from "crypto";
 
 const PASSWORD_HASH_ALGORITHM = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
-const DEFAULT_SUBSCRIBER_MONTHLY = 5;
-const DEFAULT_PROVIDER_MONTHLY = 5.99;
+const DEFAULT_SUBSCRIBER_MONTHLY = 7.99;
+const DEFAULT_PROVIDER_MONTHLY = 6;
+
+function testingTermsBypassEnabled() {
+  const value = String(process.env.AW_TESTING_SKIP_TERMS || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
 
 export function createSubscriptionController() {
   return {
@@ -57,7 +62,7 @@ export function createSubscriptionController() {
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           subscriberActive: updatedUser.subscriberActive,
-          membershipPrice: 5
+          membershipPrice: DEFAULT_SUBSCRIBER_MONTHLY
         });
         return true;
       }
@@ -74,7 +79,7 @@ export function createSubscriptionController() {
         helpers.sendJson(res, 200, {
           userId: updatedUser.id,
           providerStatus: updatedUser.providerStatus,
-          providerMonthly: 5.99
+          providerMonthly: DEFAULT_PROVIDER_MONTHLY
         });
         return true;
       }
@@ -109,7 +114,8 @@ export async function createSignup(payload, helpers) {
   const password = requireString(payload.password, "password");
   const phoneNumber = optionalString(payload.phoneNumber);
   const role = requireString(payload.role, "role").toUpperCase();
-  const termsAccepted = payload.termsAccepted === true;
+  const termsBypass = testingTermsBypassEnabled();
+  const termsAccepted = payload.termsAccepted === true || termsBypass;
   const createdAt = new Date().toISOString();
 
   if (!["SUBSCRIBER", "PROVIDER"].includes(role)) {
@@ -120,11 +126,11 @@ export async function createSignup(payload, helpers) {
     throw new Error("Terms of agreement are required.");
   }
 
-  if (role === "SUBSCRIBER" && payload.subscriberTermsAccepted !== true) {
+  if (role === "SUBSCRIBER" && payload.subscriberTermsAccepted !== true && !termsBypass) {
     throw new Error("Subscriber terms must be accepted.");
   }
 
-  if (role === "PROVIDER" && payload.providerTermsAccepted !== true) {
+  if (role === "PROVIDER" && payload.providerTermsAccepted !== true && !termsBypass) {
     throw new Error("Provider terms must be accepted.");
   }
 
@@ -211,6 +217,7 @@ export async function loginUser(payload, helpers) {
 
 export async function setupSubscriber(payload, helpers, session = null) {
   const policy = getRoadsidePolicy(helpers);
+  const termsBypass = testingTermsBypassEnabled();
   const vehicle = payload.vehicle || {};
   const make = requireString(vehicle.make, "vehicle.make");
   const model = requireString(vehicle.model, "vehicle.model");
@@ -223,16 +230,6 @@ export async function setupSubscriber(payload, helpers, session = null) {
     billingZip: optionalString(payload.billingZip),
     paymentProvider: optionalString(payload.paymentProvider) || "manual-test-mode"
   };
-  if (payload.subscriberTermsAccepted !== true && user.terms?.subscriber?.accepted !== true) {
-    throw new Error("Subscriber terms must be accepted before activation.");
-  }
-  if (payload.dispatchOnlyLiabilityAccepted !== true && user.terms?.subscriber?.dispatchOnlyLiabilityAccepted !== true) {
-    throw new Error("Dispatch-only liability terms must be accepted before activation.");
-  }
-  if (payload.noRefundPolicyAccepted !== true && user.terms?.subscriber?.noRefundPolicyAccepted !== true) {
-    throw new Error("No-refund policy must be accepted before activation.");
-  }
-
   const users = await helpers.readUsers();
   const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
   if (!user) {
@@ -241,8 +238,33 @@ export async function setupSubscriber(payload, helpers, session = null) {
   if (!user.roles.includes("SUBSCRIBER")) {
     throw new Error("Not a subscriber.");
   }
+  if (!termsBypass && payload.subscriberTermsAccepted !== true && user.terms?.subscriber?.accepted !== true) {
+    throw new Error("Subscriber terms must be accepted before activation.");
+  }
+  if (!termsBypass && payload.dispatchOnlyLiabilityAccepted !== true && user.terms?.subscriber?.dispatchOnlyLiabilityAccepted !== true) {
+    throw new Error("Dispatch-only liability terms must be accepted before activation.");
+  }
+  if (!termsBypass && payload.noRefundPolicyAccepted !== true && user.terms?.subscriber?.noRefundPolicyAccepted !== true) {
+    throw new Error("No-refund policy must be accepted before activation.");
+  }
 
-  const updateUser = (mutableUser) => {
+  const updateUser = async (mutableUser) => {
+    const confirmedAt = new Date().toISOString();
+    const confirmationRecord = buildSubscriberConfirmationRecord({
+      user: mutableUser,
+      vehicle: { make, model, year, color },
+      membershipPrice: policy.subscriber.monthlyFee,
+      confirmedAt
+    });
+    const delivery = typeof helpers.sendSubscriberConfirmationEmail === "function"
+      ? await helpers.sendSubscriberConfirmationEmail(confirmationRecord)
+      : {
+          deliveryStatus: "stored-no-transport",
+          deliveredAt: null,
+          transport: "profile-record-only",
+          message: "Subscriber confirmation stored in profile. No outbound email transport is configured."
+        };
+
     mutableUser.subscriberActive = true;
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
     mutableUser.nextBillingDate = mutableUser.nextBillingDate || addDays(new Date().toISOString(), 30);
@@ -252,14 +274,18 @@ export async function setupSubscriber(payload, helpers, session = null) {
       savedVehicles: [{ make, model, year, color }],
       paymentMethodMasked,
       paymentInfo,
-      termsAcceptedAt: new Date().toISOString(),
-      termsVersion: policy.subscriber.termsVersion
+      termsAcceptedAt: confirmedAt,
+      termsVersion: policy.subscriber.termsVersion,
+      confirmation: {
+        ...confirmationRecord,
+        ...delivery
+      }
     };
     mutableUser.terms = {
       ...(mutableUser.terms || {}),
       subscriber: {
         accepted: true,
-        acceptedAt: new Date().toISOString(),
+        acceptedAt: confirmedAt,
         termsVersion: policy.subscriber.termsVersion,
         dispatchOnlyLiabilityAccepted: true,
         noRefundPolicyAccepted: true,
@@ -283,13 +309,14 @@ export async function setupSubscriber(payload, helpers, session = null) {
     });
   }
 
-  const result = updateUser(user);
+  const result = await updateUser(user);
   await helpers.writeUsers(users);
   return result;
 }
 
 export async function applyProvider(payload, helpers, session = null) {
   const policy = getRoadsidePolicy(helpers);
+  const termsBypass = testingTermsBypassEnabled();
   const users = await helpers.readUsers();
   const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
   if (!user) {
@@ -309,10 +336,10 @@ export async function applyProvider(payload, helpers, session = null) {
   if (!documentStatus.meetsMinimumRequirements) {
     throw new Error(`Provider documents missing: ${documentStatus.missing.join(", ")}.`);
   }
-  if (payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
+  if (!termsBypass && payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
     throw new Error("Provider terms must be accepted before profile submission.");
   }
-  if (payload.providerLiabilityAccepted !== true && user.terms?.provider?.liabilityAccepted !== true) {
+  if (!termsBypass && payload.providerLiabilityAccepted !== true && user.terms?.provider?.liabilityAccepted !== true) {
     throw new Error("Provider liability acknowledgement is required.");
   }
 
@@ -334,6 +361,14 @@ export async function applyProvider(payload, helpers, session = null) {
     throw new Error("Provider hours of service are required.");
   }
 
+  const currentLocation = normalizeString(payload.currentLocation || payload.location);
+  const locationMetadata = typeof helpers.resolveProviderLocationMetadata === "function"
+    ? await helpers.resolveProviderLocationMetadata({
+        currentLocation,
+        serviceArea
+      })
+    : {};
+
   const providerPatch = (mutableUser) => {
     mutableUser.providerStatus = "PENDING_APPROVAL";
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
@@ -352,7 +387,8 @@ export async function applyProvider(payload, helpers, session = null) {
       assessment,
       hoursOfService,
       serviceArea,
-      currentLocation: normalizeString(payload.currentLocation || payload.location),
+      currentLocation,
+      ...locationMetadata,
       equipment,
       profileSubmittedAt: new Date().toISOString(),
       profileSubmissionStatus: "SUBMITTED",
@@ -486,6 +522,28 @@ function resolveUsername(user) {
 
 function optionalString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function buildSubscriberConfirmationRecord({ user, vehicle, membershipPrice, confirmedAt }) {
+  const subject = "AW Roadside subscription confirmed";
+  const body = [
+    `Hello ${user.fullName || user.username || "subscriber"},`,
+    "",
+    "Your AW Roadside subscription is now active.",
+    `Membership price: $${Number(membershipPrice || 0).toFixed(2)}/month`,
+    `Vehicle on file: ${[vehicle.year, vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(" ") || "not provided"}`,
+    `Confirmation date: ${confirmedAt}`,
+    "",
+    "Keep this confirmation for your records."
+  ].join("\n");
+
+  return {
+    status: "CONFIRMED",
+    confirmedAt,
+    recipientEmail: user.email || null,
+    subject,
+    body
+  };
 }
 
 function normalizeString(value) {

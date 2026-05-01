@@ -1,11 +1,182 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta http-equiv="refresh" content="0; url=index.html#customer"/>
-<title>Redirecting To Customer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>A-Dub Roadside | Customer Request</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
-<p>Redirecting to <a href="index.html#customer">Customer</a>.</p>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Customer Request</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="identity-role">Guest</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-art">
+        <img src="assets/roadside-home.png" alt="A-Dub Roadside mobile concept"/>
+      </div>
+      <div class="sidebar-copy">
+        <p class="eyebrow">Request Flow</p>
+        <h2>Guest and subscriber roadside request entry.</h2>
+        <p id="identity-state" class="muted">Submit a request, get a reference, and continue into quote and payment flow.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="home.html">Home</a>
+        <a class="nav-link active" href="customer.html">Customer Request</a>
+        <a class="nav-link" href="subscriber-access.html">Subscriber Access</a>
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="admin.html">Admin Access</a>
+      </nav>
+      <div class="sidebar-metrics">
+        <div class="metric-card">
+          <span>Service Line</span>
+          <strong id="api-port">24/7</strong>
+          <small id="backend-service">Checking availability</small>
+        </div>
+        <div class="metric-card">
+          <span>Dispatch Status</span>
+          <strong id="security-layer-state">Ready</strong>
+          <small id="security-layer-detail">Help is available when dispatch is online</small>
+        </div>
+        <div class="metric-card">
+          <span>Route</span>
+          <strong id="api-url">Roadside request center</strong>
+          <small id="api-status">Checking service availability...</small>
+        </div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="section-header panel">
+          <div>
+            <p class="eyebrow">Customer Request</p>
+            <h2>Submit a direct roadside request</h2>
+          </div>
+          <div class="header-badges">
+            <span class="badge">Identity: <strong id="customer-identity-role">Guest</strong></span>
+            <span class="badge">Quote: <strong id="priority-price">Available after request</strong></span>
+          </div>
+        </div>
+
+        <div class="customer-grid">
+          <form class="panel request-panel" id="request-form">
+            <label>
+              <span>Full Name</span>
+              <input class="field" id="full-name" name="fullName" placeholder="Full Name" required/>
+            </label>
+            <label>
+              <span>Phone Number</span>
+              <input class="field" id="phone-number" name="phoneNumber" placeholder="Phone Number" required/>
+            </label>
+            <label>
+              <span>Service Type</span>
+              <select class="field" id="service-type" name="serviceType">
+                <option>Jump Start</option>
+                <option>Lockout</option>
+                <option>Tire Change</option>
+                <option>Gas Delivery</option>
+                <option>Battery Install</option>
+              </select>
+            </label>
+            <label>
+              <span>Exact Service Address</span>
+              <input class="field" id="location" name="location" placeholder="Street address, city, landmark" required/>
+            </label>
+            <label class="full-span">
+              <span>Notes / Nearest Cross Street</span>
+              <textarea class="field area" id="notes" name="notes" placeholder="Nearest cross street, vehicle color, parking spot, issue details"></textarea>
+            </label>
+            <button class="glow-button wide full-span" type="submit">Submit Request</button>
+            <div class="feedback-box full-span" id="submit-status" style="display:none"></div>
+            <div class="feedback-box full-span" id="paypal-status">Loading payment configuration...</div>
+            <div class="paypal-shell full-span">
+              <div id="paypal-button-container" style="display:none"></div>
+            </div>
+          </form>
+
+          <div class="customer-side">
+            <div class="panel visual-panel">
+              <img src="assets/roadside-subscriber.png" alt="Subscriber onboarding concept"/>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Current Identity</p>
+              <h3>Request mode</h3>
+              <p class="muted" id="customer-identity-state">Guests can request help now. Sign in if you want the request saved to your account.</p>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Request Status</p>
+              <h3>Current dispatch state</h3>
+              <p class="muted" id="customer-request-summary">Submit a request to create a reference and unlock live request updates on this page.</p>
+              <div class="ledger-list" id="request-history-list"></div>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Payment Ledger</p>
+              <h3>Priority payment path</h3>
+              <p class="muted">Need help fast? Optional priority payment can move things along, while service payment stays locked until the arrival estimate and service price are confirmed.</p>
+              <div class="button-pair">
+                <button class="glow-button compact" id="service-payment-quote-button" type="button">Check Service Quote</button>
+                <button class="glow-button alt compact" id="service-payment-agree-button" type="button">Agree To Service Price</button>
+              </div>
+              <div class="feedback-box" id="service-payment-status" style="display:none"></div>
+              <div class="ledger-list" id="payment-ledger-list"></div>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Dispatch Replay</p>
+              <h3>Recent activity</h3>
+              <p class="muted">This stream shows the latest request, payment, and progress updates captured on this device for the current service flow.</p>
+              <div class="ledger-list" id="processing-log-list"></div>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Service Feedback</p>
+              <h3>Rate the provider after service</h3>
+              <p class="muted">Once the service is marked complete, leave a provider rating from 1 to 8 and any service notes.</p>
+              <form id="request-feedback-form">
+                <label>
+                  <span>Provider Rating</span>
+                  <select class="field" id="provider-rating" name="rating">
+                    <option value="8">8 - Excellent</option>
+                    <option value="7">7 - Strong</option>
+                    <option value="6">6 - Good</option>
+                    <option value="5">5 - Acceptable</option>
+                    <option value="4">4 - Needs improvement</option>
+                    <option value="3">3 - Poor</option>
+                    <option value="2">2 - Very poor</option>
+                    <option value="1">1 - Unacceptable</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Service Notes</span>
+                  <textarea class="field area" id="provider-feedback-notes" name="notes" placeholder="What went well or what needs attention"></textarea>
+                </label>
+                <button class="glow-button compact" type="submit">Submit Rating</button>
+              </form>
+              <div class="feedback-box" id="request-feedback-status" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
 </body>
 </html>

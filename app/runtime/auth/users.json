@@ -216,7 +216,7 @@
     "fullName": "VIP Provider",
     "username": "vipprovider",
     "email": "vipprovider@example.com",
-    "passwordHash": "scrypt$7e249e12aefbeb77016add90ef3cb778$07de45ce30695efe7dbc5922678c80beb0fc4e9e3618788ad76dac4301a4bf68d88231d86fb2c414cd6b0eea82662fca01fdbdedeaddba3124a81b17e581f351",
+    "passwordHash": "scrypt$56421f0823915c11cd52fd223992c1f6$2cb20908c6937dfef8c858e559137a7f411be56db36bade2036dc9112017113139f9c1c227c9a842eb455b3f60cce1873041d58f4aaaa5aa08a4ea658f87c069",
     "roles": [
       "PROVIDER"
     ],
@@ -1079,5 +1079,847 @@
     "nextBillingDate": "2026-05-18T01:36:11.168Z",
     "createdAt": "2026-04-18T01:36:11.168Z",
     "signUpDate": "2026-04-18T01:36:11.168Z"
+  },
+  {
+    "id": 34,
+    "fullName": "Scenario Subscriber 1776899712438",
+    "username": "scensub_1776899712438",
+    "email": "scensub_1776899712438@example.test",
+    "phoneNumber": "555-3000",
+    "passwordHash": "scrypt$f436505341a825abc85a77ee62799d48$962adfb4a02416c39fa0ac02dc6f9ed7df95f573f09657b4fcc9f39ddcbc0e6b47db6ac837ca0214c57ab0de79f0503fa742eebb0e090b3583a8b04900687298",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Camry",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "savedVehicles": [
+        {
+          "make": "Toyota",
+          "model": "Camry",
+          "year": "2020",
+          "color": "Blue"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-04-22T23:15:13.283Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:15:13.283Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-22T23:15:12.869Z",
+    "createdAt": "2026-04-22T23:15:12.869Z",
+    "signUpDate": "2026-04-22T23:15:12.869Z"
+  },
+  {
+    "id": 35,
+    "fullName": "Scenario Provider 1776899712438",
+    "username": "scenpro_1776899712438",
+    "email": "scenpro_1776899712438@example.test",
+    "phoneNumber": "555-4000",
+    "passwordHash": "scrypt$80ab51294dd86b6a3bf595985db2ef98$a4b36fb955c1444e62f76ef1aac9154cc9281dd483e26eed4d259b4771fc70ed3fbafc15974d742c3d4c8a3e7c512b0af613f3b82e1652f5134765a5df1efc5f",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Scenario Provider 1776899712438",
+        "phoneNumber": "555-4000",
+        "email": "scenpro_1776899712438@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2019",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:15:13.598Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:15:13.598Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:15:13.598Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "Scenario test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect cables safely and verify polarity.",
+          "jackPlacement": "Use the manufacturer jack point.",
+          "specialtyVehicleJack": "Use the correct specialty jack or pad adapter.",
+          "spoolDefinition": "A jack pad or lift point adapter/spool.",
+          "frozenLugNut": "Use penetrating oil and controlled leverage.",
+          "lockoutTools": "Air wedge, long reach tool, and protective tools.",
+          "lockoutDamagePrevention": "Protect seals and trim and work slowly.",
+          "incorrectLockoutDamage": "Broken glass, bent frame, scratched paint, damaged weather seals.",
+          "tirePlugKnowledge": "Yes, when safe and within policy.",
+          "severeDamageDecision": "Inform the customer of possible damage and do not complete the unsafe service."
+        },
+        "evaluatedAt": "2026-04-22T23:15:13.599Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-17:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Test Metro",
+      "currentLocation": "",
+      "equipment": [
+        "jack",
+        "air wedge"
+      ],
+      "profileSubmittedAt": "2026-04-22T23:15:13.600Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:15:13.600Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START",
+      "TIRE_CHANGE"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:15:13.289Z",
+    "signUpDate": "2026-04-22T23:15:13.289Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:15:13.610Z",
+    "approvalNote": "scenario approval"
+  },
+  {
+    "id": 36,
+    "fullName": "P T",
+    "username": "ptestx1776899768343",
+    "email": "ptestx1776899768343@e.test",
+    "phoneNumber": "555",
+    "passwordHash": "scrypt$1f7fb86de34184a6ec0ec464528aca52$6e63f8f473d735896f2b5a13cd9828b5c365e4b7b19bbb1ed7bb405f146c630dff14434e1f5b05289b33b04f262cff6ce5c661695be7ee3c0c7340feea09c059",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "P T",
+        "phoneNumber": "555",
+        "email": "ptestx1776899768343@e.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2020",
+        "color": "Black"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:16:08.550Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:16:08.550Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:16:08.550Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "x",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "a",
+          "jackPlacement": "a",
+          "specialtyVehicleJack": "a",
+          "spoolDefinition": "a",
+          "frozenLugNut": "a",
+          "lockoutTools": "a",
+          "lockoutDamagePrevention": "a",
+          "incorrectLockoutDamage": "a",
+          "tirePlugKnowledge": "a",
+          "severeDamageDecision": "inform customer of possible damage and do not complete unsafe service"
+        },
+        "evaluatedAt": "2026-04-22T23:16:08.550Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "9-5"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Metro",
+      "currentLocation": "",
+      "equipment": [],
+      "profileSubmittedAt": "2026-04-22T23:16:08.560Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:16:08.560Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:16:08.390Z",
+    "signUpDate": "2026-04-22T23:16:08.390Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:16:08.619Z",
+    "approvalNote": null
+  },
+  {
+    "id": 37,
+    "fullName": "Audit Subscriber 1776899833922",
+    "username": "audsub_1776899833922",
+    "email": "audsub_1776899833922@example.test",
+    "phoneNumber": "555-2100",
+    "passwordHash": "scrypt$fb30416325de63b14df7a07b3082e5e3$58d0c2e1ee8fb29f1ff9182989850c9d7ae3baa7d7536c1e68e748aa45d43f5998a63841ceac8dfba7e92e952b63603b70b13279112ed3b204eda1d56e2ebbcd",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2021",
+        "color": "Gray"
+      },
+      "savedVehicles": [
+        {
+          "make": "Honda",
+          "model": "Civic",
+          "year": "2021",
+          "color": "Gray"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-04-22T23:17:14.437Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:17:14.437Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-22T23:17:14.069Z",
+    "createdAt": "2026-04-22T23:17:14.069Z",
+    "signUpDate": "2026-04-22T23:17:14.069Z"
+  },
+  {
+    "id": 38,
+    "fullName": "Audit Provider 1776899833922",
+    "username": "audpro_1776899833922",
+    "email": "audpro_1776899833922@example.test",
+    "phoneNumber": "555-2200",
+    "passwordHash": "scrypt$30d3bed629660062f64d8d4e19a24ef4$23bbdd24134874cf1072a16922ceba0c6c5c38806ca7a8a2dbc9f48b9ad6459d8bd9a27b002f38d8ec387bfd94e98e566413d360bb5992ce0717bbbef490f983",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Audit Provider 1776899833922",
+        "phoneNumber": "555-2200",
+        "email": "audpro_1776899833922@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2018",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:17:14.767Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:17:14.767Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:17:14.767Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "audit provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "safe",
+          "jackPlacement": "jack point",
+          "specialtyVehicleJack": "correct jack",
+          "spoolDefinition": "jack pad",
+          "frozenLugNut": "penetrating oil",
+          "lockoutTools": "air wedge",
+          "lockoutDamagePrevention": "protect trim",
+          "incorrectLockoutDamage": "damage trim",
+          "tirePlugKnowledge": "yes",
+          "severeDamageDecision": "inform customer of possible damage and do not complete unsafe service"
+        },
+        "evaluatedAt": "2026-04-22T23:17:14.767Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-17:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Metro",
+      "currentLocation": "",
+      "equipment": [],
+      "profileSubmittedAt": "2026-04-22T23:17:14.768Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:17:14.768Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:17:14.442Z",
+    "signUpDate": "2026-04-22T23:17:14.442Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:17:14.775Z",
+    "approvalNote": "audit approval"
+  },
+  {
+    "id": 39,
+    "fullName": "Internal Subscriber 1776900979008",
+    "username": "intsub_1776900979008",
+    "email": "intsub_1776900979008@example.test",
+    "phoneNumber": "555-4100",
+    "passwordHash": "scrypt$a1b757895cefa67b2cc6060d6f90dcde$8d8477ba012f1d0cef6ced7304fbb85b414df103180d6fbbc178e3a8be8eb2168adc51d484117379a7e7e8586e497476c79dc2a3583f9ce4497e11f80e02e2f5",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Nissan",
+        "model": "Altima",
+        "year": "2022",
+        "color": "Silver"
+      },
+      "savedVehicles": [
+        {
+          "make": "Nissan",
+          "model": "Altima",
+          "year": "2022",
+          "color": "Silver"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-04-22T23:36:20.218Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:36:20.218Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-22T23:36:19.653Z",
+    "createdAt": "2026-04-22T23:36:19.653Z",
+    "signUpDate": "2026-04-22T23:36:19.653Z"
+  },
+  {
+    "id": 40,
+    "fullName": "Internal Provider 1776900979008",
+    "username": "intpro_1776900979008",
+    "email": "intpro_1776900979008@example.test",
+    "phoneNumber": "555-4200",
+    "passwordHash": "scrypt$3132164559f87f8300f15d2ccdaf88e8$46646de41e117d80688e8bf2829f207e6b84a59ed36e3c5450099d45729aa7cf4454a20cf48dc32f2d6787123c1e3158e6e2fb42fe1c37822baaa107b7eac4b6",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Internal Provider 1776900979008",
+        "phoneNumber": "555-4200",
+        "email": "intpro_1776900979008@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:36:20.693Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:36:20.693Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:36:20.693Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "internal test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "safe",
+          "jackPlacement": "jack point",
+          "specialtyVehicleJack": "correct jack",
+          "spoolDefinition": "jack pad",
+          "frozenLugNut": "penetrating oil",
+          "lockoutTools": "air wedge",
+          "lockoutDamagePrevention": "protect trim",
+          "incorrectLockoutDamage": "damage trim",
+          "tirePlugKnowledge": "yes",
+          "severeDamageDecision": "inform customer of possible damage and do not complete unsafe service"
+        },
+        "evaluatedAt": "2026-04-22T23:36:20.693Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-17:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Metro",
+      "currentLocation": "",
+      "equipment": [],
+      "profileSubmittedAt": "2026-04-22T23:36:20.696Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:36:20.697Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:36:20.224Z",
+    "signUpDate": "2026-04-22T23:36:20.224Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:36:20.709Z",
+    "approvalNote": "internal approval"
+  },
+  {
+    "id": 41,
+    "fullName": "Bypass Provider",
+    "username": "bypass1777061120858",
+    "email": "bypass1777061120858@example.com",
+    "phoneNumber": "5559990000",
+    "passwordHash": "scrypt$360d117a1adc07c8062db8411d6bced5$5b3fdb158c4487ac29452f9d13fa3736e7b29eb25bb60ffe4325d0ada7d9a3350ac1259d6341c7d91a091bcffc81cf988b7b525fb13945b5a0f605011c8fb635",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "DRAFT",
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "acceptedAt": "2026-04-24T20:05:20.862Z",
+        "accepted": true,
+        "termsVersion": "test",
+        "liabilityAccepted": false,
+        "holdHarmlessAccepted": false,
+        "liabilityStatement": "independent"
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-24T20:05:20.862Z",
+    "signUpDate": "2026-04-24T20:05:20.862Z"
   }
 ]
