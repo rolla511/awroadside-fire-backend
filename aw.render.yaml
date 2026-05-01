@@ -6,6 +6,7 @@ services:
     rootDir: .
     buildFilter:
       paths:
+        - backend/storage/index.mjs
         - backend/**/*.mjs
         - backend/**/*.js
         - backend/**/*.json
