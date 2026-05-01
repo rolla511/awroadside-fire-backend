@@ -1,9 +1,4 @@
-export function createAwRoadsideStorageAuthority({
-  awRoadsideDbConfig,
-  localWatchdog,
-  bootAuthority = {},
-  storageKernel = {}
-}) {
+ {
   const repositories = Object.freeze(storageKernel.repositories || {});
   const schemaSql = typeof storageKernel.schemaSql === "string" ? storageKernel.schemaSql : "";
   const storageBootAuthority = Object.freeze({
