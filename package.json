@@ -4,6 +4,11 @@
   "private": true,
   "description": "AW Roadside backend runtime",
   "type": "module",
+  "main": "./backend/server.mjs",
+  "exports": {
+    ".": "./backend/server.mjs",
+    "./storage/index": "./backend/storage/index.mjs"
+  },
   "engines": {
     "node": ">=20 <23"
   },
