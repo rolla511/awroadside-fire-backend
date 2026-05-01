@@ -154,6 +154,28 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
+      if (pathname === "/api/aw-roadside/auth/reset-password") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+        const payload = await helpers.readJsonBody(req);
+        // Password reset is handled as a simulated event in the baseline runtime.
+        // It records a security event and audit log.
+        const email = helpers.optionalString(payload.email);
+        if (!email) {
+          helpers.sendJson(res, 400, { error: "missing-email", message: "Email is required for password reset." });
+          return true;
+        }
+        recordAudit("auth-password-reset-requested", { email });
+        await helpers.recordSecurityEvent("auth-password-reset-requested", { email });
+        helpers.sendJson(res, 200, {
+          ok: true,
+          message: "If an account exists for that email, a reset link has been sent."
+        });
+        return true;
+      }
+
       if (pathname === "/api/aw-roadside/auth/profile") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");

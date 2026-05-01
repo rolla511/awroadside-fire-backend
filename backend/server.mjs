@@ -1,4 +1,4 @@
-import { existsSync, promises as fs, readFileSync } from "fs";
+import { createReadStream, existsSync, promises as fs, readFileSync } from "fs";
 import crypto from "crypto";
 import http from "http";
 import path from "path";
@@ -240,6 +240,7 @@ function resolveWebRoot() {
         ? configuredWebRoot
         : path.resolve(projectRoot, configuredWebRoot)
       : null,
+    path.join(projectRoot, "dist-app-variant"),
     path.join(projectRoot, "web"),
     path.join(cwd, "web"),
     path.join(projectRoot, "dist", "web"),
@@ -458,6 +459,20 @@ const server = http.createServer(async (req, res) => {
 
     const url = new URL(req.url, `http://${host}:${port}`);
     const pathname = url.pathname;
+
+    // Support for .well-known app store directives
+    if (pathname.startsWith("/.well-known/")) {
+      const fileName = pathname.substring(1); // remove leading slash
+      const filePath = path.join(webRoot, fileName);
+      if (existsSync(filePath)) {
+        const ext = path.extname(filePath).toLowerCase();
+        res.writeHead(200, { "Content-Type": getContentType(ext) });
+        const stream = createReadStream(filePath);
+        stream.pipe(res);
+        return;
+      }
+    }
+
     const commonHelpers = {
       readJsonBody,
       sendJson,

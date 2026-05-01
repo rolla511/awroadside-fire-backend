@@ -174,6 +174,9 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeRequest, setActiveRequest] = useState(null);
+  const [showTerms, setShowTerms] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const navItems = adminSession?.token ? [...topNavItems, { id: 'security', label: 'Security' }] : topNavItems;
   const api = createApiClient({
@@ -282,6 +285,24 @@ export default function App() {
         setSubscriberView('profile');
       }
       setStatusMessage('Sign in complete.');
+    } catch (error) {
+      setErrorMessage(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    if (!forgotPasswordEmail) {
+      setErrorMessage('Enter your email to reset password.');
+      return;
+    }
+    setLoading(true);
+    clearMessages();
+    try {
+      await api.resetPassword({ email: forgotPasswordEmail });
+      setStatusMessage('If an account exists, a reset link has been sent to ' + forgotPasswordEmail);
+      setShowForgotPassword(false);
     } catch (error) {
       setErrorMessage(error.message);
     } finally {
@@ -1024,12 +1045,18 @@ export default function App() {
         <View style={styles.heroCard}>
           <Image source={homeGraphic} style={styles.heroImage} resizeMode="cover" />
           <View style={styles.heroCopy}>
-            <Text style={styles.eyebrow}>AW Roadside Fire</Text>
-            <Text style={styles.title}>Role-based Expo variant mapped to live service flows.</Text>
+            <Text style={styles.eyebrow}>A-Dub Roadside Fire</Text>
+            <Text style={styles.title}>Fast help when you need it most.</Text>
             <Text style={styles.subtitle}>
-              Guest request and payment, subscriber profile and request status, provider dispatch and payout view, and admin work surfaces now align with the live AW service routes.
+              Whether it's a jump start, lockout, or tire change, we get you back on the road with confidence. 
+              Safe, reliable, and transparent pricing.
             </Text>
           </View>
+        </View>
+
+        <View style={styles.marketingBanner}>
+          <Text style={styles.bannerTitle}>Trusted by Thousands</Text>
+          <Text style={styles.bannerBody}>Available 24/7 across all major zones. Join as a subscriber for priority dispatch and lower rates.</Text>
         </View>
 
         <View style={styles.panel}>
@@ -1831,6 +1858,25 @@ export default function App() {
           value={signinForm.password}
           onChangeText={(value) => setSigninForm((current) => ({ ...current, password: value }))}
         />
+        <Pressable onPress={() => setShowForgotPassword(true)} style={styles.textLink}>
+          <Text style={styles.textLinkLabel}>Forgot Password?</Text>
+        </Pressable>
+
+        {showForgotPassword && (
+          <View style={styles.modalSim}>
+            <Text style={styles.sectionTitle}>Reset Password</Text>
+            <InputField
+              label="Account Email"
+              autoCapitalize="none"
+              value={forgotPasswordEmail}
+              onChangeText={setForgotPasswordEmail}
+            />
+            <View style={styles.buttonGrid}>
+              <Button label="Send Link" onPress={handleForgotPassword} />
+              <Button label="Cancel" onPress={() => setShowForgotPassword(false)} kind="secondary" />
+            </View>
+          </View>
+        )}
       </View>
     );
   }
@@ -1898,8 +1944,15 @@ export default function App() {
     return (
       <View key={`session-${requestId}`} style={styles.queueCard}>
         <Text style={styles.queueTitle}>{labelServiceType(uiEventMap, request.serviceType || 'Service')} · {requestId}</Text>
+        
+        {/* Mapbox Integration Placeholder */}
+        <View style={styles.mapPlaceholder}>
+          <Text style={styles.mapPlaceholderLabel}>Mapbox Live Tracking</Text>
+          <Text style={styles.mutedText}>Location: {request.location || 'Detecting...'}</Text>
+          <View style={styles.mapSimCircle} />
+        </View>
+
         <Text style={styles.mutedText}>Customer: {request.fullName || 'Unknown'}</Text>
-        <Text style={styles.mutedText}>Location: {request.location || 'Unknown'}</Text>
         <Text style={styles.mutedText}>Location access: {request.locationDisclosureLevel || 'MASKED'} · Contact access: {request.contactDisclosureLevel || 'LOCKED'}</Text>
         <Text style={styles.mutedText}>Status: {labelUiStatus(uiEventMap, 'requestStatus', request.status || request.completionStatus || 'Unknown')}</Text>
         <Text style={styles.mutedText}>Payment: {labelUiStatus(uiEventMap, 'paymentStatus', request.paymentStatus || 'NOT_PAID')}</Text>
@@ -2024,6 +2077,26 @@ export default function App() {
     );
   }
 
+  function renderTermsModal() {
+    if (!showTerms) return null;
+    return (
+      <View style={styles.modalSimFull}>
+        <ScrollView style={styles.modalContent}>
+          <Text style={styles.sectionTitle}>Terms & Conditions</Text>
+          <Text style={styles.bodyText}>
+            By using A-Dub Roadside Fire, you agree to our Terms of Service and Privacy Policy. 
+            The platform provides dispatch coordination services. We are not liable for direct provider-contracted services. 
+            No refunds are issued once payment is captured.
+          </Text>
+          <Text style={styles.bodyText}>
+            Providers must maintain valid insurance and licenses. Subscribers are eligible for priority dispatch.
+          </Text>
+        </ScrollView>
+        <Button label="Close" onPress={() => setShowTerms(false)} />
+      </View>
+    );
+  }
+
   function renderTabBar(items, active, onChange) {
     return (
       <View style={styles.roleTabs}>
@@ -2048,6 +2121,9 @@ export default function App() {
         <InputField label="Vehicle Model" value={subscriberSignup.model} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, model: value }))} />
         <InputField label="Vehicle Color" value={subscriberSignup.color} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, color: value }))} />
         <InputField label="Payment Reference" value={subscriberSignup.paymentMethodMasked} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, paymentMethodMasked: value }))} />
+        <Pressable onPress={() => setShowTerms(true)} style={styles.textLink}>
+          <Text style={styles.textLinkLabel}>I agree to the Terms of Service</Text>
+        </Pressable>
       </View>
     );
   }
@@ -2064,6 +2140,14 @@ export default function App() {
         <InputField label="Vehicle Model" value={providerSignup.model} onChangeText={(value) => setProviderSignup((current) => ({ ...current, model: value }))} />
         <InputField label="Vehicle Color" value={providerSignup.color} onChangeText={(value) => setProviderSignup((current) => ({ ...current, color: value }))} />
         <InputField label="Experience" multiline value={providerSignup.experience} onChangeText={(value) => setProviderSignup((current) => ({ ...current, experience: value }))} />
+        
+        <Text style={styles.label}>Required Documents (Tap to upload simulation)</Text>
+        <View style={styles.buttonGrid}>
+          <Button label={providerSignup.license ? "License ✓" : "Upload License"} kind={providerSignup.license ? "secondary" : "primary"} onPress={() => setProviderSignup(c => ({...c, license: true}))} />
+          <Button label={providerSignup.registration ? "Registration ✓" : "Upload Registration"} kind={providerSignup.registration ? "secondary" : "primary"} onPress={() => setProviderSignup(c => ({...c, registration: true}))} />
+          <Button label={providerSignup.insurance ? "Insurance ✓" : "Upload Insurance"} kind={providerSignup.insurance ? "secondary" : "primary"} onPress={() => setProviderSignup(c => ({...c, insurance: true}))} />
+        </View>
+
         <Text style={styles.label}>Services</Text>
         <View style={styles.pillWrap}>
           {providerServiceOptions.map((service) => {
@@ -2086,6 +2170,9 @@ export default function App() {
             );
           })}
         </View>
+        <Pressable onPress={() => setShowTerms(true)} style={styles.textLink}>
+          <Text style={styles.textLinkLabel}>I agree to the Provider Terms & Policy</Text>
+        </Pressable>
       </View>
     );
   }
@@ -2116,6 +2203,7 @@ export default function App() {
       {errorMessage ? <Text style={styles.errorBanner}>{errorMessage}</Text> : null}
 
       {renderScreen()}
+      {renderTermsModal()}
     </SafeAreaView>
   );
 }
@@ -2375,10 +2463,83 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+  marketingBanner: {
+    backgroundColor: theme.colors.gold,
+    padding: 16,
+    borderRadius: 8,
+    marginVertical: 12,
+  },
+  bannerTitle: {
+    color: theme.colors.dark,
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  bannerBody: {
+    color: theme.colors.dark,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  modalSim: {
+    backgroundColor: theme.colors.dark,
+    borderWidth: 1,
+    borderColor: theme.colors.gold,
+    padding: 16,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  modalSimFull: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    padding: 20,
+    zIndex: 1000,
+  },
+  modalContent: {
+    flex: 1,
+    marginBottom: 20,
+  },
+  textLink: {
+    paddingVertical: 8,
+  },
+  textLinkLabel: {
+    color: theme.colors.gold,
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  bodyText: {
+    color: theme.colors.light,
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 12,
+  },
   content: {
     gap: theme.spacing.md,
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xl,
+  },
+  mapPlaceholder: {
+    backgroundColor: '#1a1a1a',
+    height: 150,
+    borderRadius: 8,
+    marginVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  mapPlaceholderLabel: {
+    color: theme.colors.gold,
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  mapSimCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: theme.colors.gold,
+    marginTop: 10,
+    opacity: 0.6,
   },
   heroCard: {
     backgroundColor: theme.colors.card,
