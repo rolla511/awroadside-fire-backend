@@ -1,14 +1,15 @@
 {
-  "name": "untitled-local-runtime",
+  "name": "awroadside-fire-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "AW Roadside backend runtime",
+  "description": "awroadside-fire-backend",
   "type": "module",
   "main": "./backend/server.mjs",
   "exports": {
     ".": "./backend/server.mjs",
     "./storage/index": "./backend/storage/index.mjs"
   },
+  "awBlueprint": "aw.render.yaml",
   "engines": {
     "node": ">=20 <23"
   },
