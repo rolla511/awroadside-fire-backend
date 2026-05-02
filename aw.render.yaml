@@ -10,6 +10,12 @@ services:
         - backend/**/*.mjs
         - backend/**/*.js
         - backend/**/*.json
+        - dist-app-variant/**/*.html
+        - dist-app-variant/**/*.js
+        - dist-app-variant/**/*.css
+        - dist-app-variant/**/*.ico
+        - dist-app-variant/**/*.json
+        - dist-app-variant/assets/**/*
         - web/**/*.html
         - web/**/*.js
         - web/**/*.css
@@ -21,7 +27,6 @@ services:
       ignoredPaths:
         - awroadside-fire-work/**
         - dist/**
-        - dist-app-variant/**
         - out/**
         - wordpress/**
         - src/**
