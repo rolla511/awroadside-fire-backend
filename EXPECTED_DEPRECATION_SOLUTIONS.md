@@ -40,4 +40,4 @@ If Render or GitHub deprecates the live deployment chain:
 
 ## Recorded Target Remote
 
-- Intended GitHub repo: `https://github.com/rolla511/aw0untitleddvro`
+- Intended GitHub repo: `https://github.com/rolla511/awroadside-fire-backend`
