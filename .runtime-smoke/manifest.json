@@ -1,0 +1,13 @@
+{
+  "app": "local-node-runtime",
+  "host": "127.0.0.1",
+  "port": 3105,
+  "startedAt": "2026-05-02T11:01:00.086Z",
+  "blueprintPath": "/Users/user/IdeaProjects/untitled/aw.render.yaml",
+  "blueprintRuntime": "node",
+  "blueprintNodeVersion": "20",
+  "runningNodeVersion": "v20.20.2",
+  "uiUrl": "http://127.0.0.1:3105/",
+  "apiUrl": "http://127.0.0.1:3105/api/aw-roadside/frontend-config",
+  "protectedApiBaseUrl": "http://127.0.0.1:3105/api/aw-roadside"
+}

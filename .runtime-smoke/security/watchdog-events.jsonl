@@ -1,0 +1,4 @@
+{"event":"baseline-created","fileCount":21,"timestamp":"2026-05-02T11:01:00.346Z"}
+{"event":"awroadsidedb-config-initialized","layer":"awroadside-db-handoff","backendEntry":"backend/server.mjs","applicationName":"awroadside-server","mode":"file-runtime","configured":false,"client":"postgres","strict":false,"timestamp":"2026-05-02T11:01:00.451Z"}
+{"event":"storage-authority-file-runtime","layer":"awroadside-db-handoff","backendEntry":"backend/server.mjs","applicationName":"awroadside-server","repositories":["users","requests","payments","providerWallet","providerHistory"],"timestamp":"2026-05-02T11:01:00.452Z"}
+{"event":"storage-authority-file-runtime","layer":"awroadside-storage","repositories":["users","requests","payments","providerWallet","providerHistory"],"timestamp":"2026-05-02T11:01:00.454Z"}

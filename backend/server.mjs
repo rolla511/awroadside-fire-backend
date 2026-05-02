@@ -1,4 +1,4 @@
-import { existsSync, promises as fs, readFileSync } from "fs";
+import { createReadStream, existsSync, promises as fs, readFileSync } from "fs";
 import crypto from "crypto";
 import http from "http";
 import path from "path";
@@ -20,9 +20,32 @@ import { createUniversalBridgeController } from "./universal-bridge-controller.m
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Internalize project configuration
+function loadInternalEnv() {
+  const envPath = path.resolve(__dirname, "..", ".env");
+  if (existsSync(envPath)) {
+    console.log(`[DEBUG_LOG] Loading internal relative data from: ${envPath}`);
+    const content = readFileSync(envPath, "utf-8");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const firstEqual = trimmed.indexOf("=");
+      if (firstEqual === -1) continue;
+      const key = trimmed.substring(0, firstEqual).trim();
+      const value = trimmed.substring(firstEqual + 1).trim();
+      if (key && !process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+loadInternalEnv();
+
 const BLUEPRINT_RELATIVE_PATH = "aw.render.yaml";
 const runtimeFileRoot = path.resolve(__dirname, "..");
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
+console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
 const blueprintNodeContract = readBlueprintNodeContract(blueprintPath);
 const projectRoot = resolveProjectRoot(runtimeFileRoot, blueprintPath, blueprintNodeContract);
 const webRoot = resolveWebRoot();
@@ -225,10 +248,48 @@ const AW_ROADSIDE_POLICY = Object.freeze({
   }
 });
 
+const SERVER_AUTHORITY = Object.freeze({
+  serviceId: "awroadside-fire-backend",
+  runtime: "node",
+  activeEntrypoint: "backend/server.mjs",
+  rootShimEntrypoint: "server.mjs",
+  compatibilityGatewayPath: "/api/compat/status",
+  compatibilityManifestPath: "/api/compat/manifest",
+  protectedApiBasePath: "/api/aw-roadside",
+  rawApiBasePath: "/api",
+  statement:
+    "backend/server.mjs is the active AW Roadside backend authority. Legacy variants must resolve through the compatibility gateway and use backend pricing."
+});
+
 const host = process.env.HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const startedAt = new Date();
 const publicBaseUrl = resolvePublicBaseUrl();
+
+function buildAuthorityDescriptor(req = null) {
+  const baseUrl = resolveRequestBaseUrl(req);
+  return {
+    serviceId: SERVER_AUTHORITY.serviceId,
+    variantId: AW_ROADSIDE_POLICY.variantId,
+    policyVersion: AW_ROADSIDE_POLICY.termsVersion,
+    runtime: SERVER_AUTHORITY.runtime,
+    activeEntrypoint: SERVER_AUTHORITY.activeEntrypoint,
+    rootShimEntrypoint: SERVER_AUTHORITY.rootShimEntrypoint,
+    pricingSource: "backend",
+    compatibilityMode: "legacy-variants-via-gateway",
+    statement: SERVER_AUTHORITY.statement,
+    urls: {
+      ui: `${baseUrl}/`,
+      health: `${baseUrl}/api/health`,
+      authority: `${baseUrl}/api/authority`,
+      runtimeStatus: `${baseUrl}/api/runtime/status`,
+      compatibilityGateway: `${baseUrl}${SERVER_AUTHORITY.compatibilityGatewayPath}`,
+      compatibilityManifest: `${baseUrl}${SERVER_AUTHORITY.compatibilityManifestPath}`,
+      protectedApiBase: `${baseUrl}${SERVER_AUTHORITY.protectedApiBasePath}`,
+      rawApiBase: `${baseUrl}${SERVER_AUTHORITY.rawApiBasePath}`
+    }
+  };
+}
 
 function resolveWebRoot() {
   const configuredWebRoot = (process.env.WEB_ROOT || "").trim();
@@ -240,6 +301,8 @@ function resolveWebRoot() {
         ? configuredWebRoot
         : path.resolve(projectRoot, configuredWebRoot)
       : null,
+    path.join(projectRoot, "awroadside-fire-work", "web"),
+    path.join(projectRoot, "dist-app-variant"),
     path.join(projectRoot, "web"),
     path.join(cwd, "web"),
     path.join(projectRoot, "dist", "web"),
@@ -266,7 +329,9 @@ function resolveBlueprintPath(runtimeRootCandidate) {
   const candidatePaths = [
     path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH),
     path.join(process.cwd(), BLUEPRINT_RELATIVE_PATH),
-    path.join(path.dirname(runtimeRootCandidate), BLUEPRINT_RELATIVE_PATH)
+    path.join(path.dirname(runtimeRootCandidate), BLUEPRINT_RELATIVE_PATH),
+    path.join(runtimeRootCandidate, "src", BLUEPRINT_RELATIVE_PATH),
+    path.join(path.dirname(runtimeRootCandidate), "src", BLUEPRINT_RELATIVE_PATH)
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -280,11 +345,15 @@ function resolveBlueprintPath(runtimeRootCandidate) {
 
 function resolveProjectRoot(runtimeRootCandidate, resolvedBlueprintPath, blueprintContract) {
   const configuredRootDir = normalizeYamlScalar(blueprintContract?.rootDir);
+  const parentOfBlueprint = path.dirname(resolvedBlueprintPath);
+  
   if (!configuredRootDir) {
-    return runtimeRootCandidate;
+    // If we found the blueprint in a 'src' folder but we are not in it, or vice versa,
+    // we should align the project root with the blueprint's parent.
+    return parentOfBlueprint;
   }
 
-  return path.resolve(path.dirname(resolvedBlueprintPath), configuredRootDir);
+  return path.resolve(parentOfBlueprint, configuredRootDir);
 }
 
 function readBlueprintNodeContract(resolvedBlueprintPath) {
@@ -458,6 +527,28 @@ const server = http.createServer(async (req, res) => {
 
     const url = new URL(req.url, `http://${host}:${port}`);
     const pathname = url.pathname;
+
+    if (pathname === "/provider-info") {
+      const legacyPath = path.join(projectRoot, "awroadside-fire-wp", "web", "legacy-index.html");
+      if (existsSync(legacyPath)) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(readFileSync(legacyPath));
+        return;
+      }
+    }
+
+    // Support for .well-known app store directives
+    if (pathname.startsWith("/.well-known/")) {
+      const fileName = pathname.substring(1); // remove leading slash
+      const filePath = path.join(webRoot, fileName);
+      if (existsSync(filePath)) {
+        res.writeHead(200, { "Content-Type": contentType(filePath) });
+        const stream = createReadStream(filePath);
+        stream.pipe(res);
+        return;
+      }
+    }
+
     const commonHelpers = {
       readJsonBody,
       sendJson,
@@ -555,7 +646,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (pathname === "/api/health") {
-      sendJson(res, 200, await getHealthPayload());
+      sendJson(res, 200, await getHealthPayload(req));
+      return;
+    }
+
+    if (pathname === "/api/authority") {
+      sendJson(res, 200, getAuthorityPayload(req));
       return;
     }
 
@@ -996,6 +1092,7 @@ async function createRuntimeStatus() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    authority: buildAuthorityDescriptor(),
     blueprint: {
       path: blueprintNodeContract.blueprintPath,
       runtime: blueprintNodeContract.runtime || null,
@@ -1255,12 +1352,21 @@ function readNumericValue(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
-async function getHealthPayload() {
+function getAuthorityPayload(req = null) {
   return {
     status: "ok",
-    service: "local-node-runtime",
+    authority: buildAuthorityDescriptor(req)
+  };
+}
+
+async function getHealthPayload(req = null) {
+  return {
+    status: "ok",
+    service: SERVER_AUTHORITY.serviceId,
     timestamp: new Date().toISOString(),
     policyVersion: AW_ROADSIDE_POLICY.termsVersion,
+    pricingSource: "backend",
+    authority: buildAuthorityDescriptor(req),
     locationServicesConfigured: locationService.isConfigured()
   };
 }
@@ -1711,6 +1817,7 @@ function isProviderWithinCoverage(request, provider) {
 async function getFrontendConfigPayload(req = null) {
   const baseUrl = resolveRequestBaseUrl(req);
   return {
+    authority: buildAuthorityDescriptor(req),
     apiBaseUrl: `${baseUrl}/api/aw-roadside`,
     rawApiBaseUrl: `${baseUrl}/api`,
     uiBaseUrl: baseUrl,
@@ -1818,6 +1925,7 @@ function getIntegrationTargetPayload(req = null) {
   return {
     status: "ready",
     message: "Use the integrated AW Roadside runtime frontend and protected API.",
+    authority: buildAuthorityDescriptor(req),
     expectedPayload: {
       htmlFile: "web/index.html",
       mountSelector: ".page-shell",

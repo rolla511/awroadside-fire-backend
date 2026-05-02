@@ -41,6 +41,12 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
         body: JSON.stringify(payload),
       });
     },
+    resetPassword(payload) {
+      return request('/api/aw-roadside/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    },
     getProfile(tokenOverride = null) {
       return request('/api/aw-roadside/auth/profile', {
         token: tokenOverride,

@@ -1,0 +1,16 @@
+{
+  "layer": "aw-roadside-local-watchdog",
+  "active": true,
+  "scannedAt": "2026-05-02T11:01:00.443Z",
+  "baselineCreatedAt": "2026-05-02T11:01:00.343Z",
+  "watchedFiles": 21,
+  "integrityOk": true,
+  "suspiciousFiles": [],
+  "recentEvents": [
+    {
+      "event": "baseline-created",
+      "fileCount": 21,
+      "timestamp": "2026-05-02T11:01:00.346Z"
+    }
+  ]
+}

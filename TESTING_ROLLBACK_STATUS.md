@@ -19,7 +19,7 @@ This file is a handoff marker for future repo scans. It records the active backe
 
 ### Android Testing Prep State
 
-- Android app default backend URL was set to `https://awroadside-fire-backend-1.onrender.com`
+- Android app default backend URL was set to `https://awraodside-backend-fire.onrender.com`
 - Active mobile pricing/text was aligned to `backend/server.mjs`
 - Guest-facing service copy was updated for stronger testing/review presentation
 - Production-readiness review was started but not completed to release-artifact signoff
@@ -94,7 +94,7 @@ Timezone: America/New_York
 
 #### Confirmed Render Concern
 
-- `https://awroadside-fire-backend-1.onrender.com/api/payments/config` reported a webhook URL using `http://127.0.0.1:10000/api/paypal/webhook`
+- `https://awraodside-backend-fire.onrender.com/api/payments/config` reported a webhook URL using `http://127.0.0.1:10000/api/paypal/webhook`
 - This indicates Render deploy/runtime config needs to be brought into line with current local backend before webhook validation is meaningful
 
 #### Webhook Test State

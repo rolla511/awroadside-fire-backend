@@ -1,0 +1,13 @@
+{
+  "updatedAt": null,
+  "manifest": {
+    "projectId": "awroadside-family",
+    "activeVariantId": "awroadside-web-backend",
+    "mode": "active",
+    "authority": "protected-backend",
+    "releaseStrategy": "acknowledge-before-write",
+    "generatedAt": "2026-05-02T11:01:00.239Z"
+  },
+  "records": {},
+  "acknowledgedVariants": []
+}

@@ -10,22 +10,34 @@ services:
         - backend/**/*.mjs
         - backend/**/*.js
         - backend/**/*.json
+        - awroadside-fire-work/web/**/*.html
+        - awroadside-fire-work/web/**/*.js
+        - awroadside-fire-work/web/**/*.css
+        - awroadside-fire-work/web/assets/**/*
+        - dist-app-variant/**/*.html
+        - dist-app-variant/**/*.js
+        - dist-app-variant/**/*.css
+        - dist-app-variant/**/*.ico
+        - dist-app-variant/**/*.json
+        - dist-app-variant/assets/**/*
         - web/**/*.html
         - web/**/*.js
         - web/**/*.css
         - scripts/**/*.mjs
         - scripts/**/*.js
+        - node_modules/**/*
         - package.json
         - package-lock.json
         - aw.render.yaml
       ignoredPaths:
-        - awroadside-fire-work/**
+        - awroadside-fire-work/App.js
+        - awroadside-fire-work/app.json
+        - awroadside-fire-work/android/**
+        - awroadside-fire-work/ios/**
         - dist/**
-        - dist-app-variant/**
         - out/**
         - wordpress/**
         - src/**
-        - node_modules/**
         - app/runtime/**
         - "**/*.md"
         - "**/*.txt"
@@ -37,7 +49,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: PUBLIC_BASE_URL
-        sync: false
+        value: https://awraodside-backend-fire.onrender.com
       - key: DATABASE_URL
         sync: false
       - key: AW_DB_MODE

@@ -1,0 +1,111 @@
+{
+  "createdAt": "2026-05-02T11:01:00.343Z",
+  "files": [
+    {
+      "path": "backend/server.mjs",
+      "sha256": "11dac85f27e2efcd7c76c86f15b6ece6f43ffd60168948e67649797851d68f72",
+      "bytes": 158070,
+      "mtime": "2026-05-02T11:00:31.049Z"
+    },
+    {
+      "path": "backend/awroadsidedb-config.mjs",
+      "sha256": "405459c20860fcd4f10b83e7a399e3ae5d7edd2b0c3ae6c7a85028bfbc1e1830",
+      "bytes": 3944,
+      "mtime": "2026-04-30T22:24:38.122Z"
+    },
+    {
+      "path": "backend/storage/index.mjs",
+      "sha256": "5699581fb72eb3ee1cb0939da452931eeb065e662d47533ab3b0dbf80e4badbb",
+      "bytes": 17593,
+      "mtime": "2026-05-01T23:20:06.064Z"
+    },
+    {
+      "path": "backend/storage/users-repository.mjs",
+      "missing": true
+    },
+    {
+      "path": "backend/storage/requests-repository.mjs",
+      "missing": true
+    },
+    {
+      "path": "backend/storage/provider-wallet-repository.mjs",
+      "missing": true
+    },
+    {
+      "path": "backend/storage/provider-history-repository.mjs",
+      "missing": true
+    },
+    {
+      "path": "backend/storage/payments-repository.mjs",
+      "missing": true
+    },
+    {
+      "path": "backend/storage/schema.mjs",
+      "sha256": "c09ccfa80c12ce989cc59b3fd2bce97339f1b5b5844ca686eb427a2e77ee7a0e",
+      "bytes": 2708,
+      "mtime": "2026-04-27T14:01:32.750Z"
+    },
+    {
+      "path": "backend/storage/sql-helpers.mjs",
+      "missing": true
+    },
+    {
+      "path": "backend/aw-roadside-security.mjs",
+      "sha256": "33bd37d5aa06db8665012c04bcb8efc6eb9c89e84bc3d1c6e2a57447c9e42811",
+      "bytes": 22957,
+      "mtime": "2026-05-01T19:47:43.642Z"
+    },
+    {
+      "path": "backend/subscription-controller.mjs",
+      "sha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24",
+      "bytes": 30664,
+      "mtime": "2026-04-30T17:42:47.746Z"
+    },
+    {
+      "path": "backend/smtp-mailer.mjs",
+      "sha256": "fb7ef950bb9921e9dd05c07b5bae663acae8defa8ed62507127aeafbee4c5398",
+      "bytes": 9844,
+      "mtime": "2026-04-30T17:42:46.817Z"
+    },
+    {
+      "path": "backend/request-service-controller.mjs",
+      "sha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce",
+      "bytes": 20260,
+      "mtime": "2026-04-30T17:42:48.806Z"
+    },
+    {
+      "path": "backend/admin-controller.mjs",
+      "sha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f",
+      "bytes": 47980,
+      "mtime": "2026-04-30T17:42:48.207Z"
+    },
+    {
+      "path": "web/app.js",
+      "missing": true
+    },
+    {
+      "path": "web/index.html",
+      "missing": true
+    },
+    {
+      "path": "web/customer.html",
+      "missing": true
+    },
+    {
+      "path": "web/provider.html",
+      "missing": true
+    },
+    {
+      "path": "aw.render.yaml",
+      "sha256": "e2a02cf16af24e5ea58010c83a4a20a3b05a67f0e6d8add4ac5a3615de50c6a4",
+      "bytes": 2638,
+      "mtime": "2026-05-02T03:42:13.546Z"
+    },
+    {
+      "path": "package.json",
+      "sha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948",
+      "bytes": 776,
+      "mtime": "2026-05-01T15:55:27.167Z"
+    }
+  ]
+}

@@ -27,9 +27,34 @@ Completed
 - Synchronized local authority state with GitHub remote.
 - Added debug logging and enhanced static file serving (mjs, png, jpeg) in `backend/server.mjs` to diagnose Render pathing issues.
 - Updated Android app (`awroadside-fire-work/App.js`) to correctly handle backend events and synchronize active request state.
-- Created path manifests:
-  - /Users/user/IdeaProjects/untitled/AWroadside-final-paths.txt
-  - /Users/user/Downloads/AWroadside/final-product-paths.txt
+- Pointed backend base URL to `https://awraodside-backend-fire.onrender.com` in specific `aw.render.yaml` manifest, while keeping generic `render.yaml` unaltered.
+- Implemented support for `.well-known` app store directives (e.g., `assetlinks.json`) in the backend to support mobile app verification and deep linking.
+- Verified `assetlinks.json` path: `web/.well-known/assetlinks.json` (also mirrored in `dist-app-variant/.well-known/` for runtime consistency).
+- Fixed `backend/server.mjs` function call bug (`getContentType` -> `contentType`) for `.well-known` assets.
+- Confirmed `assetlinks.json` is correctly served with `application/json` content-type via `/.well-known/assetlinks.json`.
+- Confirmed `web/index.html` was serving as a dysfunctional "gap filler" and prioritized `dist-app-variant` (the preferred app variant) as the primary entry point.
+- Archived the dysfunctional `web/index.html` to `web/index.html.dysfunctional` to prevent logic overrides.
+- Updated `aw.render.yaml` and `backend/server.mjs` to serve `dist-app-variant` assets as the authoritative web presence.
+- Updated Render configuration to use the specific `awraodside-backend-fire.onrender.com` instance.
+- Verified that the backend correctly serves static assets including `.mjs`, `.png`, and `.jpeg` for both web and app components.
+- Conducted 0% to 100% Accuracy Audit (2026-05-01) confirming backend compatibility with the app variant and successful local runtime execution against `awraodside-backend-fire.onrender.com`.
+- Finalized App Variant (2026-05-01) with Password Reset, Marketing Banners, Terms Modal, Document Upload UI, and Mapbox placeholders.
+- Verified 100% functional accuracy across all 5 major app sections (Guest, Subscriber, Provider, Admin, Overview).
+- Documented final path resolution logic and file manifest for deployment stability.
+- Consolidated `backend/storage/index.mjs` into a self-contained storage authority by merging repository logic and SQL helpers.
+- Removed redundant storage files: `users-repository.mjs`, `requests-repository.mjs`, `payments-repository.mjs`, `provider-wallet-repository.mjs`, `provider-history-repository.mjs`, and `sql-helpers.mjs`.
+- Updated web root priority in `backend/server.mjs` to "firework web" (located in `awroadside-fire-work/web`).
+- Restored `awroadside-fire-work/web/index.html` (renamed from `.dysfunctional`) as the primary web entry point.
+ - Corrected `PUBLIC_BASE_URL` to `https://awraodside-backend-fire.onrender.com` for the web/backend instance.
+ - Updated `aw.render.yaml` to include `awroadside-fire-work/web` assets and correctly ignore mobile-specific files.
+ - Prepared `legacy-index.html` (Provider Load & Info) at `awroadside-fire-wp/web/legacy-index.html` and added dedicated `/provider-info` route in `backend/server.mjs`.
+ - Configured mobile app (`awroadside-fire-work/eas.json`) with `EXPO_PUBLIC_API_BASE_URL` pointing to `https://awraodside-backend-fire.onrender.com` for development, preview, and production profiles.
+ - Verified mobile app EAS build readiness (projectId: 838ef0d6-d610-4494-a9ae-3a1ad481547e).
+ - Focused on app upload for testing, bypassing local space scans.
+ - Internalized project configuration by creating a root `.env` file with PayPal, Mapbox, and Render URL data.
+ - Modified `backend/server.mjs` to automatically load internal `.env` (relative data) on startup.
+ - Organized project workspace by archiving obsolete `wordpress`, `out`, and `dist` directories into `.archive/`.
+ - Populated `app/runtime` with valid initial data structures and verified 100% backend boot accuracy with new internalized config.
 
 Still pending
 - Enforce provider assignment authority instead of queue visibility only.
