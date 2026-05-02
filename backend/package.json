@@ -1,0 +1,28 @@
+{
+  "name": "awroadside-fire-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "awroadside-fire-backend",
+  "type": "module",
+  "main": "./backend/server.mjs",
+  "exports": {
+    ".": "./backend/server.mjs",
+    "./storage/index": "./backend/storage/index.mjs"
+  },
+  "awBlueprint": "aw.render.yaml",
+  "engines": {
+    "node": ">=20 <23"
+  },
+  "scripts": {
+    "start": "node backend/server.mjs",
+    "dev": "node backend/server.mjs",
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "build": "node scripts/build.mjs",
+    "watchdog": "node scripts/watchdog.mjs",
+    "watchdog:refresh": "node scripts/watchdog-refresh.mjs",
+    "test:paypal:webhook-sim": "node scripts/test-paypal-webhook-sim.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.20.0"
+  }
+}
