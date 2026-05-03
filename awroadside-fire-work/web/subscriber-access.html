@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>A-Dub Roadside | Subscriber Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Subscriber Access</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="identity-role">Guest</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-art">
+        <img src="assets/roadside-subscriber.png" alt="Subscriber onboarding concept"/>
+      </div>
+      <div class="sidebar-copy">
+        <p class="eyebrow">Membership</p>
+        <h2>Subscriber sign in and sign up.</h2>
+        <p id="identity-state" class="muted">Create a subscriber account or sign in to load member state and saved vehicle information.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="home.html">Home</a>
+        <a class="nav-link" href="customer.html">Customer Request</a>
+        <a class="nav-link active" href="subscriber-access.html">Subscriber Access</a>
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="admin.html">Admin Access</a>
+      </nav>
+      <div class="sidebar-metrics">
+        <div class="metric-card">
+          <span>Service Line</span>
+          <strong id="api-port">24/7</strong>
+          <small id="backend-service">Checking availability</small>
+        </div>
+        <div class="metric-card">
+          <span>Dispatch Status</span>
+          <strong id="security-layer-state">Ready</strong>
+          <small id="security-layer-detail">Help is available when dispatch is online</small>
+        </div>
+        <div class="metric-card">
+          <span>Route</span>
+          <strong id="api-url">Subscriber center</strong>
+          <small id="api-status">Checking service availability...</small>
+        </div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="hero-grid">
+          <div class="hero-panel panel">
+            <p class="eyebrow">Subscriber Priority</p>
+            <h2>Save your vehicle and keep roadside access ready.</h2>
+            <p class="muted">Use the member sign-in form for an existing account or open the subscriber setup flow to create a new one.</p>
+            <div class="cta-row">
+              <button class="glow-button alt" id="member-signup-open" type="button">Create Subscriber Account</button>
+              <a class="glow-button" href="customer.html">Continue To Request</a>
+            </div>
+          </div>
+          <div class="signin-panel panel">
+            <p class="eyebrow">Subscriber Sign In</p>
+            <h3>Member access</h3>
+            <form class="form-stack" id="signin-form">
+              <label>
+                <span>Username or Email</span>
+                <input class="field" name="identifier" placeholder="vipsubscriber or email" required/>
+              </label>
+              <label>
+                <span>Password</span>
+                <input class="field" name="password" type="password" placeholder="Password" required/>
+              </label>
+              <button class="glow-button wide" type="submit">Sign In</button>
+              <div class="feedback-box" id="signin-status" style="display:none"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="panel callout">
+            <p class="eyebrow">Account State</p>
+            <h3 id="customer-identity-role">Guest</h3>
+            <p class="muted" id="customer-identity-state">Subscriber state will appear after sign-in or signup.</p>
+          </div>
+          <div class="panel callout">
+            <p class="eyebrow">Member Pricing</p>
+            <h3>Membership flow</h3>
+            <p class="muted">Review your plan details, accept the account terms, and keep your vehicle information ready for the next service call.</p>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal-shell" id="member-signup-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-top">
+      <div>
+        <p class="eyebrow">Subscriber Setup</p>
+        <h3>Member Sign Up</h3>
+      </div>
+      <button class="modal-close" id="member-signup-close" type="button">Close</button>
+    </div>
+    <form class="form-grid" id="member-signup-form">
+      <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+      <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+      <label><span>Username</span><input class="field" name="username" placeholder="Username" required/></label>
+      <label><span>Email</span><input class="field" name="email" placeholder="Email" required/></label>
+      <label><span>Password</span><input class="field" name="password" type="password" placeholder="Password" required/></label>
+      <label><span>Confirm Password</span><input class="field" name="confirmPassword" type="password" placeholder="Confirm Password" required/></label>
+      <label><span>Vehicle Year</span><input class="field" name="year" placeholder="Vehicle Year" required/></label>
+      <label><span>Vehicle Make</span><input class="field" name="make" placeholder="Vehicle Make" required/></label>
+      <label><span>Vehicle Model</span><input class="field" name="model" placeholder="Vehicle Model" required/></label>
+      <label><span>Vehicle Color</span><input class="field" name="color" placeholder="Vehicle Color" required/></label>
+      <label><span>Payment Type</span>
+        <select class="field" name="paymentMethodType" id="member-payment-method" required>
+          <option value="CARD" selected>Card</option>
+          <option value="UPI">UPI</option>
+          <option value="MANUAL">Manual</option>
+        </select>
+      </label>
+      <label><span>Payment Reference</span><input class="field" name="paymentMethodMasked" id="member-payment-masked" placeholder="Masked Card or Note" value="****1111" required/></label>
+      <label class="full-span"><span>UPI ID</span><input class="field" name="paymentUpiId" id="member-payment-upi" placeholder="UPI ID (example@bank)" style="display:none"/></label>
+      <label class="toggle full-span"><input type="checkbox" name="subscriberTermsAccepted" required/><span>I accept the subscriber membership terms.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="dispatchOnlyLiabilityAccepted" required/><span>I understand the service platform coordinates dispatch and service delivery remains with the assigned provider.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="noRefundPolicyAccepted" required/><span>I understand the stated payment policy for roadside service and membership activity.</span></label>
+      <button class="glow-button wide full-span" type="submit">Create Member Account</button>
+      <div class="feedback-box full-span" id="member-signup-status" style="display:none"></div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

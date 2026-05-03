@@ -43,14 +43,14 @@ app/runtime/
 untitled.iml
 
 ### Local packaging / backups / archives ###
-# awroadside-fire-work/
+# awroadside-fire-work/ (preserved for web root)
 awroadside-fire-wp/
 *.zip
 2026-04-03/
 .archive/
 aw-isolated/
-awroadside-fire-work/
-dist-app-variant/
+# awroadside-fire-work/
+# dist-app-variant/
 
 ### Misc local files ###
 customer-priority-payment-notice.html

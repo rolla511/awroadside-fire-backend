@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>A-Dub Roadside | Provider Wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Provider Wallet</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="provider-identity-role">None</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-copy">
+        <p class="eyebrow">Provider Wallet</p>
+        <h2>Payout-facing provider screen.</h2>
+        <p id="identity-state" class="muted">This page is reserved for payout status, wallet records, and provider financial display terms.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="provider-info.html">Provider Info</a>
+        <a class="nav-link" href="provider-work.html">Provider Work</a>
+        <a class="nav-link active" href="provider-wallet.html">Provider Wallet</a>
+      </nav>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="provider-grid">
+          <div class="panel detail-panel">
+            <p class="eyebrow">Provider Profile</p>
+            <h3>Current provider state</h3>
+            <p class="muted" id="provider-identity-state">Sign in through Provider Access to load provider wallet state.</p>
+            <p class="muted" id="provider-admin-status">Provider status will appear after sign-in.</p>
+            <p class="muted" id="provider-service-list">Services will appear after provider access is confirmed.</p>
+            <p class="muted" id="provider-vehicle-summary">Vehicle profile will appear after account details are loaded.</p>
+            <p class="muted" id="provider-wallet-paypal-email">Payout destination will appear after provider wallet data is loaded.</p>
+            <p class="muted" id="provider-wallet-telemetry">Provider payout activity will appear after wallet data is loaded.</p>
+          </div>
+          <div class="panel detail-panel">
+            <p class="eyebrow">Wallet Terms</p>
+            <h3>Provider payout view</h3>
+            <p class="muted" id="provider-wallet-summary-copy">Wallet records will appear after provider wallet data is loaded.</p>
+            <p class="muted" id="provider-wallet-terms-summary">Wallet display terms will appear here after sign-in.</p>
+            <p class="muted" id="provider-wallet-terms-detail">Payout timing and discrepancy guidance will appear after the wallet is loaded.</p>
+          </div>
+        </div>
+
+        <div class="status-cluster">
+          <div class="metric-card">
+            <span class="status-label">Available</span>
+            <strong id="provider-wallet-funds-available">$0.00</strong>
+            <small id="provider-wallet-funds-available-count">Waiting for provider payout data.</small>
+          </div>
+          <div class="metric-card">
+            <span class="status-label">Pending</span>
+            <strong id="provider-wallet-funds-pending">$0.00</strong>
+            <small id="provider-wallet-funds-pending-count">Waiting for provider payout data.</small>
+          </div>
+          <div class="metric-card">
+            <span class="status-label">On Hold</span>
+            <strong id="provider-wallet-funds-on-hold">$0.00</strong>
+            <small id="provider-wallet-funds-on-hold-count">Waiting for provider payout data.</small>
+          </div>
+          <div class="metric-card">
+            <span class="status-label">Dispute</span>
+            <strong id="provider-wallet-funds-dispute">$0.00</strong>
+            <small id="provider-wallet-funds-dispute-count">Waiting for provider payout data.</small>
+          </div>
+          <div class="metric-card">
+            <span class="status-label">Paid Out</span>
+            <strong id="provider-wallet-funds-paid-out">$0.00</strong>
+            <small id="provider-wallet-funds-paid-out-count">Waiting for provider payout data.</small>
+          </div>
+        </div>
+
+        <div class="panel provider-work-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Payout Ledger</p>
+              <h3>Completed work, funds in motion, and payout records</h3>
+            </div>
+            <button class="glow-button alt compact" id="provider-wallet-refresh" type="button">Refresh Wallet</button>
+          </div>
+          <p class="muted">This ledger reflects provider payout status returned through your account activity.</p>
+          <div class="feedback-box" id="provider-wallet-status" style="display:none"></div>
+          <div class="ledger-list" id="provider-wallet-ledger-list"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
