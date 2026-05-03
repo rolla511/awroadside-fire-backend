@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 const distRoot = path.join(projectRoot, "dist");
-const webRoot = path.join(projectRoot, "web");
+const webRoot = path.join(projectRoot, "awroadside-fire-work", "web");
 const appRoot = path.join(projectRoot, "app");
 const backendRoot = path.join(projectRoot, "backend");
 
