@@ -54,7 +54,7 @@ dist-app-variant/
 
 ### Misc local files ###
 customer-priority-payment-notice.html
-server.mjs
+/server.mjs
 wppackage.json
 
 ### Reports and Audits ###
