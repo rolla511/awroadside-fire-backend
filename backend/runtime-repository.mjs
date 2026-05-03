@@ -2,8 +2,8 @@ import { promises as fs } from "fs";
 import path from "path";
 
 const DEFAULT_STALE_AFTER_MS = 5 * 60 * 1000;
-const DEFAULT_PROJECT_ID = "awroadside-family";
-const DEFAULT_ACTIVE_VARIANT_ID = "awroadside-web-backend";
+const DEFAULT_PROJECT_ID = "awroadside-fire";
+const DEFAULT_ACTIVE_VARIANT_ID = "awroadside-fire-backend";
 const DEFAULT_VARIANT_MODE = "active";
 
 export function createRuntimeRepository({ runtimeRoot }) {
@@ -12,7 +12,13 @@ export function createRuntimeRepository({ runtimeRoot }) {
 
   return {
     async initialize() {
-      await fs.mkdir(runtimeRoot, { recursive: true });
+      try {
+        await fs.mkdir(runtimeRoot, { recursive: true });
+      } catch (error) {
+        console.error(`[WARN] Failed to create runtimeRoot ${runtimeRoot}:`, error.message);
+        // If it's a permission error and we are on Render, we might be hitting a read-only area
+        // or the disk hasn't been properly initialized/mounted yet.
+      }
       state = await readState(repositoryPath);
       await persist(repositoryPath, state);
     },
@@ -201,7 +207,11 @@ async function readState(repositoryPath) {
 }
 
 async function persist(repositoryPath, state) {
-  await fs.writeFile(repositoryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  try {
+    await fs.writeFile(repositoryPath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  } catch (error) {
+    console.error(`[WARN] Failed to persist state to ${repositoryPath}:`, error.message);
+  }
 }
 
 function normalizeStatus(value) {

@@ -1032,13 +1032,17 @@ server.listen(port, host, () => {
 });
 
 async function writeRuntimeArtifacts() {
-  await fs.mkdir(reportsRoot, { recursive: true });
-  await fs.mkdir(logsRoot, { recursive: true });
-  await fs.mkdir(paymentsRoot, { recursive: true });
-  await fs.mkdir(requestsRoot, { recursive: true });
-  await fs.mkdir(authRoot, { recursive: true });
-  await fs.mkdir(requestServiceCacheRoot, { recursive: true });
-  await fs.mkdir(providerDocumentsRoot, { recursive: true });
+  try {
+    await fs.mkdir(reportsRoot, { recursive: true });
+    await fs.mkdir(logsRoot, { recursive: true });
+    await fs.mkdir(paymentsRoot, { recursive: true });
+    await fs.mkdir(requestsRoot, { recursive: true });
+    await fs.mkdir(authRoot, { recursive: true });
+    await fs.mkdir(requestServiceCacheRoot, { recursive: true });
+    await fs.mkdir(providerDocumentsRoot, { recursive: true });
+  } catch (error) {
+    console.warn("[WARN] Failed to create some runtime directories. This might be normal if running in a restricted environment without a persistent disk.", error.message);
+  }
 
   const manifest = {
     app: "local-node-runtime",
@@ -1054,36 +1058,40 @@ async function writeRuntimeArtifacts() {
     protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`
   };
 
-  await fs.writeFile(
-    path.join(runtimeRoot, "manifest.json"),
-    `${JSON.stringify(manifest, null, 2)}\n`
-  );
+  try {
+    await fs.writeFile(
+      path.join(runtimeRoot, "manifest.json"),
+      `${JSON.stringify(manifest, null, 2)}\n`
+    );
 
-  await fs.writeFile(
-    path.join(reportsRoot, "startup-report.txt"),
-    [
-      "Local Runtime Startup Report",
-      `Started: ${startedAt.toLocaleString()}`,
-      `Blueprint: ${blueprintNodeContract.blueprintPath}`,
-      `Blueprint Runtime: ${blueprintNodeContract.runtime || "not set"}`,
-      `Blueprint Node Version: ${blueprintNodeContract.nodeVersion || "not set"}`,
-      `Running Node Version: ${process.version}`,
-      `UI: ${publicBaseUrl}/`,
-      `API: ${publicBaseUrl}/api/aw-roadside/frontend-config`,
-      `Protected API: ${publicBaseUrl}/api/aw-roadside`,
-      `Runtime Folder: ${runtimeRoot}`,
-      `Watchdog Status: ${path.join(runtimeRoot, "security", "latest-status.json")}`,
-      `PayPal Mode: ${paypalMode}`,
-      `PayPal Configured: ${paypalClientId && paypalClientSecret ? "yes" : "no"}`,
-      `PayPal Webhook: ${publicBaseUrl}${paypalWebhookPath}`,
-      `PayPal Webhook ID: ${paypalWebhookId || "not set"}`
-    ].join("\n")
-  );
+    await fs.writeFile(
+      path.join(reportsRoot, "startup-report.txt"),
+      [
+        "Local Runtime Startup Report",
+        `Started: ${startedAt.toLocaleString()}`,
+        `Blueprint: ${blueprintNodeContract.blueprintPath}`,
+        `Blueprint Runtime: ${blueprintNodeContract.runtime || "not set"}`,
+        `Blueprint Node Version: ${blueprintNodeContract.nodeVersion || "not set"}`,
+        `Running Node Version: ${process.version}`,
+        `UI: ${publicBaseUrl}/`,
+        `API: ${publicBaseUrl}/api/aw-roadside/frontend-config`,
+        `Protected API: ${publicBaseUrl}/api/aw-roadside`,
+        `Runtime Folder: ${runtimeRoot}`,
+        `Watchdog Status: ${path.join(runtimeRoot, "security", "latest-status.json")}`,
+        `PayPal Mode: ${paypalMode}`,
+        `PayPal Configured: ${paypalClientId && paypalClientSecret ? "yes" : "no"}`,
+        `PayPal Webhook: ${publicBaseUrl}${paypalWebhookPath}`,
+        `PayPal Webhook ID: ${paypalWebhookId || "not set"}`
+      ].join("\n")
+    );
 
-  await fs.writeFile(
-    path.join(logsRoot, "session.log"),
-    `[${startedAt.toISOString()}] Runtime initialized for ${host}:${port}\n`
-  );
+    await fs.writeFile(
+      path.join(logsRoot, "session.log"),
+      `[${startedAt.toISOString()}] Runtime initialized for ${host}:${port}\n`
+    );
+  } catch (error) {
+    console.warn("[WARN] Failed to write some runtime artifacts:", error.message);
+  }
 }
 
 async function createRuntimeStatus() {
@@ -2058,7 +2066,13 @@ async function saveProviderDocuments(userId, currentDocuments = {}, documentsPay
   const normalizedCurrent = normalizeStoredProviderDocuments(currentDocuments);
   const nextDocuments = { ...normalizedCurrent };
   const userDocumentsRoot = path.join(providerDocumentsRoot, `${Number(userId)}`);
-  await fs.mkdir(userDocumentsRoot, { recursive: true });
+  try {
+    if (!existsSync(userDocumentsRoot)) {
+      await fs.mkdir(userDocumentsRoot, { recursive: true });
+    }
+  } catch (error) {
+    console.warn(`[WARN] Failed to create userDocumentsRoot ${userDocumentsRoot}:`, error.message);
+  }
 
   for (const docType of PROVIDER_DOCUMENT_TYPES) {
     if (!(docType in documentsPayload)) {

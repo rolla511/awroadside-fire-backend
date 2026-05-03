@@ -44,7 +44,11 @@ export function createLocalWatchdog({ projectRoot, runtimeRoot }) {
     auditLogPath,
     latestStatusPath,
     async initialize() {
-      await fs.mkdir(securityRoot, { recursive: true });
+      try {
+        await fs.mkdir(securityRoot, { recursive: true });
+      } catch (error) {
+        console.warn(`[WARN] Failed to create securityRoot ${securityRoot}:`, error.message);
+      }
       const baseline = await readBaseline();
       if (baseline) {
         return baseline;
@@ -88,11 +92,15 @@ export function createLocalWatchdog({ projectRoot, runtimeRoot }) {
       return status;
     },
     async record(event, details = {}) {
-      await fs.mkdir(securityRoot, { recursive: true });
-      await appendAuditLog({
-        event,
-        ...details
-      });
+      try {
+        await fs.mkdir(securityRoot, { recursive: true });
+        await appendAuditLog({
+          event,
+          ...details
+        });
+      } catch (error) {
+        console.warn(`[WARN] Failed to record security event ${event}:`, error.message);
+      }
     },
     async scanAndRecord() {
       const status = await this.getStatus();
@@ -108,7 +116,11 @@ export function createLocalWatchdog({ projectRoot, runtimeRoot }) {
       return status;
     },
     async refreshBaseline() {
-      await fs.mkdir(securityRoot, { recursive: true });
+      try {
+        await fs.mkdir(securityRoot, { recursive: true });
+      } catch (error) {
+        console.warn(`[WARN] Failed to create securityRoot for refresh:`, error.message);
+      }
       const baseline = await createBaseline();
       await appendAuditLog({
         event: "baseline-refreshed",
@@ -153,7 +165,11 @@ export function createLocalWatchdog({ projectRoot, runtimeRoot }) {
       createdAt: new Date().toISOString(),
       files
     };
-    await fs.writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+    try {
+      await fs.writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`);
+    } catch (error) {
+      console.warn(`[WARN] Failed to write baseline to ${baselinePath}:`, error.message);
+    }
     return baseline;
   }
 
@@ -170,14 +186,22 @@ export function createLocalWatchdog({ projectRoot, runtimeRoot }) {
   }
 
   async function appendAuditLog(entry) {
-    await fs.appendFile(
-      auditLogPath,
-      `${JSON.stringify({ ...entry, timestamp: new Date().toISOString() })}\n`
-    );
+    try {
+      await fs.appendFile(
+        auditLogPath,
+        `${JSON.stringify({ ...entry, timestamp: new Date().toISOString() })}\n`
+      );
+    } catch (error) {
+      console.warn(`[WARN] Failed to append to audit log ${auditLogPath}:`, error.message);
+    }
   }
 
   async function writeLatestStatus(status) {
-    await fs.writeFile(latestStatusPath, `${JSON.stringify(status, null, 2)}\n`);
+    try {
+      await fs.writeFile(latestStatusPath, `${JSON.stringify(status, null, 2)}\n`);
+    } catch (error) {
+      console.warn(`[WARN] Failed to write latest status to ${latestStatusPath}:`, error.message);
+    }
   }
 
   async function getWatchedRelativeFiles() {
