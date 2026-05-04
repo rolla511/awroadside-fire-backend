@@ -1969,8 +1969,10 @@ function setupNavigation() {
     switchScreen(readScreenFromHash());
   });
 
-  // Force Home screen on fresh load for guests to act as gatekeeper
-  const initialScreen = state.auth?.userId ? readScreenFromHash() : "home";
+  // Check for persisted screen to survive Expo Go / Mobile resets
+  const persistedScreen = shellState.lastActiveScreen;
+  const initialScreen = state.auth?.userId ? (readScreenFromHash() || persistedScreen) : "home";
+  
   switchScreen(initialScreen);
 }
 
@@ -1987,8 +1989,10 @@ function navigateToScreen(screen) {
 }
 
 // --- SHELL REPORTING & STATE COMMIT ---
-const shellState = {
+const shellStateKey = `${storageKey}-shell-state`;
+const shellState = readStoredJson(shellStateKey) || {
   lastReportedBy: "init",
+  lastActiveScreen: "home",
   pendingCommit: false,
   authorityState: "active"
 };
@@ -1996,11 +2000,21 @@ const shellState = {
 function reportToShell(screen, data = {}) {
   console.log(`[SHELL_REPORT] ${screen} is reporting state...`);
   shellState.lastReportedBy = screen;
+  shellState.lastActiveScreen = screen;
   shellState.pendingCommit = true;
+  storeJson(shellStateKey, shellState);
   
-  // Logic to "bridge" local page data to the main index authority
   if (data.needsPersistence) {
     commitToBackend(screen, data);
+  }
+}
+
+function readStoredJson(key) {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
 }
 
