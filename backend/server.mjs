@@ -987,7 +987,10 @@ const server = http.createServer(async (req, res) => {
         const stat = await fs.stat(candidate);
         if (stat.isFile()) {
           const body = await fs.readFile(candidate);
-          res.writeHead(200, { "Content-Type": contentType(candidate) });
+          res.writeHead(200, { 
+            "Content-Type": contentType(candidate),
+            "Cache-Control": "public, max-age=3600"
+          });
           res.end(body);
           return;
         }
@@ -1190,7 +1193,12 @@ function sendMethodNotAllowed(res, allowedMethod) {
 
 function sendNotFound(res, pathname) {
   const body = `Not found: ${pathname}\n`;
-  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.writeHead(404, { 
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0"
+  });
   res.end(body);
 }
 
