@@ -89,32 +89,7 @@ const CAPABILITY_ROUTES = {
   }
 };
 
-const LEGACY_REFERENCES = [
-  {
-    name: "roadside-2-node-backend",
-    path: "/Users/user/Downloads/AWroadside/roadside 2/backend",
-    mode: "reference-only",
-    usefulFor: ["pricing-shape", "old-service-request-field-map"],
-    blockedRoutes: ["POST /api/service-requests/:id/accept"],
-    note: "Contains an admin_override accept route and must not be used for live provider authority."
-  },
-  {
-    name: "working-html-runtime-copy",
-    path: "/Users/user/Downloads/AWroadside/roadside 2/working-html-runtime",
-    mode: "reference-only",
-    usefulFor: ["html-runtime-shape"],
-    blockedRoutes: ["payment", "auth", "provider-completion"],
-    note: "Reference copy only. Current backend/web runtime remains the active authority."
-  },
-  {
-    name: "desktop-legacy-expo53",
-    path: "/Users/user/Desktop/awroadside-fire",
-    mode: "ui-reference-only",
-    usefulFor: ["screen-layout-memory"],
-    blockedRoutes: ["all-backend-authority"],
-    note: "Old Expo 53 frontend variant. Do not use as the active backend or payment authority."
-  }
-];
+const LEGACY_REFERENCES = [];
 
 export function createCompatibilityGateway() {
   return {

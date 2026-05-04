@@ -114,6 +114,7 @@ export function createProviderWalletPayload({
       accountState: provider.accountState || "ACTIVE",
       services: Array.isArray(provider.services) ? provider.services : [],
       vehicle: provider.providerProfile?.vehicleInfo || null,
+      // The PayPal email is used solely for payouts from the platform to the partner.
       paypalEmail: paypal.email || null
     },
     summary,

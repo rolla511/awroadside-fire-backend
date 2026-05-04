@@ -1,0 +1,590 @@
+{
+  "version": "2026-04-27",
+  "purpose": "Accurate page-to-event and endpoint mapping for the current AW Roadside web flow.",
+  "authorityFiles": {
+    "frontendController": "web/app.js",
+    "backendEntrypoint": "backend/server.mjs",
+    "securityController": "backend/aw-roadside-security.mjs",
+    "providerWalletController": "backend/provider-wallet-controller.mjs"
+  },
+  "coverageEstimate": {
+    "customer": 70,
+    "provider": 62,
+    "admin": 74
+  },
+  "pageFamilies": {
+    "customer": [
+      "web/home.html",
+      "web/customer.html",
+      "web/subscriber-access.html"
+    ],
+    "provider": [
+      "web/provider.html",
+      "web/provider-info.html",
+      "web/provider-work.html",
+      "web/provider-wallet.html"
+    ],
+    "admin": [
+      "web/admin.html",
+      "web/admin-dashboard.html",
+      "web/admin-accounts.html",
+      "web/admin-financials.html"
+    ]
+  },
+  "pages": {
+    "web/home.html": {
+      "role": "public-entry",
+      "state": "partial",
+      "sourceHandlers": [
+        "initializeApp",
+        "loadFrontendConfig",
+        "setupHomeAuth"
+      ],
+      "events": [
+        {
+          "event": "service-health-load",
+          "elementId": "backend-status",
+          "handler": "loadFrontendConfig",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/aw-roadside/health"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "frontend-config-load",
+          "elementId": "api-status",
+          "handler": "loadFrontendConfig",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/aw-roadside/frontend-config"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "member-sign-in",
+          "elementId": "signin-form",
+          "handler": "setupHomeAuth",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/login"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "guest-entry",
+          "elementId": null,
+          "handler": "direct-link",
+          "request": null,
+          "navigation": "customer.html",
+          "result": "implemented"
+        }
+      ],
+      "gaps": [
+        "No dedicated home-specific request summary widgets.",
+        "No explicit public request-status retrieval from the home page."
+      ]
+    },
+    "web/customer.html": {
+      "role": "guest-and-subscriber-request",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "setupRequestForm",
+        "loadPaymentConfig",
+        "loadServicePaymentQuote",
+        "renderPaypalButtons"
+      ],
+      "events": [
+        {
+          "event": "request-submit",
+          "elementId": "request-form",
+          "handler": "setupRequestForm",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "priority-payment-config",
+          "elementId": "paypal-status",
+          "handler": "loadPaymentConfig",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/aw-roadside/payments/config"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "priority-order-create",
+          "elementId": "paypal-button-container",
+          "handler": "renderPaypalButtons.createOrder",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/payments/create-order"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "priority-order-capture",
+          "elementId": "paypal-button-container",
+          "handler": "renderPaypalButtons.onApprove",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/payments/capture-order"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "service-quote-load",
+          "elementId": "service-payment-quote-button",
+          "handler": "loadServicePaymentQuote",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/payments/service-quote"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "service-price-agreement",
+          "elementId": "service-payment-agree-button",
+          "handler": "setupPaymentAgreement",
+          "request": null,
+          "result": "implemented-local-ui"
+        },
+        {
+          "event": "customer-feedback-submit",
+          "elementId": "request-feedback-form",
+          "handler": "setupRequestFeedbackPanel",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/feedback"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": [
+        "Request history and dispatch replay are local-session UI mirrors, not server-polled status views.",
+        "Subscriber-specific confirmations are not surfaced on their own page yet."
+      ]
+    },
+    "web/subscriber-access.html": {
+      "role": "subscriber-auth-and-signup",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "setupHomeAuth",
+        "setupSubscriberModal"
+      ],
+      "events": [
+        {
+          "event": "subscriber-sign-in",
+          "elementId": "signin-form",
+          "handler": "setupHomeAuth",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/login"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "subscriber-signup",
+          "elementId": "member-signup-form",
+          "handler": "setupSubscriberModal + createAccount",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/signup"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "subscriber-membership-setup",
+          "elementId": "member-signup-form",
+          "handler": "setupSubscriberModal",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/subscriber/setup"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": [
+        "No dedicated subscriber profile page yet.",
+        "No dedicated subscriber request-history page yet."
+      ]
+    },
+    "web/provider.html": {
+      "role": "provider-auth-and-application",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "setupProviderSignin",
+        "setupProviderSignup"
+      ],
+      "events": [
+        {
+          "event": "provider-sign-in",
+          "elementId": "provider-signin-form",
+          "handler": "setupProviderSignin",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/login"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-account-create",
+          "elementId": "provider-signup-form",
+          "handler": "setupProviderSignup + createAccount",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/signup"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-application-submit",
+          "elementId": "provider-signup-form",
+          "handler": "setupProviderSignup",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/provider/apply"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": [
+        "No provider onboarding/paypal connection controls on this page yet."
+      ]
+    },
+    "web/provider-info.html": {
+      "role": "provider-profile-and-documents",
+      "state": "partial",
+      "sourceHandlers": [
+        "hydrateStoredSession",
+        "renderProfileState"
+      ],
+      "events": [
+        {
+          "event": "provider-profile-load",
+          "elementId": "provider-identity-state",
+          "handler": "hydrateStoredSession",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/aw-roadside/auth/profile"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-document-upload",
+          "elementId": "provider-documents-form",
+          "handler": "setupProviderDocumentsPanel",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/auth/provider/documents"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": []
+    },
+    "web/provider-work.html": {
+      "role": "provider-queue-and-actions",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "setupProviderWorkPanel",
+        "loadProviderQueue",
+        "queueProviderAction"
+      ],
+      "events": [
+        {
+          "event": "provider-queue-load",
+          "elementId": "provider-queue-refresh",
+          "handler": "loadProviderQueue",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/aw-roadside/requests"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-accept",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/accept"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-eta",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/eta"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-soft-contact",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/soft-contact"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-hard-contact",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/hard-contact"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-arrived",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/arrived"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-completed",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/completed"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-action-note",
+          "elementId": "provider-work-list",
+          "handler": "queueProviderAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/aw-roadside/requests/{requestId}/note"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": []
+    },
+    "web/provider-wallet.html": {
+      "role": "provider-wallet-and-payout-state",
+      "state": "backend-wired",
+      "sourceHandlers": [
+        "loadProviderWallet",
+        "renderProviderWallet"
+      ],
+      "events": [
+        {
+          "event": "provider-wallet-load",
+          "elementId": "provider-wallet-refresh",
+          "handler": "loadProviderWallet",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/aw-roadside/provider/wallet"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": [
+        "No provider PayPal connect/status/refresh endpoints are surfaced yet.",
+        "Wallet currently reflects backend payout records, not browser-direct PayPal state."
+      ]
+    },
+    "web/admin.html": {
+      "role": "admin-auth",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "setupAdminPanel"
+      ],
+      "events": [
+        {
+          "event": "admin-login",
+          "elementId": "admin-login-form",
+          "handler": "setupAdminPanel",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/login"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": []
+    },
+    "web/admin-dashboard.html": {
+      "role": "admin-dashboard-and-controls",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "loadAdminDashboard",
+        "handleAdminAction"
+      ],
+      "events": [
+        {
+          "event": "admin-dashboard-load",
+          "elementId": "admin-refresh-button",
+          "handler": "loadAdminDashboard",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/admin/dashboard"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-approval",
+          "elementId": "admin-provider-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/providers/{userId}/approve"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "request-reset",
+          "elementId": "admin-service-history-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/requests/{requestId}/reset"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "request-refund",
+          "elementId": "admin-financial-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/requests/{requestId}/refund"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "mark-payout-complete",
+          "elementId": "admin-financial-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/payouts/{requestId}/complete"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "provider-training-update",
+          "elementId": "admin-training-calendar-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/providers/{userId}/training"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "backend-event-stream",
+          "elementId": "admin-event-stream-list",
+          "handler": "loadAdminDashboard",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/admin/dashboard"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": []
+    },
+    "web/admin-accounts.html": {
+      "role": "admin-search-and-account-review",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "loadAdminSearch",
+        "loadAdminUserProfile",
+        "handleAdminAction"
+      ],
+      "events": [
+        {
+          "event": "account-search",
+          "elementId": "admin-search-form",
+          "handler": "loadAdminSearch",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/admin/search"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "account-profile-open",
+          "elementId": "admin-search-results",
+          "handler": "loadAdminUserProfile",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/admin/users/{userId}/profile"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "account-state-change",
+          "elementId": "admin-user-profile",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/users/{userId}/account-state"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": []
+    },
+    "web/admin-financials.html": {
+      "role": "admin-financial-review",
+      "state": "functional-core",
+      "sourceHandlers": [
+        "loadAdminDashboard",
+        "handleAdminAction"
+      ],
+      "events": [
+        {
+          "event": "financial-record-load",
+          "elementId": "admin-financial-list",
+          "handler": "loadAdminDashboard",
+          "request": {
+            "method": "GET",
+            "endpoint": "/api/admin/dashboard"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "financial-refund",
+          "elementId": "admin-financial-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/requests/{requestId}/refund"
+          },
+          "result": "implemented"
+        },
+        {
+          "event": "financial-payout-complete",
+          "elementId": "admin-financial-list",
+          "handler": "handleAdminAction",
+          "request": {
+            "method": "POST",
+            "endpoint": "/api/admin/payouts/{requestId}/complete"
+          },
+          "result": "implemented"
+        }
+      ],
+      "gaps": []
+    }
+  }
+}

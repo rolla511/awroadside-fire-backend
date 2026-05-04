@@ -656,6 +656,12 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (pathname === "/api/v1/mobile-gate") {
+      const result = handleMobileGate(res, req.headers);
+      sendJson(res, result.status, result.body);
+      return;
+    }
+
     if (pathname === "/api/authority") {
       sendJson(res, 200, getAuthorityPayload(req));
       return;
@@ -1178,13 +1184,24 @@ async function walk(rootDir, currentDir, output) {
   }
 }
 
+const APP_CONNECTION_TOKEN = process.env.APP_CONNECTION_TOKEN || "aw-secure-signal-2026";
+
 function applyHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader(
     "Access-Control-Allow-Headers",
-    "Authorization, Content-Type, X-Location-Zone, X-2FA-Verified, X-WP-Nonce"
+    "Authorization, Content-Type, X-Location-Zone, X-2FA-Verified, X-WP-Nonce, X-App-Token"
   );
+  res.setHeader("X-Backend-Authority", "awroadside-fire-secure");
+}
+
+function handleMobileGate(res, reqHeaders) {
+  const token = reqHeaders["x-app-token"];
+  if (token !== APP_CONNECTION_TOKEN) {
+    return { status: 403, body: { error: "unverified-signal", message: "Security handshake failed." } };
+  }
+  return { status: 200, body: { status: "verified", gate: "mobile-production", timestamp: new Date() } };
 }
 
 function sendJson(res, statusCode, payload) {

@@ -20,7 +20,8 @@
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://awroadside-fire-backend.onrender.com"
+        "EXPO_PUBLIC_API_BASE_URL": "https://awroadside-fire-backend.onrender.com",
+        "EXPO_PUBLIC_APP_TOKEN": "aw-secure-signal-2026"
       }
     }
   },

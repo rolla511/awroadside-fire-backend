@@ -1,0 +1,25 @@
+node_modules
+.git
+.expo
+.expo-shared
+*.log
+.idea
+.vscode
+
+# Explicitly include app source and native project files in EAS uploads.
+!App.js
+!app.json
+!eas.json
+!package.json
+!package-lock.json
+!theme.js
+!components/
+!components/**
+!assets/
+!assets/**
+!lib/
+!lib/**
+!android/
+!android/**
+!ios/
+!ios/**

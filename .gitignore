@@ -49,30 +49,6 @@ awroadside-fire-wp/
 2026-04-03/
 .archive/
 aw-isolated/
-# awroadside-fire-work/
-# dist-app-variant/
-
-### Misc local files ###
-customer-priority-payment-notice.html
-/server.mjs
-wppackage.json
-
-### Reports and Audits ###
-PLATFORM_ACCURACY_AUDIT_*.md
-UI_ROLLBACK_SCAN_*.md
-ROLLBACK_POINT_*.md
-TESTING_ROLLBACK_STATUS.md
-REPO_STRUCTURE_LOG.md
-RENDER_BACKEND_URL_LOG.md
-UI_PAGE_EVENT_MAP.json
-UI_EVENT_TEST_CHECKLIST.md
-GITHUB_REMOTE_DIFF_REPORT.md
-APP_WORKFLOW_AGENDA.md
-AGENTS.md
-EXPECTED_DEPRECATION_SOLUTIONS.md
-DESIGN_ATTRIBUTION.md
-AWroadside-*.txt
-adub test screen updates.txt
-
-### Java Source Snapshot ###
+server.mjs
+untitled.iml
 src/
