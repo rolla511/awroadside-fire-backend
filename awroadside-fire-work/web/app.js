@@ -2018,13 +2018,6 @@ function readScreenFromHash() {
 }
 
 function navigateToScreen(screen) {
-  const target = screenToPage(screen);
-  const pathname = window.location.pathname.toLowerCase();
-  const inShell = pathname.endsWith("/index.html") || pathname === "/" || pathname === "";
-  if (!inShell && target) {
-    window.location.href = target;
-    return;
-  }
   switchScreen(screen);
 }
 
