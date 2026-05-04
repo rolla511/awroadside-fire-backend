@@ -1986,6 +1986,30 @@ function navigateToScreen(screen) {
   switchScreen(screen);
 }
 
+// --- SHELL REPORTING & STATE COMMIT ---
+const shellState = {
+  lastReportedBy: "init",
+  pendingCommit: false,
+  authorityState: "active"
+};
+
+function reportToShell(screen, data = {}) {
+  console.log(`[SHELL_REPORT] ${screen} is reporting state...`);
+  shellState.lastReportedBy = screen;
+  shellState.pendingCommit = true;
+  
+  // Logic to "bridge" local page data to the main index authority
+  if (data.needsPersistence) {
+    commitToBackend(screen, data);
+  }
+}
+
+async function commitToBackend(screen, data) {
+  console.log(`[SHELL_COMMIT] Committing ${screen} data to backend relay...`);
+  shellState.pendingCommit = false;
+  // Trigger API calls here as the final authority
+}
+
 function switchScreen(screen) {
   document.querySelectorAll("[data-screen]").forEach((element) => {
     const isActive = element.getAttribute("data-screen") === screen;
@@ -1999,6 +2023,9 @@ function switchScreen(screen) {
   if (window.location.hash !== `#${screen}`) {
     window.history.replaceState(null, "", `#${screen}`);
   }
+
+  // Each screen reports to the shell upon entry
+  reportToShell(screen, { event: "screen_entry" });
 }
 
 function screenToPage(screen) {
