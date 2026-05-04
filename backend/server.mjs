@@ -258,7 +258,7 @@ const SERVER_AUTHORITY = Object.freeze({
   protectedApiBasePath: "/api/aw-roadside",
   rawApiBasePath: "/api",
   statement:
-    "backend/server.mjs is the active AW Roadside backend authority. Legacy variants must resolve through the compatibility gateway and use backend pricing."
+    "backend/server.mjs is the active awroadside-fire backend authority. Legacy variants must resolve through the compatibility gateway and use backend pricing."
 });
 
 const host = process.env.HOST || "0.0.0.0";
