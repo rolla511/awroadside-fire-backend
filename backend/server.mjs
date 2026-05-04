@@ -1007,6 +1007,9 @@ const server = http.createServer(async (req, res) => {
 
     const fallbackType = path.extname(pathname) ? "missing-static-file" : "blocked-shell-fallback";
     await recordBlockedFallback(pathname, fallbackType);
+    
+    // Do NOT fallback to index.html for unknown paths to avoid "stale state" confusion.
+    // Return a clear 404 for static files and unknown routes.
     sendNotFound(res, pathname);
   } catch (error) {
     if (res.headersSent) {
@@ -2452,6 +2455,7 @@ async function applyPaypalProviderAccountWebhook(webhookEvent, eventType) {
       lastWebhookAt: now
     };
 
+    // MERCHANT onboarding events in PayPal refer to the Partner/Provider being linked for payouts
     if (eventType === "MERCHANT.ONBOARDING.COMPLETED") {
       nextPaypal.onboardingStatus = "COMPLETED";
       nextPaypal.consentStatus = "GRANTED";
@@ -2828,6 +2832,8 @@ function extractPaypalPayoutIdentifiers(resource) {
       resource.payoutId,
       resource.id
     ]),
+    // In the context of AW Roadside, 'merchant_id' refers to the Provider's PayPal account ID used for receiving payouts.
+    // The Platform (AW Roadside) remains the primary merchant for customer payments.
     providerAccountId: firstNonEmptyString([resource.merchant_id, resource.merchantId, resource?.payee?.merchant_id, resource?.payee?.merchantId]),
     accountId: firstNonEmptyString([resource.account_id, resource.accountId]),
     email: firstNonEmptyString([resource.receiver_email, resource.receiver, resource.email, resource.email_address])

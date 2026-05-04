@@ -1968,48 +1968,13 @@ function setupNavigation() {
   window.addEventListener("hashchange", () => {
     switchScreen(readScreenFromHash());
   });
-  switchScreen(readScreenFromHash());
+
+  // Force Home screen on fresh load for guests to act as gatekeeper
+  const initialScreen = state.auth?.userId ? readScreenFromHash() : "home";
+  switchScreen(initialScreen);
 }
 
 function readScreenFromHash() {
-  const pathname = window.location.pathname.toLowerCase();
-  if (pathname.endsWith("/home.html")) {
-    return "home";
-  }
-  if (pathname.endsWith("/customer.html")) {
-    return "customer";
-  }
-  if (pathname.endsWith("/subscriber-access.html")) {
-    return "home";
-  }
-  if (pathname.endsWith("/provider.html")) {
-    return "provider";
-  }
-  if (pathname.endsWith("/provider-info.html")) {
-    return "provider";
-  }
-  if (pathname.endsWith("/provider-work.html")) {
-    return "provider";
-  }
-  if (pathname.endsWith("/provider-wallet.html")) {
-    return "provider";
-  }
-  if (pathname.endsWith("/admin.html")) {
-    return "admin";
-  }
-  if (pathname.endsWith("/admin-dashboard.html")) {
-    return "admin";
-  }
-  if (pathname.endsWith("/admin-accounts.html")) {
-    return "admin";
-  }
-  if (pathname.endsWith("/admin-financials.html")) {
-    return "admin";
-  }
-  if (pathname.endsWith("/legacy-index.html")) {
-    return "home";
-  }
-
   const value = window.location.hash.replace(/^#/, "").trim().toLowerCase();
   if (["home", "customer", "provider", "admin", "security"].includes(value)) {
     return value;
