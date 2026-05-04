@@ -36,6 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initializeApp() {
+  // --- PRIORITY 1: SHOW HOME SCREEN IMMEDIATELY ---
+  switchScreen("home");
+
   try {
     applyPreviewVisibility();
     renderPublicPricing();
