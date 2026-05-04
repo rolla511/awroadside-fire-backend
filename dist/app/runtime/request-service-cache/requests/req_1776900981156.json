@@ -1,0 +1,63 @@
+{
+  "id": "req_1776900981156",
+  "requestId": "req_1776900981156",
+  "status": "EN_ROUTE",
+  "completionStatus": "OPEN",
+  "userId": 39,
+  "roles": [
+    "SUBSCRIBER"
+  ],
+  "fullName": "Subscriber 1776900979008",
+  "phoneNumber": "555-4100",
+  "vehicleInfo": "Vehicle details not provided from app runtime",
+  "location": "Subscriber Ave",
+  "serviceType": "Lockout",
+  "notes": "internal subscriber request",
+  "assignedProviderId": 40,
+  "paymentStatus": "NOT_PAID",
+  "providerPayoutStatus": "PENDING",
+  "providerPayoutAmount": 33.7,
+  "amountCharged": 0,
+  "amountCollected": 0,
+  "platformShareAmount": 6.3,
+  "etaMinutes": 11,
+  "customerEtaAcceptedAt": "2026-04-22T23:36:21.217Z",
+  "arrivalConfirmedAt": null,
+  "completionConfirmedAt": null,
+  "paymentPromptedAt": null,
+  "noteExchange": [],
+  "providerActions": [
+    {
+      "action": "subscriber-accept-eta",
+      "providerUserId": null,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "SYSTEM",
+      "createdAt": "2026-04-22T23:36:21.217Z"
+    },
+    {
+      "action": "eta",
+      "providerUserId": 40,
+      "etaMinutes": 11,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.186Z"
+    },
+    {
+      "action": "accept",
+      "providerUserId": 40,
+      "etaMinutes": 0,
+      "note": "",
+      "actorRole": "PROVIDER",
+      "createdAt": "2026-04-22T23:36:21.166Z"
+    }
+  ],
+  "acceptedAt": "2026-04-22T23:36:21.166Z",
+  "etaUpdatedAt": "2026-04-22T23:36:21.186Z",
+  "softContactedAt": null,
+  "hardContactedAt": null,
+  "arrivedAt": null,
+  "completedAt": null,
+  "createdAt": "2026-04-22T23:36:21.156Z",
+  "updatedAt": "2026-04-22T23:36:21.218Z"
+}

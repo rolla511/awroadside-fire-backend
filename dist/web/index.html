@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>awroadside-fire</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">awroadside-fire</p>
+      <h1 class="brand-title">awroadside-fire</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="identity-role">Guest</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-art">
+        <img src="assets/roadside-home.png" alt="awroadside-fire mobile concept"/>
+      </div>
+      <div class="sidebar-copy">
+        <p class="eyebrow">Roadside Help</p>
+        <h2>One secure place to request service and manage your account.</h2>
+        <p id="identity-state" class="muted">Sign in or continue as guest to request help.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="#home" data-nav="home">Home</a>
+        <a class="nav-link" href="#customer" data-nav="customer">Customer Request</a>
+        <a class="nav-link" href="#provider" data-nav="provider" data-internal-preview>Provider Access</a>
+        <a class="nav-link" href="#admin" data-nav="admin" data-internal-preview>Admin</a>
+        <a class="nav-link" href="#security" data-nav="security" data-internal-preview>Security</a>
+      </nav>
+      <div class="sidebar-metrics">
+        <div class="metric-card">
+          <span>Service Line</span>
+          <strong id="api-port">24/7</strong>
+          <small id="backend-service">Checking availability</small>
+        </div>
+        <div class="metric-card">
+          <span>Dispatch Status</span>
+          <strong id="security-layer-state">Ready</strong>
+          <small id="security-layer-detail">Help is available when dispatch is online</small>
+        </div>
+        <div class="metric-card">
+          <span>Route</span>
+          <strong id="api-url">Roadside request center</strong>
+          <small id="api-status">Checking service availability...</small>
+        </div>
+        <div class="metric-card" data-internal-preview>
+          <span>Variant</span>
+          <strong id="variant-mode">Pending</strong>
+          <small id="variant-detail">Manifest handshake not loaded</small>
+        </div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen" data-screen="home">
+        <div class="hero-grid">
+          <div class="hero-panel panel">
+            <p class="eyebrow">Regional Response</p>
+            <h2>Fast roadside help with secure account flow.</h2>
+            <p class="muted">Get service now, get moving sooner, and request roadside help with a clear dispatch-to-completion flow.</p>
+            <div class="cta-row">
+              <a class="glow-button" href="#customer">Continue as Guest</a>
+              <button class="glow-button alt" id="member-signup-open" type="button">Subscribe</button>
+              <button class="glow-button danger" id="provider-signup-open" type="button">Become Provider</button>
+            </div>
+          </div>
+          <div class="signin-panel panel">
+            <p class="eyebrow">Sign In</p>
+            <h3>Member or provider access</h3>
+            <form class="form-stack" id="signin-form">
+              <label>
+                <span>Username or Email</span>
+                <input class="field" name="identifier" placeholder="vipprovider or email" required/>
+              </label>
+              <label>
+                <span>Password</span>
+                <input class="field" name="password" type="password" placeholder="Password" required/>
+              </label>
+              <button class="glow-button wide" type="submit">Sign In</button>
+              <div class="feedback-box" id="signin-status" style="display:none"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="panel callout">
+            <p class="eyebrow">Membership</p>
+            <h3>Subscriber priority</h3>
+            <p class="muted">Keep your vehicle saved, keep your history close, and stay ready when roadside help cannot wait with <span id="subscriber-monthly-price">pricing available on request</span>.</p>
+          </div>
+          <div class="panel callout">
+            <p class="eyebrow">Provider Program</p>
+            <h3>Application flow</h3>
+            <p class="muted">Providers can apply and enter the secure approval queue with <span id="provider-monthly-price">approval-based pricing</span>.</p>
+          </div>
+        </div>
+
+        <div class="panel processing-panel" data-internal-preview>
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Processing Center</p>
+              <h3>Frontend route ledger</h3>
+            </div>
+            <span class="badge">Events: <strong id="processing-count">0</strong></span>
+          </div>
+          <p class="muted">Route attempts, request references, payment events, and staged provider work remain available before the service record is finalized.</p>
+          <div class="ledger-grid">
+            <div>
+              <h4>Route Log</h4>
+              <div class="ledger-list" id="processing-log-list"></div>
+            </div>
+            <div>
+              <h4>Request History</h4>
+              <div class="ledger-list" id="request-history-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="customer" hidden>
+        <div class="section-header panel">
+          <div>
+            <p class="eyebrow">Customer Request</p>
+            <h2>Submit a direct roadside request</h2>
+          </div>
+          <div class="header-badges">
+            <span class="badge">Identity: <strong id="customer-identity-role">Guest</strong></span>
+            <span class="badge">Quote: <strong id="priority-price">Available after request</strong></span>
+          </div>
+        </div>
+
+        <div class="customer-grid">
+          <form class="panel request-panel" id="request-form">
+            <label>
+              <span>Full Name</span>
+              <input class="field" id="full-name" name="fullName" placeholder="Full Name" required/>
+            </label>
+            <label>
+              <span>Phone Number</span>
+              <input class="field" id="phone-number" name="phoneNumber" placeholder="Phone Number" required/>
+            </label>
+            <label>
+              <span>Service Type</span>
+              <select class="field" id="service-type" name="serviceType">
+                <option>Jump Start</option>
+                <option>Lockout</option>
+                <option>Tire Change</option>
+                <option>Gas Delivery</option>
+                <option>Battery Install</option>
+              </select>
+            </label>
+            <label>
+              <span>Exact Service Address</span>
+              <input class="field" id="location" name="location" placeholder="Street address, city, landmark" required/>
+            </label>
+            <label class="full-span">
+              <span>Notes / Nearest Cross Street</span>
+              <textarea class="field area" id="notes" name="notes" placeholder="Nearest cross street, vehicle color, parking spot, issue details"></textarea>
+            </label>
+            <button class="glow-button wide full-span" type="submit">Submit Request</button>
+            <div class="feedback-box full-span" id="submit-status" style="display:none"></div>
+            <div class="feedback-box full-span" id="paypal-status">Loading payment configuration...</div>
+            <div class="paypal-shell full-span">
+              <div id="paypal-button-container" style="display:none"></div>
+            </div>
+          </form>
+
+          <div class="customer-side">
+            <div class="panel visual-panel">
+              <img src="assets/roadside-subscriber.png" alt="Subscriber onboarding concept"/>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Current Identity</p>
+              <h3>Request mode</h3>
+              <p class="muted" id="customer-identity-state">Guests can request help now. Sign in if you want the request saved to your account.</p>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Payment Ledger</p>
+              <h3>Priority payment path</h3>
+              <p class="muted">Need help fast? Optional priority payment can move things along, while service payment stays locked until the arrival estimate and service price are confirmed.</p>
+              <div class="button-pair">
+                <button class="glow-button compact" id="service-payment-quote-button" type="button">Check Service Quote</button>
+                <button class="glow-button alt compact" id="service-payment-agree-button" type="button">Agree To Service Price</button>
+              </div>
+              <div class="feedback-box" id="service-payment-status" style="display:none"></div>
+              <div class="ledger-list" id="payment-ledger-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="provider" hidden>
+        <div class="section-header panel">
+          <div>
+            <p class="eyebrow">Provider Access</p>
+            <h2>Provider sign-in and status</h2>
+          </div>
+          <div class="header-badges">
+            <span class="badge" id="provider-identity-role">None</span>
+            <a class="glow-button alt compact" href="#customer" data-nav="customer">Customer Screen</a>
+            <a class="glow-button alt compact" href="#home" data-nav="home">Home</a>
+          </div>
+        </div>
+        <div class="provider-grid">
+          <form class="panel signin-panel" id="provider-signin-form">
+            <label>
+              <span>Username or Email</span>
+              <input class="field" name="identifier" placeholder="Username or Email" required/>
+            </label>
+            <label>
+              <span>Password</span>
+              <input class="field" name="password" type="password" placeholder="Password" required/>
+            </label>
+            <button class="glow-button wide" type="submit">Provider Sign In</button>
+            <div class="feedback-box" id="provider-signin-status" style="display:none"></div>
+          </form>
+          <div class="panel detail-panel">
+            <p class="eyebrow">Provider State</p>
+            <h3>Secure provider flow</h3>
+            <p class="muted" id="provider-identity-state">Use Home to create a provider account or sign in here.</p>
+            <p class="muted" id="provider-admin-status">Provider status will appear after sign-in.</p>
+            <p class="muted" id="provider-service-list">Services: not loaded.</p>
+            <p class="muted" id="provider-vehicle-summary">Vehicle profile: not loaded.</p>
+          </div>
+          <div class="panel detail-panel" id="provider-documents-panel" hidden>
+            <p class="eyebrow">Verification</p>
+            <h3>Required Documents</h3>
+            <p class="muted">Upload your documents for physical verification.</p>
+            <form id="provider-documents-form" class="form-stack">
+              <label>
+                <span>Valid License (Base64)</span>
+                <input class="field" name="license" placeholder="Paste Base64 or text for license verification" required/>
+              </label>
+              <label>
+                <span>Insurance Card (Base64)</span>
+                <input class="field" name="insurance" placeholder="Paste Base64 or text for insurance verification" required/>
+              </label>
+              <label>
+                <span>Registration Card (Base64)</span>
+                <input class="field" name="registration" placeholder="Paste Base64 or text for registration verification" required/>
+              </label>
+              <button class="glow-button wide" type="submit">Upload Documents</button>
+            </form>
+            <div class="feedback-box" id="provider-documents-status" style="display:none"></div>
+          </div>
+        </div>
+        <div class="panel provider-work-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Provider Work Screen</p>
+              <h3>Queue, ETA, arrival, completion</h3>
+            </div>
+            <button class="glow-button alt compact" id="provider-queue-refresh" type="button">Load Queue</button>
+          </div>
+          <p class="muted">Provider actions stay in the dispatch queue until the matching service step is confirmed.</p>
+          <div class="feedback-box" id="provider-work-status" style="display:none"></div>
+          <div class="provider-work-list" id="provider-work-list"></div>
+          <h4>Staged Provider Actions</h4>
+          <div class="ledger-list" id="provider-action-queue-list"></div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="admin" hidden>
+        <div class="section-header panel">
+          <div>
+            <p class="eyebrow">Admin</p>
+            <h2>Login and dashboard status</h2>
+          </div>
+          <div class="header-badges">
+            <span class="badge" id="admin-status-badge">Pending</span>
+            <a class="glow-button alt compact" href="#customer" data-nav="customer">Customer Screen</a>
+            <a class="glow-button alt compact" href="#home" data-nav="home">Home</a>
+          </div>
+        </div>
+        <div class="admin-grid">
+          <form class="panel form-stack" id="admin-login-form">
+            <label><span>Admin Email</span><input class="field" name="email" placeholder="Admin Email" required/></label>
+            <label><span>Admin Password</span><input class="field" name="password" type="password" placeholder="Admin Password" required/></label>
+            <label><span>Location Zone</span><input class="field" name="locationZone" placeholder="Location Zone (optional)"/></label>
+            <label><span>2FA Code</span><input class="field" name="twoFactorCode" placeholder="2FA Code if required"/></label>
+            <button class="glow-button wide" type="submit">Admin Login</button>
+            <div class="feedback-box" id="admin-login-status" style="display:none"></div>
+          </form>
+
+          <div class="admin-stats">
+            <div class="panel stat-panel">
+              <span class="status-label">Status</span>
+              <strong id="admin-status-label">Signed out</strong>
+              <small id="admin-status-text">Use admin credentials to view dashboard status.</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Admin Email</span>
+              <strong id="admin-email">Not loaded</strong>
+              <small>Current admin identity</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Roles</span>
+              <strong id="admin-roles">None</strong>
+              <small>Admin access roles</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Request Count</span>
+              <strong id="admin-request-count">0</strong>
+              <small>Current request log count</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Payments</span>
+              <strong id="admin-payment-configured">Unknown</strong>
+              <small>PayPal service configuration</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Subscribers</span>
+              <strong id="admin-active-subscribers">0</strong>
+              <small>Active subscriber accounts</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Pending Providers</span>
+              <strong id="admin-pending-providers">0</strong>
+              <small>Provider approvals waiting</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Overdue</span>
+              <strong id="admin-overdue-subscribers">0</strong>
+              <small>Subscribers past billing date</small>
+            </div>
+            <div class="panel stat-panel">
+              <span class="status-label">Payouts</span>
+              <strong id="admin-payouts-pending">0</strong>
+              <small>Requests waiting for payout completion</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel admin-command-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Operations</p>
+              <h3>Manual admin access</h3>
+            </div>
+            <button class="glow-button alt compact" id="admin-refresh-button" type="button">Refresh Admin Data</button>
+          </div>
+          <p class="muted">Use the admin commands below for manual customer and provider support. These controls run through admin service routes, not direct database edits.</p>
+          <div class="feedback-box" id="admin-action-status" style="display:none"></div>
+        </div>
+
+        <div class="admin-data-grid">
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Directory Search</p>
+                <h3>Account support lookup</h3>
+              </div>
+            </div>
+            <form class="form-stack" id="admin-search-form">
+              <label><span>Search Query</span><input class="field" name="query" id="admin-search-query" placeholder="Name, email, phone, user id, service area" /></label>
+              <label>
+                <span>Role Filter</span>
+                <select class="field" name="role" id="admin-search-role">
+                  <option value="ALL">All users</option>
+                  <option value="SUBSCRIBER">Subscribers</option>
+                  <option value="PROVIDER">Providers</option>
+                </select>
+              </label>
+              <button class="glow-button wide" type="submit">Search Accounts</button>
+            </form>
+            <div class="feedback-box" id="admin-search-status" style="display:none"></div>
+            <div class="admin-list" id="admin-search-results">
+              <div class="admin-empty">Search results will appear here after admin login.</div>
+            </div>
+          </div>
+
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Selected Account</p>
+                <h3>Profile support view</h3>
+              </div>
+            </div>
+            <div class="admin-list" id="admin-user-profile">
+              <div class="admin-empty">Choose a search result to inspect account status, support context, and recent request history.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-data-grid">
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Subscribers</p>
+                <h3>Account and billing view</h3>
+              </div>
+            </div>
+            <div class="admin-list" id="admin-subscriber-list">
+              <div class="admin-empty">Admin subscriber data will appear after login.</div>
+            </div>
+          </div>
+
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Providers</p>
+                <h3>Approval and support queue</h3>
+              </div>
+            </div>
+            <div class="admin-list" id="admin-provider-list">
+              <div class="admin-empty">Provider approvals will appear after login.</div>
+            </div>
+          </div>
+
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Service History</p>
+                <h3>Request operations</h3>
+              </div>
+            </div>
+            <div class="admin-list" id="admin-service-history-list">
+              <div class="admin-empty">Service history will appear after login.</div>
+            </div>
+          </div>
+
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Financials</p>
+                <h3>Refund and payout controls</h3>
+                <p class="muted" id="admin-financial-policy">Financial record terms will appear after login.</p>
+              </div>
+            </div>
+            <div class="admin-list" id="admin-financial-list">
+              <div class="admin-empty">Financial records will appear after login.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen" data-screen="security" hidden>
+        <div class="section-header panel">
+          <div>
+            <p class="eyebrow">Security</p>
+            <h2>Runtime integrity and watchdog</h2>
+          </div>
+          <button class="glow-button alt" id="watchdog-refresh-button" type="button">Refresh Watchdog</button>
+        </div>
+        <div class="security-grid">
+          <div class="panel stat-panel">
+            <span class="status-label">Layer</span>
+            <strong id="security-layer-name">Loading</strong>
+            <small>Protected runtime layer</small>
+          </div>
+          <div class="panel stat-panel">
+            <span class="status-label">Integrity</span>
+            <strong id="watchdog-integrity">...</strong>
+            <small id="watchdog-summary">Waiting for watchdog status</small>
+          </div>
+          <div class="panel stat-panel">
+            <span class="status-label">Scanned At</span>
+            <strong id="watchdog-scanned-at">...</strong>
+            <small>Last recorded local scan</small>
+          </div>
+        </div>
+        <div class="panel drift-panel" id="watchdog-file-list">
+          <div class="drift-item">
+            <strong>No integrity drift detected.</strong>
+            <small>Protected files match the trusted baseline.</small>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal-shell" id="member-signup-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-top">
+      <div>
+        <p class="eyebrow">Subscriber Setup</p>
+        <h3>Member Sign Up</h3>
+      </div>
+      <button class="modal-close" id="member-signup-close" type="button">Close</button>
+    </div>
+    <form class="form-grid" id="member-signup-form">
+      <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+      <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+      <label><span>Username</span><input class="field" name="username" placeholder="Username" required/></label>
+      <label><span>Email</span><input class="field" name="email" placeholder="Email" required/></label>
+      <label><span>Password</span><input class="field" name="password" type="password" placeholder="Password" required/></label>
+      <label><span>Vehicle Year</span><input class="field" name="year" placeholder="Vehicle Year" required/></label>
+      <label><span>Vehicle Make</span><input class="field" name="make" placeholder="Vehicle Make" required/></label>
+      <label><span>Vehicle Model</span><input class="field" name="model" placeholder="Vehicle Model" required/></label>
+      <label><span>Vehicle Color</span><input class="field" name="color" placeholder="Vehicle Color" required/></label>
+      <label><span>Payment Type</span>
+        <select class="field" name="paymentMethodType" id="member-payment-method" required>
+          <option value="CARD" selected>Card</option>
+          <option value="UPI">UPI</option>
+          <option value="MANUAL">Manual</option>
+        </select>
+      </label>
+      <label><span>Payment Reference</span><input class="field" name="paymentMethodMasked" id="member-payment-masked" placeholder="Masked Card or Note" value="****1111" required/></label>
+      <label class="full-span"><span>UPI ID</span><input class="field" name="paymentUpiId" id="member-payment-upi" placeholder="UPI ID (example@bank)" style="display:none"/></label>
+      <button class="glow-button wide full-span" type="submit">Create Member Account</button>
+      <div class="feedback-box full-span" id="member-signup-status" style="display:none"></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-shell" id="provider-signup-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-top">
+      <div>
+        <p class="eyebrow">Provider Setup</p>
+        <h3>Provider Sign Up</h3>
+      </div>
+      <button class="modal-close" id="provider-signup-close" type="button">Close</button>
+    </div>
+    <form class="form-grid" id="provider-signup-form">
+      <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+      <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+      <label><span>Username</span><input class="field" name="username" placeholder="Username" required/></label>
+      <label><span>Email</span><input class="field" name="email" placeholder="Email" required/></label>
+      <label><span>Password</span><input class="field" name="password" type="password" placeholder="Password" required/></label>
+      <label><span>Vehicle Year</span><input class="field" name="year" placeholder="Vehicle Year" required/></label>
+      <label><span>Vehicle Make</span><input class="field" name="make" placeholder="Vehicle Make" required/></label>
+      <label><span>Vehicle Model</span><input class="field" name="model" placeholder="Vehicle Model" required/></label>
+      <label><span>Vehicle Color</span><input class="field" name="color" placeholder="Vehicle Color" required/></label>
+      <div class="toggle-grid full-span">
+        <label class="toggle"><input type="checkbox" name="license" checked/><span>Driver License</span></label>
+        <label class="toggle"><input type="checkbox" name="registration" checked/><span>Vehicle Registration</span></label>
+        <label class="toggle"><input type="checkbox" name="insurance" checked/><span>Insurance</span></label>
+        <label class="toggle"><input type="checkbox" name="helperId"/><span>Helper ID</span></label>
+      </div>
+      <div class="toggle-grid full-span">
+        <label class="toggle"><input type="checkbox" name="services" value="LOCKOUT" checked/><span>Lockout</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="TIRE_CHANGE" checked/><span>Tire Change</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="JUMP_START" checked/><span>Jump Start</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="GAS_DELIVERY"/><span>Gas Delivery</span></label>
+        <label class="toggle"><input type="checkbox" name="services" value="BATTERY_INSTALL"/><span>Battery Install</span></label>
+      </div>
+      <label class="full-span"><span>Experience</span><textarea class="field area" name="experience" placeholder="Experience"></textarea></label>
+      <button class="glow-button wide full-span" type="submit">Create Provider Account</button>
+      <div class="feedback-box full-span" id="provider-signup-status" style="display:none"></div>
+    </form>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

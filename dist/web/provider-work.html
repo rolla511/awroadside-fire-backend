@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>awroadside-fire | Provider Work</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Provider Work</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="provider-identity-role">None</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-copy">
+        <p class="eyebrow">Provider Work</p>
+        <h2>Queue, ETA, arrival, completion, and staged actions.</h2>
+        <p id="identity-state" class="muted">This page is for active provider dispatch work.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="provider-info.html">Provider Info</a>
+        <a class="nav-link active" href="provider-work.html">Provider Work</a>
+        <a class="nav-link" href="provider-wallet.html">Provider Wallet</a>
+      </nav>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="panel provider-work-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Provider Work Screen</p>
+              <h3>Queue, ETA, arrival, completion</h3>
+            </div>
+            <button class="glow-button alt compact" id="provider-queue-refresh" type="button">Load Queue</button>
+          </div>
+          <p class="muted">Provider actions stay in the dispatch queue until the matching service step is confirmed.</p>
+          <div class="feedback-box" id="provider-work-status" style="display:none"></div>
+          <div class="provider-work-list" id="provider-work-list"></div>
+          <div class="panel detail-panel">
+            <p class="eyebrow">Provider Notes</p>
+            <h4>Dispatch note exchange</h4>
+            <p class="muted">Use the note action on each request card to log customer-safe dispatch notes into the service history.</p>
+          </div>
+          <h4>Staged Provider Actions</h4>
+          <div class="ledger-list" id="provider-action-queue-list"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

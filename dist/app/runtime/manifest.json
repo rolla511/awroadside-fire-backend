@@ -1,0 +1,13 @@
+{
+  "app": "local-node-runtime",
+  "host": "0.0.0.0",
+  "port": 3000,
+  "startedAt": "2026-05-04T02:15:58.427Z",
+  "blueprintPath": "/Users/user/IdeaProjects/untitled/aw.render.yaml",
+  "blueprintRuntime": "node",
+  "blueprintNodeVersion": "20",
+  "runningNodeVersion": "v20.20.2",
+  "uiUrl": "https://awraodside-backend-fire.onrender.com/",
+  "apiUrl": "https://awraodside-backend-fire.onrender.com/api/aw-roadside/frontend-config",
+  "protectedApiBaseUrl": "https://awraodside-backend-fire.onrender.com/api/aw-roadside"
+}

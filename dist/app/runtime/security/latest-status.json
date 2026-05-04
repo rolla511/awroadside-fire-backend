@@ -1,0 +1,500 @@
+{
+  "layer": "aw-roadside-local-watchdog",
+  "active": true,
+  "scannedAt": "2026-05-04T02:15:58.591Z",
+  "baselineCreatedAt": "2026-04-02T18:36:13.771Z",
+  "watchedFiles": 21,
+  "integrityOk": false,
+  "suspiciousFiles": [
+    {
+      "path": "backend/server.mjs",
+      "status": "modified",
+      "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+      "currentSha256": "1e07fd80e45dcc57f776d9550aed4c05e4a9ee913c8cab9d7fd0d2fdbfcdddaf"
+    },
+    {
+      "path": "backend/awroadsidedb-config.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/index.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/users-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/requests-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/provider-wallet-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/provider-history-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/payments-repository.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/schema.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/sql-helpers.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/aw-roadside-security.mjs",
+      "status": "modified",
+      "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+      "currentSha256": "33bd37d5aa06db8665012c04bcb8efc6eb9c89e84bc3d1c6e2a57447c9e42811"
+    },
+    {
+      "path": "backend/subscription-controller.mjs",
+      "status": "modified",
+      "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+      "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
+    },
+    {
+      "path": "backend/smtp-mailer.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/request-service-controller.mjs",
+      "status": "modified",
+      "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+      "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
+    },
+    {
+      "path": "backend/admin-controller.mjs",
+      "status": "modified",
+      "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+      "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
+    },
+    {
+      "path": "web/app.js",
+      "status": "missing-now"
+    },
+    {
+      "path": "web/index.html",
+      "status": "missing-now"
+    },
+    {
+      "path": "web/customer.html",
+      "status": "missing-now"
+    },
+    {
+      "path": "web/provider.html",
+      "status": "missing-now"
+    },
+    {
+      "path": "aw.render.yaml",
+      "status": "untracked"
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+      "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
+    }
+  ],
+  "recentEvents": [
+    {
+      "event": "integrity-drift-detected",
+      "suspiciousFiles": [
+        {
+          "path": "backend/server.mjs",
+          "status": "modified",
+          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+          "currentSha256": "1e07fd80e45dcc57f776d9550aed4c05e4a9ee913c8cab9d7fd0d2fdbfcdddaf"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/users-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/requests-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-wallet-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-history-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/payments-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/sql-helpers.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/aw-roadside-security.mjs",
+          "status": "modified",
+          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+          "currentSha256": "33bd37d5aa06db8665012c04bcb8efc6eb9c89e84bc3d1c6e2a57447c9e42811"
+        },
+        {
+          "path": "backend/subscription-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+          "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/request-service-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+          "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
+        },
+        {
+          "path": "backend/admin-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+          "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
+        },
+        {
+          "path": "web/app.js",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/index.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/customer.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/provider.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "aw.render.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "package.json",
+          "status": "modified",
+          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+          "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
+        }
+      ],
+      "timestamp": "2026-05-04T02:15:58.595Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-03T14:06:13.328Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-03T14:06:13.325Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "mode": "file-runtime",
+      "configured": false,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-05-03T14:06:13.325Z"
+    },
+    {
+      "event": "integrity-drift-detected",
+      "suspiciousFiles": [
+        {
+          "path": "backend/server.mjs",
+          "status": "modified",
+          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+          "currentSha256": "1e07fd80e45dcc57f776d9550aed4c05e4a9ee913c8cab9d7fd0d2fdbfcdddaf"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/users-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/requests-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-wallet-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-history-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/payments-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/sql-helpers.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/aw-roadside-security.mjs",
+          "status": "modified",
+          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+          "currentSha256": "33bd37d5aa06db8665012c04bcb8efc6eb9c89e84bc3d1c6e2a57447c9e42811"
+        },
+        {
+          "path": "backend/subscription-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+          "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/request-service-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+          "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
+        },
+        {
+          "path": "backend/admin-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+          "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
+        },
+        {
+          "path": "web/app.js",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/index.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/customer.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/provider.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "aw.render.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "package.json",
+          "status": "modified",
+          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+          "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
+        }
+      ],
+      "timestamp": "2026-05-03T14:06:13.305Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-03T13:46:21.323Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-03T13:46:21.321Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-server",
+      "mode": "file-runtime",
+      "configured": false,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-05-03T13:46:21.319Z"
+    },
+    {
+      "event": "integrity-drift-detected",
+      "suspiciousFiles": [
+        {
+          "path": "backend/server.mjs",
+          "status": "modified",
+          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+          "currentSha256": "8cbb7e69c4e735586b57ad30393377088547030f0357cfd4a4d2b6004bb88027"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/users-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/requests-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-wallet-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/provider-history-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/payments-repository.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/sql-helpers.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/aw-roadside-security.mjs",
+          "status": "modified",
+          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+          "currentSha256": "33bd37d5aa06db8665012c04bcb8efc6eb9c89e84bc3d1c6e2a57447c9e42811"
+        },
+        {
+          "path": "backend/subscription-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+          "currentSha256": "89365cd8c00310ed12388f9546b6318d32c5f6712ddbe957af7ff2eaff616c24"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/request-service-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+          "currentSha256": "88fca1cf57687144d745bbba209927517e7b1939767b35c5b9def1146845f9ce"
+        },
+        {
+          "path": "backend/admin-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+          "currentSha256": "54dd5c2cbc8bdd50b64b4a1b77daff36d44591e4503f706e660a277c3b25701f"
+        },
+        {
+          "path": "web/app.js",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/index.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/customer.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "web/provider.html",
+          "status": "missing-now"
+        },
+        {
+          "path": "aw.render.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "package.json",
+          "status": "modified",
+          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+          "currentSha256": "4ee62fcf7a28cad6151e9c2f9f898ae02d4bfd0858f4335a4103c3dac0f43948"
+        }
+      ],
+      "timestamp": "2026-05-03T13:46:21.304Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-03T13:45:45.600Z"
+    }
+  ]
+}

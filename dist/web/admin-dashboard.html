@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>awroadside-fire | Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Admin Dashboard</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Security</span>
+        <strong id="security-layer-state">Ready</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Admin</span>
+        <strong id="admin-status-badge">Pending</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-copy">
+        <p class="eyebrow">Operations</p>
+        <h2>Admin dashboard and collections.</h2>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="admin.html">Admin Access</a>
+        <a class="nav-link active" href="admin-dashboard.html">Admin Dashboard</a>
+        <a class="nav-link" href="admin-accounts.html">Admin Accounts</a>
+        <a class="nav-link" href="admin-financials.html">Admin Financials</a>
+      </nav>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="admin-stats">
+          <div class="panel stat-panel"><span class="status-label">Status</span><strong id="admin-status-label">Signed out</strong><small id="admin-status-text">Use admin credentials to view dashboard status.</small></div>
+          <div class="panel stat-panel"><span class="status-label">Admin Email</span><strong id="admin-email">Not loaded</strong><small>Current admin identity</small></div>
+          <div class="panel stat-panel"><span class="status-label">Roles</span><strong id="admin-roles">None</strong><small>Admin access roles</small></div>
+          <div class="panel stat-panel"><span class="status-label">Request Count</span><strong id="admin-request-count">0</strong><small>Current request log count</small></div>
+          <div class="panel stat-panel"><span class="status-label">Payments</span><strong id="admin-payment-configured">Unknown</strong><small>PayPal service configuration</small></div>
+          <div class="panel stat-panel"><span class="status-label">Subscribers</span><strong id="admin-active-subscribers">0</strong><small>Active subscriber accounts</small></div>
+          <div class="panel stat-panel"><span class="status-label">Pending Providers</span><strong id="admin-pending-providers">0</strong><small>Provider approvals waiting</small></div>
+          <div class="panel stat-panel"><span class="status-label">Overdue</span><strong id="admin-overdue-subscribers">0</strong><small>Subscribers past billing date</small></div>
+          <div class="panel stat-panel"><span class="status-label">Payouts</span><strong id="admin-payouts-pending">0</strong><small>Requests waiting for payout completion</small></div>
+          <div class="panel stat-panel"><span class="status-label">Training</span><strong id="admin-training-scheduled">0</strong><small>Providers with scheduled training</small></div>
+        </div>
+
+        <div class="panel admin-command-panel">
+          <div class="panel-title-row">
+            <div>
+              <p class="eyebrow">Operations</p>
+              <h3>Manual admin access</h3>
+            </div>
+            <button class="glow-button alt compact" id="admin-refresh-button" type="button">Refresh Admin Data</button>
+          </div>
+          <p class="muted">Use the admin commands below for manual customer and provider support. These controls run through admin service routes, not direct database edits.</p>
+          <div class="feedback-box" id="admin-action-status" style="display:none"></div>
+        </div>
+
+        <div class="admin-data-grid">
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Subscribers</p><h3>Account and billing view</h3></div></div>
+            <div class="admin-list" id="admin-subscriber-list"><div class="admin-empty">Admin subscriber data will appear after login.</div></div>
+          </div>
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Providers</p><h3>Approval and support queue</h3></div></div>
+            <div class="admin-list" id="admin-provider-list"><div class="admin-empty">Provider approvals will appear after login.</div></div>
+          </div>
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Service History</p><h3>Request operations</h3></div></div>
+            <div class="admin-list" id="admin-service-history-list"><div class="admin-empty">Service history will appear after login.</div></div>
+          </div>
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Financials</p><h3>Refund and payout controls</h3><p class="muted" id="admin-financial-policy">Financial record terms will appear after login.</p></div></div>
+            <div class="admin-list" id="admin-financial-list"><div class="admin-empty">Financial records will appear after login.</div></div>
+          </div>
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Training Calendar</p><h3>Provider retraining schedule</h3></div></div>
+            <div class="admin-list" id="admin-training-calendar-list"><div class="admin-empty">Training schedule will appear after login.</div></div>
+          </div>
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row"><div><p class="eyebrow">Recent Activity</p><h3>Recent payment and route events</h3><p class="muted">This view mirrors the latest payment and route activity already attached to the admin dashboard response.</p></div></div>
+            <div class="admin-list" id="admin-event-stream-list"><div class="admin-empty">Backend event history will appear after login.</div></div>
+          </div>
+          <div class="panel admin-list-panel">
+            <div class="panel-title-row">
+              <div>
+                <p class="eyebrow">Watchdog</p>
+                <h3>Repository integrity and protected route state</h3>
+                <p class="muted" id="security-layer-detail">Protected watchdog status will appear here after the security API responds.</p>
+              </div>
+              <button class="glow-button alt compact" id="watchdog-refresh-button" type="button">Refresh Watchdog</button>
+            </div>
+            <div class="admin-item-meta">
+              <span>Integrity: <strong id="watchdog-integrity">READY</strong></span>
+              <span>Scanned: <strong id="watchdog-scanned-at">Unknown</strong></span>
+            </div>
+            <p class="muted" id="watchdog-summary">Protected files match the trusted baseline.</p>
+            <div class="admin-list" id="watchdog-file-list"><div class="admin-empty">No watchdog scan has been loaded yet.</div></div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

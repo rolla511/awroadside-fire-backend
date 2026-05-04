@@ -1,0 +1,15 @@
+Local Runtime Startup Report
+Started: 5/3/2026, 10:15:58 PM
+Blueprint: /Users/user/IdeaProjects/untitled/aw.render.yaml
+Blueprint Runtime: node
+Blueprint Node Version: 20
+Running Node Version: v20.20.2
+UI: https://awraodside-backend-fire.onrender.com/
+API: https://awraodside-backend-fire.onrender.com/api/aw-roadside/frontend-config
+Protected API: https://awraodside-backend-fire.onrender.com/api/aw-roadside
+Runtime Folder: /Users/user/IdeaProjects/untitled/app/runtime
+Watchdog Status: /Users/user/IdeaProjects/untitled/app/runtime/security/latest-status.json
+PayPal Mode: sandbox
+PayPal Configured: yes
+PayPal Webhook: https://awraodside-backend-fire.onrender.com/api/paypal/webhook
+PayPal Webhook ID: 27268198X79844346
