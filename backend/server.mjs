@@ -510,6 +510,12 @@ localWatchdog.startPeriodicScan(watchdogIntervalMs);
 await auditWebEntrypoint();
 await writeRuntimeArtifacts();
 
+// --- ARCHITECTURAL NOTE: UNIFIED SIGNAL MULTIPLEXING ---
+// This server uses a "Single Port, Dual Signal" architecture. 
+// 1. Path-based Routing: Signals starting with /api/ are routed to the Transactional Backend.
+// 2. Fallback Routing: All other signals serve the UI Shell (Frontend).
+// This prevents port collision and ensures the AAB (Android App) and Browser share the same authority.
+
 const server = http.createServer(async (req, res) => {
   try {
     applyHeaders(res);
