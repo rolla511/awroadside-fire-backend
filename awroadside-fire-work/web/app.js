@@ -36,32 +36,38 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initializeApp() {
-  applyPreviewVisibility();
-  renderPublicPricing();
-  setupNavigation();
-  renderIdentity();
-  renderAdminState();
-  setupHomeAuth();
-  setupSubscriberModal();
-  setupProviderSignup();
-  setupProviderSignin();
-  setupProviderDocumentsPanel();
-  setupProviderWorkPanel();
-  setupProviderWalletPanel();
-  setupPaymentAgreement();
-  setupRequestFeedbackPanel();
-  setupAdminPanel();
-  setupRequestForm();
-  renderProcessingCenter();
-  renderCustomerRequestState();
-  renderProviderActionQueue();
-  renderProviderWallet();
-  await loadFrontendConfig();
-  await acknowledgeRuntimeVariant();
-  await hydrateStoredSession();
-  await loadPaymentConfig();
-  await loadSecurityStatus();
-  await loadAdminDashboard();
+  try {
+    applyPreviewVisibility();
+    renderPublicPricing();
+    setupNavigation();
+    renderIdentity();
+    renderAdminState();
+    setupHomeAuth();
+    setupSubscriberModal();
+    setupProviderSignup();
+    setupProviderSignin();
+    setupProviderDocumentsPanel();
+    setupProviderWorkPanel();
+    setupProviderWalletPanel();
+    setupPaymentAgreement();
+    setupRequestFeedbackPanel();
+    setupAdminPanel();
+    setupRequestForm();
+    renderProcessingCenter();
+    renderCustomerRequestState();
+    renderProviderActionQueue();
+    renderProviderWallet();
+    await loadFrontendConfig();
+    await acknowledgeRuntimeVariant();
+    await hydrateStoredSession();
+    await loadPaymentConfig();
+    await loadSecurityStatus();
+    await loadAdminDashboard();
+  } catch (error) {
+    console.error("[PANIC] Initialization failure:", error);
+    // Panic Recovery: Ensure Home screen is visible even if data fails to load
+    switchScreen("home");
+  }
 }
 
 function setupHomeAuth() {
@@ -2025,21 +2031,34 @@ async function commitToBackend(screen, data) {
 }
 
 function switchScreen(screen) {
+  const targetScreen = screen || "home";
+  let found = false;
+  
   document.querySelectorAll("[data-screen]").forEach((element) => {
-    const isActive = element.getAttribute("data-screen") === screen;
+    const isActive = element.getAttribute("data-screen") === targetScreen;
     element.hidden = !isActive;
     element.classList.toggle("active-screen", isActive);
-  });
-  document.querySelectorAll("[data-nav]").forEach((element) => {
-    element.classList.toggle("active", element.getAttribute("data-nav") === screen);
+    if (isActive) {
+      found = true;
+    }
   });
 
-  if (window.location.hash !== `#${screen}`) {
-    window.history.replaceState(null, "", `#${screen}`);
+  // Fallback to home if screen doesn't exist
+  if (!found && targetScreen !== "home") {
+    switchScreen("home");
+    return;
+  }
+
+  document.querySelectorAll("[data-nav]").forEach((element) => {
+    element.classList.toggle("active", element.getAttribute("data-nav") === targetScreen);
+  });
+
+  if (window.location.hash !== `#${targetScreen}`) {
+    window.history.replaceState(null, "", `#${targetScreen}`);
   }
 
   // Each screen reports to the shell upon entry
-  reportToShell(screen, { event: "screen_entry" });
+  reportToShell(targetScreen, { event: "screen_entry" });
 }
 
 function screenToPage(screen) {
