@@ -10,12 +10,19 @@ const webRoot = path.join(projectRoot, "awroadside-fire-work", "web");
 const appRoot = path.join(projectRoot, "app");
 const backendRoot = path.join(projectRoot, "backend");
 
+const expoDistRoot = path.join(projectRoot, "awroadside-fire-work", "dist");
+
 await fs.rm(distRoot, { recursive: true, force: true });
 await fs.mkdir(distRoot, { recursive: true });
 
+// 1. Copy the "Formatted Front" (Expo Web Build) as the primary index
+await copyDir(expoDistRoot, path.join(distRoot, "web"));
+
+// 2. Overlay the custom Dashboard/HTML utility pages from the web folder
 await copyDir(webRoot, path.join(distRoot, "web"), {
   skip: (sourcePath) => path.basename(sourcePath).startsWith("legacy-")
 });
+
 await copyDir(appRoot, path.join(distRoot, "app"));
 await copyDir(backendRoot, path.join(distRoot, "backend"));
 
