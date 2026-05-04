@@ -2037,6 +2037,13 @@ function switchScreen(screen) {
   const targetScreen = screen || "home";
   let found = false;
   
+  // Close all modals whenever we switch screens to prevent "dimmed" overlays
+  document.querySelectorAll(".modal-shell").forEach((m) => {
+    m.hidden = true;
+    m.style.display = "none";
+  });
+  document.body.classList.remove("modal-open");
+
   document.querySelectorAll("[data-screen]").forEach((element) => {
     const isActive = element.getAttribute("data-screen") === targetScreen;
     element.hidden = !isActive;
@@ -2108,14 +2115,23 @@ function wireModal(openId, closeId, modalId) {
 
   if (openButton && modal) {
     openButton.addEventListener("click", () => {
-      modal.hidden = false;
+      showModal(modalId);
     });
   }
 
   if (closeButton && modal) {
     closeButton.addEventListener("click", () => {
-      modal.hidden = true;
+      hideModal(modalId);
     });
+  }
+}
+
+function showModal(modalId) {
+  const modal = document.getElementById(modalId);
+  if (modal) {
+    modal.hidden = false;
+    modal.style.display = "flex";
+    document.body.classList.add("modal-open");
   }
 }
 
@@ -2123,6 +2139,13 @@ function hideModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) {
     modal.hidden = true;
+    modal.style.display = "none";
+    
+    // Only remove modal-open if no other modals are visible
+    const anyVisible = Array.from(document.querySelectorAll(".modal-shell")).some(m => !m.hidden);
+    if (!anyVisible) {
+      document.body.classList.remove("modal-open");
+    }
   }
 }
 
