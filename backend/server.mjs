@@ -1027,10 +1027,14 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
+  const isPublic = !!process.env.PUBLIC_BASE_URL;
   console.log(`Local runtime running at http://${host}:${port}`);
   console.log(`Health endpoint: http://${host}:${port}/api/health`);
   console.log(`Runtime status: http://${host}:${port}/api/runtime/status`);
-  console.log(`PayPal webhook: ${publicBaseUrl}${paypalWebhookPath}`);
+  console.log(`PayPal Webhook Target: ${publicBaseUrl}${paypalWebhookPath} ${isPublic ? "(Public)" : "(Local/Testing)"}`);
+  if (!isPublic) {
+    console.log(`[HINT] For live PayPal events, set PUBLIC_BASE_URL to your Render or Tunnel URL.`);
+  }
   console.log(`Serving static files from ${webRoot}`);
   console.log(`Runtime artifacts in ${runtimeRoot}`);
   console.log(`Blueprint node contract: ${blueprintNodeContract.blueprintPath}`);
