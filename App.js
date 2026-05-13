@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,48 +17,76 @@ import ServiceCard from './components/ServiceCard';
 import { createApiClient } from './lib/api';
 import { theme } from './theme';
 
-const homeGraphic = require('./assets/images/roadside-home.png');
-const subscriberGraphic = require('./assets/images/roadside-subscriber.png');
-const DEFAULT_BACKEND_URL = typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || '' : '';
+const homeArt = require('./assets/images/roadside-home.png');
+const subscriberArt = require('./assets/images/roadside-subscriber.png');
 
-const baseNavItems = [
+const DEFAULT_ENV_BASE_URL =
+  typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || '' : '';
+const RECORDED_RUNTIME_URL = DEFAULT_ENV_BASE_URL || 'https://awroadside-fire-backend-1.onrender.com';
+
+const PRIMARY_SCREENS = [
   { id: 'home', label: 'Home' },
-  { id: 'subscriber', label: 'Subscriber' },
+  { id: 'request', label: 'Request' },
   { id: 'provider', label: 'Provider' },
-  { id: 'admin', label: 'Admin' },
+  { id: 'account', label: 'Account' },
 ];
 
-const serviceOptions = [
-  { id: 'Jump Start', label: 'Jump Start', detail: 'Battery assistance' },
-  { id: 'Lockout', label: 'Lockout', detail: 'Vehicle entry' },
-  { id: 'Tire Change', label: 'Tire Change', detail: 'Wheel swap' },
-  { id: 'Gas Delivery', label: 'Gas Delivery', detail: 'Fuel drop' },
-  { id: 'Battery Install', label: 'Battery Install', detail: 'Install support' },
+const SERVICE_OPTIONS = [
+  { id: 'Jump Start', detail: 'Battery restart with provider dispatch.' },
+  { id: 'Lockout', detail: 'Vehicle entry support with damage awareness.' },
+  { id: 'Tire Change', detail: 'Roadside tire change or swap support.' },
+  { id: 'Gas Delivery', detail: 'Fuel delivery dispatch and arrival tracking.' },
+  { id: 'Battery Install', detail: 'Battery replacement after backend quote.' },
 ];
 
-const providerServiceOptions = [
-  'LOCKOUT',
-  'JUMP_START',
-  'TIRE_CHANGE',
-  'GAS_DELIVERY',
-  'BATTERY_INSTALL',
+const PROVIDER_ACTIONS = [
+  { id: 'accept', label: 'Accept' },
+  { id: 'eta', label: 'ETA 25m' },
+  { id: 'soft-contact', label: 'Soft ETA' },
+  { id: 'hard-contact', label: 'Hard ETA' },
+  { id: 'arrived', label: 'Arrived' },
+  { id: 'completed', label: 'Complete' },
+];
+
+const PROVIDER_SERVICES = ['LOCKOUT', 'JUMP_START', 'TIRE', 'FUEL', 'BATTERY'];
+
+const PROVIDER_QUESTIONS = [
+  { id: 'jumpstartProcedure', label: 'How do you safely perform a jumpstart?' },
+  { id: 'jackPlacement', label: 'Where do you place a jack on a car?' },
+  { id: 'specialtyVehicleJack', label: 'What kind of jack do you use on BMW, van, truck, or Benz platforms?' },
+  { id: 'spoolDefinition', label: 'What is a spool?' },
+  { id: 'frozenLugNut', label: 'How do you remove a frozen lug nut?' },
+  { id: 'lockoutTools', label: 'What tools do you use to perform a lockout?' },
+  { id: 'lockoutDamagePrevention', label: 'What is the best way to prevent damage during a lockout?' },
+  { id: 'incorrectLockoutDamage', label: 'What damages can happen if a lockout is performed incorrectly?' },
+  { id: 'tirePlugKnowledge', label: 'Do you know how to plug a tire?' },
+  {
+    id: 'severeDamageDecision',
+    label:
+      'If service can cause severe damage, do you stop and inform the customer or continue anyway?',
+  },
 ];
 
 const initialRequestForm = {
   fullName: '',
   phoneNumber: '',
-  serviceType: 'Jump Start',
+  serviceType: SERVICE_OPTIONS[0].id,
   location: '',
   notes: '',
+  year: '',
+  make: '',
+  model: '',
+  color: '',
 };
 
-const initialSignin = {
+const initialSigninForm = {
   identifier: '',
   password: '',
 };
 
-const initialSubscriberSignup = {
+const initialSubscriberForm = {
   fullName: '',
+  phoneNumber: '',
   username: '',
   email: '',
   password: '',
@@ -66,27 +94,40 @@ const initialSubscriberSignup = {
   make: '',
   model: '',
   color: '',
-  paymentMethodMasked: '****1111',
+  paymentMethodMasked: '',
+  billingZip: '',
+  subscriberTermsAccepted: true,
+  dispatchOnlyLiabilityAccepted: true,
+  noRefundPolicyAccepted: true,
 };
 
-const initialProviderSignup = {
+const initialProviderForm = {
   fullName: '',
+  phoneNumber: '',
   username: '',
   email: '',
   password: '',
+  companyName: '',
   year: '',
   make: '',
   model: '',
   color: '',
   experience: '',
-  services: ['LOCKOUT', 'JUMP_START'],
-  license: true,
-  registration: true,
-  insurance: true,
-  helperId: false,
+  serviceArea: '',
+  currentLocation: '',
+  mondayHours: '08:00-18:00',
+  tuesdayHours: '08:00-18:00',
+  equipment: 'air wedge, long reach, floor jack',
+  licenseNumber: '',
+  registrationNumber: '',
+  insuranceNumber: '',
+  helperIdNumber: '',
+  providerTermsAccepted: true,
+  providerLiabilityAccepted: true,
+  assessmentAnswers: Object.fromEntries(PROVIDER_QUESTIONS.map((item) => [item.id, ''])),
 };
 
-const initialAdminSignin = {
+const initialAdminForm = {
   email: 'admin@adub.com',
   password: '',
   locationZone: 'HOME_BASE',
@@ -95,970 +136,1970 @@ const initialAdminSignin = {
 
 export default function App() {
   const [screen, setScreen] = useState('home');
-  const [backendUrl, setBackendUrl] = useState(DEFAULT_BACKEND_URL);
-  const [frontendConfig, setFrontendConfig] = useState(null);
-  const [compatibilityManifest, setCompatibilityManifest] = useState(null);
-  const [compatibilityVariant, setCompatibilityVariant] = useState(null);
-  const [paymentConfig, setPaymentConfig] = useState(null);
-  const [securityStatus, setSecurityStatus] = useState(null);
-  const [auth, setAuth] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [adminSession, setAdminSession] = useState(null);
-  const [adminDashboard, setAdminDashboard] = useState(null);
-  const [requests, setRequests] = useState([]);
-  const [providerActions, setProviderActions] = useState({});
-  const [latestRequest, setLatestRequest] = useState(null);
-  const [servicePaymentQuote, setServicePaymentQuote] = useState(null);
-  const [serviceQuoteAccepted, setServiceQuoteAccepted] = useState(false);
-  const [paymentOrder, setPaymentOrder] = useState(null);
-  const [requestForm, setRequestForm] = useState(initialRequestForm);
-  const [signinForm, setSigninForm] = useState(initialSignin);
-  const [subscriberSignup, setSubscriberSignup] = useState(initialSubscriberSignup);
-  const [providerSignup, setProviderSignup] = useState(initialProviderSignup);
-  const [adminSignin, setAdminSignin] = useState(initialAdminSignin);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const navItems = adminSession?.token ? [...baseNavItems, { id: 'security', label: 'Security' }] : baseNavItems;
-  const api = createApiClient({
-    baseUrl: backendUrl,
-    getToken: () => auth?.sessionToken || null,
+  const [accountView, setAccountView] = useState('signin');
+  const [providerView, setProviderView] = useState('signin');
+  const [requestView, setRequestView] = useState('compose');
+  const [apiBaseUrl, setApiBaseUrl] = useState(RECORDED_RUNTIME_URL);
+  const [runtimeDraft, setRuntimeDraft] = useState(RECORDED_RUNTIME_URL);
+  const [systemOpen, setSystemOpen] = useState(false);
+  const [systemTapCount, setSystemTapCount] = useState(0);
+  const [boot, setBoot] = useState({
+    loading: false,
+    error: '',
+    health: null,
+    config: null,
+    payment: null,
+    security: null,
   });
+  const [auth, setAuth] = useState(null);
+  const [admin, setAdmin] = useState(null);
+  const [adminDashboard, setAdminDashboard] = useState(null);
+  const [latestRequest, setLatestRequest] = useState(null);
+  const [providerQueue, setProviderQueue] = useState([]);
+  const [serviceQuote, setServiceQuote] = useState(null);
+  const [serviceQuoteAccepted, setServiceQuoteAccepted] = useState(false);
+  const [requestForm, setRequestForm] = useState(initialRequestForm);
+  const [memberSignin, setMemberSignin] = useState(initialSigninForm);
+  const [providerSignin, setProviderSignin] = useState(initialSigninForm);
+  const [subscriberForm, setSubscriberForm] = useState(initialSubscriberForm);
+  const [providerForm, setProviderForm] = useState(initialProviderForm);
+  const [adminForm, setAdminForm] = useState(initialAdminForm);
+  const [messages, setMessages] = useState({});
+  const [busy, setBusy] = useState({});
 
   useEffect(() => {
-    if (!backendUrl.trim()) {
-      setStatusMessage('Set the backend URL for this build before refreshing runtime config.');
+    refreshRuntime();
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
+    if (!auth?.roles?.includes('SUBSCRIBER')) {
       return;
     }
-    loadBootstrap().catch((error) => {
-      setErrorMessage(error.message);
+    setRequestForm((current) => hydrateRequestFromProfile(current, auth));
+  }, [auth?.userId, auth?.subscriberActive]);
+
+  const api = () =>
+    createApiClient({
+      baseUrl: apiBaseUrl,
+      getToken: () => auth?.sessionToken || null,
     });
-  }, []);
 
-  async function loadBootstrap() {
-    if (!backendUrl.trim()) {
-      clearMessages();
-      setStatusMessage('Set the backend URL for this build before refreshing runtime config.');
+  function setMessage(key, value) {
+    setMessages((current) => ({ ...current, [key]: value }));
+  }
+
+  function setBusyState(key, value) {
+    setBusy((current) => ({ ...current, [key]: value }));
+  }
+
+  function revealSystem() {
+    setSystemTapCount((current) => {
+      const next = current + 1;
+      if (next >= 6) {
+        setSystemOpen((open) => !open);
+        return 0;
+      }
+      return next;
+    });
+  }
+
+  async function refreshRuntime() {
+    if (!apiBaseUrl) {
+      setBoot((current) => ({ ...current, error: 'Backend URL is not set.', loading: false }));
       return;
     }
-    setLoading(true);
-    clearMessages();
+
+    setBoot((current) => ({ ...current, loading: true, error: '' }));
     try {
-      const [config, manifestPayload, payments, security] = await Promise.all([
-        api.getFrontendConfig(),
-        api.getCompatibilityManifest().catch(() => null),
-        api.getPaymentConfig().catch(() => null),
-        adminSession?.token ? api.getSecurityStatus().catch(() => null) : Promise.resolve(null),
+      const client = api();
+      const [health, config, payment, security] = await Promise.all([
+        client.getHealth(),
+        client.getFrontendConfig(),
+        client.getPaymentConfig(),
+        client.getSecurityStatus(),
       ]);
-      setFrontendConfig(config);
-      setCompatibilityManifest(manifestPayload?.manifest || null);
-      setPaymentConfig(payments);
-      setSecurityStatus(security);
-      await syncCompatibilityHandshake(manifestPayload?.manifest || null);
-      setStatusMessage('Backend connected.');
-      if (auth?.sessionToken) {
-        await loadProfile(config, auth.sessionToken);
-      }
-      if (auth?.roles?.includes('PROVIDER')) {
-        await loadRequestQueue(config, auth.sessionToken);
-      }
-      if (adminSession?.token) {
-        await loadAdminDashboard(config, adminSession);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function syncCompatibilityHandshake(manifestOverride = null) {
-    try {
-      const payload = await api.acknowledgeVariant({
-        projectId: 'awroadside-family',
-        variantId: 'awroadside-fire-mobile',
-        platform: 'android-ios-mobile',
-        appVersion: '1.0.0',
-        sdkVersion: '55',
-        note: 'expo-mobile-handshake',
+      setBoot({
+        loading: false,
+        error: '',
+        health,
+        config,
+        payment,
+        security,
       });
-      setCompatibilityManifest(payload?.manifest || manifestOverride || null);
-      setCompatibilityVariant(payload?.variant || null);
-    } catch {
-      setCompatibilityVariant(null);
+    } catch (error) {
+      setBoot((current) => ({
+        ...current,
+        loading: false,
+        error: error.message,
+      }));
     }
   }
 
-  async function handleSignin() {
-    setLoading(true);
-    clearMessages();
+  async function hydrateProfile(tokenOverride = null) {
+    const token = tokenOverride || auth?.sessionToken;
+    if (!token) {
+      return null;
+    }
+    const profile = await api().getProfile(token);
+    setAuth((current) => ({
+      ...(current || {}),
+      ...profile,
+      roles: profile.roles || current?.roles || [],
+      sessionToken: token,
+    }));
+    return profile;
+  }
+
+  function signOutUser() {
+    setAuth(null);
+    setLatestRequest(null);
+    setServiceQuote(null);
+    setServiceQuoteAccepted(false);
+    setProviderQueue([]);
+    setRequestView('compose');
+    setAccountView('signin');
+    setProviderView('signin');
+    setScreen('home');
+    setMessage('account', 'Signed out.');
+  }
+
+  async function handleMemberSignin() {
+    setBusyState('memberSignin', true);
+    setMessage('memberSignin', '');
     try {
-      const payload = await api.login(signinForm);
-      const nextAuth = {
-        userId: payload.userId,
+      const payload = await api().login(memberSignin);
+      setAuth({
+        ...payload,
         roles: payload.roles || [],
-        providerStatus: payload.providerStatus || null,
-        subscriberActive: Boolean(payload.subscriberActive),
         sessionToken: payload.sessionToken || null,
-      };
-      setAuth(nextAuth);
-      await loadProfile(frontendConfig, nextAuth.sessionToken);
-      if ((payload.roles || []).includes('PROVIDER')) {
-        await loadRequestQueue(frontendConfig, nextAuth.sessionToken);
-        setScreen('provider');
-      } else {
-        setScreen('subscriber');
-      }
-      setStatusMessage('Sign in complete.');
+      });
+      await hydrateProfile(payload.sessionToken || null);
+      setScreen('account');
+      setAccountView('profile');
+      setMessage('memberSignin', 'Member signed in.');
     } catch (error) {
-      setErrorMessage(error.message);
+      setMessage('memberSignin', error.message);
     } finally {
-      setLoading(false);
+      setBusyState('memberSignin', false);
+    }
+  }
+
+  async function handleProviderSignin() {
+    setBusyState('providerSignin', true);
+    setMessage('providerSignin', '');
+    try {
+      const payload = await api().login(providerSignin);
+      setAuth({
+        ...payload,
+        roles: payload.roles || [],
+        sessionToken: payload.sessionToken || null,
+      });
+      await hydrateProfile(payload.sessionToken || null);
+      setScreen('provider');
+      setProviderView('dispatch');
+      setMessage('providerSignin', 'Provider signed in.');
+      await handleProviderQueue(payload.sessionToken || null);
+    } catch (error) {
+      setMessage('providerSignin', error.message);
+    } finally {
+      setBusyState('providerSignin', false);
     }
   }
 
   async function handleSubscriberSignup() {
-    setLoading(true);
-    clearMessages();
+    setBusyState('subscriberSignup', true);
+    setMessage('subscriberSignup', '');
     try {
-      const signup = await api.signup({
-        fullName: subscriberSignup.fullName,
-        username: subscriberSignup.username,
-        email: subscriberSignup.email,
-        password: subscriberSignup.password,
+      const signup = await api().signup({
+        fullName: subscriberForm.fullName,
+        phoneNumber: subscriberForm.phoneNumber,
+        username: subscriberForm.username,
+        email: subscriberForm.email,
+        password: subscriberForm.password,
         role: 'SUBSCRIBER',
         termsAccepted: true,
+        subscriberTermsAccepted: subscriberForm.subscriberTermsAccepted,
       });
-      const sessionToken = signup.sessionToken;
-      await api.setupSubscriber(
+
+      await api().setupSubscriber(
         {
           vehicle: {
-            year: subscriberSignup.year,
-            make: subscriberSignup.make,
-            model: subscriberSignup.model,
-            color: subscriberSignup.color,
+            year: subscriberForm.year,
+            make: subscriberForm.make,
+            model: subscriberForm.model,
+            color: subscriberForm.color,
           },
-          paymentMethodMasked: subscriberSignup.paymentMethodMasked,
+          paymentMethodMasked: subscriberForm.paymentMethodMasked || '****1111',
+          paymentProvider: 'paypal',
+          billingZip: subscriberForm.billingZip,
+          subscriberTermsAccepted: subscriberForm.subscriberTermsAccepted,
+          dispatchOnlyLiabilityAccepted: subscriberForm.dispatchOnlyLiabilityAccepted,
+          noRefundPolicyAccepted: subscriberForm.noRefundPolicyAccepted,
         },
-        sessionToken
+        signup.sessionToken || null
       );
-      const nextAuth = {
-        userId: signup.userId,
-        roles: ['SUBSCRIBER'],
-        providerStatus: null,
+
+      setAuth({
+        ...signup,
+        roles: signup.roles || ['SUBSCRIBER'],
         subscriberActive: true,
-        sessionToken,
-      };
-      setAuth(nextAuth);
-      await loadProfile(frontendConfig, sessionToken);
-      setScreen('subscriber');
-      setProfile((current) => ({
-        ...(current || {}),
-        subscriberProfile: {
-          membershipPrice: 5,
-          vehicle: {
-            year: subscriberSignup.year,
-            make: subscriberSignup.make,
-            model: subscriberSignup.model,
-            color: subscriberSignup.color,
-          },
-          paymentMethodMasked: subscriberSignup.paymentMethodMasked,
-        },
-      }));
-      setStatusMessage('Subscriber account created.');
+        sessionToken: signup.sessionToken || null,
+      });
+      await hydrateProfile(signup.sessionToken || null);
+      setScreen('account');
+      setAccountView('profile');
+      setMessage('subscriberSignup', 'Subscriber membership activated.');
     } catch (error) {
-      setErrorMessage(error.message);
+      setMessage('subscriberSignup', error.message);
     } finally {
-      setLoading(false);
+      setBusyState('subscriberSignup', false);
     }
   }
 
   async function handleProviderSignup() {
-    setLoading(true);
-    clearMessages();
+    setBusyState('providerSignup', true);
+    setMessage('providerSignup', '');
     try {
-      const signup = await api.signup({
-        fullName: providerSignup.fullName,
-        username: providerSignup.username,
-        email: providerSignup.email,
-        password: providerSignup.password,
+      const signup = await api().signup({
+        fullName: providerForm.fullName,
+        phoneNumber: providerForm.phoneNumber,
+        username: providerForm.username,
+        email: providerForm.email,
+        password: providerForm.password,
         role: 'PROVIDER',
         termsAccepted: true,
+        providerTermsAccepted: providerForm.providerTermsAccepted,
+        providerLiabilityAccepted: providerForm.providerLiabilityAccepted,
       });
-      const sessionToken = signup.sessionToken;
-      await api.applyProvider(
+
+      await api().uploadProviderDocuments(
         {
-          vehicleInfo: {
-            year: providerSignup.year,
-            make: providerSignup.make,
-            model: providerSignup.model,
-            color: providerSignup.color,
-          },
-          documents: {
-            license: providerSignup.license,
-            registration: providerSignup.registration,
-            insurance: providerSignup.insurance,
-            helperId: providerSignup.helperId,
-          },
-          experience: providerSignup.experience,
-          services: providerSignup.services,
+          documents: buildProviderDocumentsPayload(providerForm),
         },
-        sessionToken
+        signup.sessionToken || null
       );
-      const nextAuth = {
-        userId: signup.userId,
-        roles: ['PROVIDER'],
-        providerStatus: 'PENDING_APPROVAL',
-        subscriberActive: false,
-        sessionToken,
-      };
-      setAuth(nextAuth);
-      await loadProfile(frontendConfig, sessionToken);
-      await loadRequestQueue(frontendConfig, sessionToken);
-      setProfile((current) => ({
-        ...(current || {}),
-        providerStatus: 'PENDING_APPROVAL',
-        services: providerSignup.services,
-        providerProfile: {
+
+      const payload = await api().applyProvider(
+        {
+          providerTermsAccepted: providerForm.providerTermsAccepted,
+          providerLiabilityAccepted: providerForm.providerLiabilityAccepted,
+          providerInfo: {
+            legalName: providerForm.fullName,
+            phoneNumber: providerForm.phoneNumber,
+            email: providerForm.email,
+            companyName: providerForm.companyName,
+          },
           vehicleInfo: {
-            year: providerSignup.year,
-            make: providerSignup.make,
-            model: providerSignup.model,
-            color: providerSignup.color,
+            year: providerForm.year,
+            make: providerForm.make,
+            model: providerForm.model,
+            color: providerForm.color,
+          },
+          experience: providerForm.experience,
+          serviceArea: providerForm.serviceArea,
+          currentLocation: providerForm.currentLocation,
+          hoursOfService: {
+            timezone: 'America/New_York',
+            monday: providerForm.mondayHours,
+            tuesday: providerForm.tuesdayHours,
+          },
+          equipment: splitCsv(providerForm.equipment),
+          assessmentAnswers: providerForm.assessmentAnswers,
+          services: PROVIDER_SERVICES,
+          rates: {
+            ratingTotal: 0,
+            ratingCount: 0,
           },
         },
-      }));
-      setScreen('provider');
-      setStatusMessage('Provider application submitted.');
-    } catch (error) {
-      setErrorMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+        signup.sessionToken || null
+      );
 
-  async function handleGuestRequest() {
-    setLoading(true);
-    clearMessages();
-    try {
-      const payload = await api.createRequest({
-        ...requestForm,
-        userId: auth?.userId || null,
-        roles: auth?.roles || [],
+      setAuth({
+        ...signup,
+        roles: signup.roles || ['PROVIDER'],
+        providerStatus: payload.providerStatus || 'PENDING_APPROVAL',
+        sessionToken: signup.sessionToken || null,
       });
-      setLatestRequest(payload);
-      setServicePaymentQuote(null);
+      await hydrateProfile(signup.sessionToken || null);
+      setScreen('provider');
+      setProviderView('application');
+      setMessage('providerSignup', 'Provider profile submitted for approval.');
+    } catch (error) {
+      setMessage('providerSignup', error.message);
+    } finally {
+      setBusyState('providerSignup', false);
+    }
+  }
+
+  async function submitRequest() {
+    setBusyState('requestSubmit', true);
+    setMessage('requestSubmit', '');
+    try {
+      const payload = await api().createRequest(
+        {
+          userId: auth?.userId || null,
+          roles: auth?.roles || [],
+          subscriberActive: Boolean(auth?.subscriberActive),
+          fullName: requestForm.fullName,
+          phoneNumber: requestForm.phoneNumber,
+          serviceType: requestForm.serviceType,
+          location: requestForm.location,
+          notes: requestForm.notes,
+          vehicleInfo: {
+            year: requestForm.year,
+            make: requestForm.make,
+            model: requestForm.model,
+            color: requestForm.color,
+          },
+          termsAccepted: true,
+          dispatchOnlyLiabilityAccepted: true,
+          noRefundPolicyAccepted: true,
+        },
+        auth?.sessionToken || null
+      );
+
+      const request = payload.request || payload;
+      setLatestRequest(request);
+      setServiceQuote(null);
       setServiceQuoteAccepted(false);
-      setPaymentOrder(null);
-      setStatusMessage(`Request submitted: ${payload.requestId || payload.id}`);
-      if (auth?.roles?.includes('PROVIDER')) {
-        await loadRequestQueue(frontendConfig, auth.sessionToken);
-      }
+      setRequestView('status');
+      setScreen('request');
+      setMessage(
+        'requestSubmit',
+        `Request ${request.requestId || request.id || ''} submitted. Waiting for provider acceptance.`
+      );
     } catch (error) {
-      setErrorMessage(error.message);
+      setMessage('requestSubmit', error.message);
     } finally {
-      setLoading(false);
+      setBusyState('requestSubmit', false);
     }
   }
 
-  async function handleFetchServiceQuote() {
-    const requestId = latestRequest?.requestId || latestRequest?.id;
-    if (!requestId) {
-      setErrorMessage('Submit a request before checking service payment.');
-      return;
-    }
-    setLoading(true);
-    clearMessages();
-    try {
-      const payload = await api.getServicePaymentQuote({ requestId });
-      setServicePaymentQuote(payload);
-      setServiceQuoteAccepted(false);
-      setStatusMessage(`Backend quote ready: ${payload.amount?.value || '0.00'} ${payload.amount?.currency_code || 'USD'}.`);
-    } catch (error) {
-      setErrorMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleAgreeServiceQuote() {
-    if (!servicePaymentQuote?.quoteId) {
-      setErrorMessage('Backend service quote is required before agreement.');
-      return;
-    }
-    clearMessages();
-    setServiceQuoteAccepted(true);
-    setStatusMessage(`Service quote accepted: ${servicePaymentQuote.amount?.value || '0.00'} ${servicePaymentQuote.amount?.currency_code || 'USD'}.`);
-  }
-
-  async function handleAdminSignin() {
-    setLoading(true);
-    clearMessages();
-    try {
-      const payload = await api.adminLogin(adminSignin);
-      const nextSession = {
-        token: payload.token || null,
-        roles: payload.roles || [],
-        trustedZone: payload.trustedZone || null,
-        twoFactorVerified: Boolean(payload.twoFactorVerified),
-        pendingTwoFactor: Boolean(payload.twoFactorRequired),
-        locationZone: adminSignin.locationZone,
-      };
-      setAdminSession(nextSession);
-      if (payload.token) {
-        await loadAdminDashboard(frontendConfig, nextSession);
-        const security = await api.getSecurityStatus().catch(() => null);
-        setSecurityStatus(security);
-        setStatusMessage('Admin session active.');
-      } else {
-        setStatusMessage(payload.message || '2FA required.');
-      }
-      setScreen('admin');
-    } catch (error) {
-      setErrorMessage(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadProfile(configOverride = frontendConfig, token = auth?.sessionToken) {
-    if (!token) {
-      setProfile(null);
-      return;
-    }
-    try {
-      const nextProfile = await api.getProfile(token);
-      setProfile(nextProfile);
-    } catch (error) {
-      if (error?.status === 404) {
-        setProfile(null);
-        return;
-      }
-      throw error;
-    }
-  }
-
-  async function loadRequestQueue(configOverride = frontendConfig, token = auth?.sessionToken) {
-    if (!token) {
-      setRequests([]);
-      return;
-    }
-    try {
-      const payload = await api.listRequests(token);
-      setRequests(Array.isArray(payload.requests) ? payload.requests : []);
-    } catch (error) {
-      setRequests([]);
-      throw error;
-    }
-  }
-
-  async function loadAdminDashboard(configOverride = frontendConfig, session = adminSession) {
-    if (!session?.token) {
-      setAdminDashboard(null);
-      return;
-    }
-    const payload = await api.getAdminDashboard(session.token, {
-      'x-location-zone': session.locationZone || 'HOME_BASE',
-      ...(session.twoFactorVerified ? { 'x-2fa-verified': 'true' } : {}),
-    });
-    setAdminDashboard(payload);
-  }
-
-  async function handleCreatePaymentOrder() {
+  async function handleAcceptEta() {
     if (!latestRequest?.requestId && !latestRequest?.id) {
-      setErrorMessage('Submit a request before creating a payment order.');
+      setMessage('requestStatus', 'No request loaded.');
       return;
     }
-    setLoading(true);
-    clearMessages();
+    setBusyState('acceptEta', true);
+    setMessage('requestStatus', '');
     try {
-      const requestId = latestRequest?.requestId || latestRequest?.id;
-      const useServiceQuote = Boolean(serviceQuoteAccepted && servicePaymentQuote?.quoteId && requestId);
-      const payload = await api.createPaypalOrder(
-        useServiceQuote
-          ? {
-              paymentKind: 'service',
-              requestId,
-              quoteId: servicePaymentQuote.quoteId,
-              quoteAccepted: true,
-            }
-          : {
-              fullName: requestForm.fullName,
-              phoneNumber: requestForm.phoneNumber,
-              serviceType: requestForm.serviceType,
-              location: requestForm.location,
-              notes: requestForm.notes,
-              paymentKind: 'priority',
-            }
+      const requestId = latestRequest.requestId || latestRequest.id;
+      const payload = await api().applyProviderAction(
+        requestId,
+        'subscriber-accept-eta',
+        { userId: auth?.userId || null, actorRole: 'SUBSCRIBER' },
+        auth?.sessionToken || null
       );
-      setPaymentOrder(payload);
-      setStatusMessage(
-        useServiceQuote
-          ? `Service payment order created: ${payload.orderId || payload.id || 'pending approval'}`
-          : `Priority payment order created: ${payload.orderId || payload.id || 'pending approval'}`
+      const request = payload.request || latestRequest;
+      setLatestRequest(request);
+      setRequestView('payment');
+      setMessage('requestStatus', 'ETA accepted. You can now review the backend service quote.');
+    } catch (error) {
+      setMessage('requestStatus', error.message);
+    } finally {
+      setBusyState('acceptEta', false);
+    }
+  }
+
+  async function handleArrivalConfirm() {
+    await runCustomerAction('confirm-arrived', 'Arrival confirmed.');
+  }
+
+  async function handleCompletionConfirm() {
+    await runCustomerAction('confirm-completion', 'Completion confirmed.');
+  }
+
+  async function runCustomerAction(action, successMessage) {
+    if (!latestRequest?.requestId && !latestRequest?.id) {
+      setMessage('requestStatus', 'No request loaded.');
+      return;
+    }
+    setBusyState(action, true);
+    setMessage('requestStatus', '');
+    try {
+      const requestId = latestRequest.requestId || latestRequest.id;
+      const payload = await api().applyProviderAction(
+        requestId,
+        action,
+        { userId: auth?.userId || null, actorRole: 'SUBSCRIBER' },
+        auth?.sessionToken || null
       );
+      setLatestRequest(payload.request || latestRequest);
+      setMessage('requestStatus', successMessage);
     } catch (error) {
-      setErrorMessage(error.message);
+      setMessage('requestStatus', error.message);
     } finally {
-      setLoading(false);
+      setBusyState(action, false);
     }
   }
 
-  async function handleCapturePayment() {
-    const orderId = paymentOrder?.orderId || paymentOrder?.id;
-    if (!orderId) {
-      setErrorMessage('Create a payment order before capture.');
+  async function handleLoadQuote() {
+    if (!latestRequest?.requestId && !latestRequest?.id) {
+      setMessage('quote', 'Submit a request first.');
       return;
     }
-    setLoading(true);
-    clearMessages();
+    setBusyState('quote', true);
+    setMessage('quote', '');
     try {
-      const payload = await api.capturePaypalOrder({ orderId });
-      setPaymentOrder((current) => ({ ...(current || {}), ...payload, captured: true }));
-      setStatusMessage(payload.message || `Payment captured for order ${orderId}.`);
+      const payload = await api().getServicePaymentQuote(
+        { requestId: latestRequest.requestId || latestRequest.id },
+        auth?.sessionToken || null
+      );
+      setServiceQuote(payload);
+      setServiceQuoteAccepted(false);
+      setMessage('quote', `Quote ready for ${payload.amount?.value || '--'} ${payload.amount?.currency_code || 'USD'}.`);
     } catch (error) {
-      setErrorMessage(error.message);
+      setMessage('quote', error.message);
     } finally {
-      setLoading(false);
+      setBusyState('quote', false);
     }
   }
 
-  function handleUserLogout() {
-    setAuth(null);
-    setProfile(null);
-    setRequests([]);
-    setProviderActions({});
-    setLatestRequest(null);
-    setPaymentOrder(null);
-    setSigninForm(initialSignin);
-    setScreen('home');
-    setStatusMessage('Member session cleared.');
-    setErrorMessage('');
-  }
-
-  function handleAdminLogout() {
-    setAdminSession(null);
-    setAdminDashboard(null);
-    setSecurityStatus(null);
-    setAdminSignin(initialAdminSignin);
-    setScreen('home');
-    setStatusMessage('Admin session cleared.');
-    setErrorMessage('');
-  }
-
-  function recordProviderAction(requestId, field, value) {
-    setProviderActions((current) => ({
-      ...current,
-      [requestId]: {
-        ...(current[requestId] || {}),
-        [field]: value,
-      },
-    }));
-  }
-
-  async function runProviderAction(requestId, action) {
-    const detail = providerActions[requestId] || {};
-    if (!auth?.sessionToken || !auth?.roles?.includes('PROVIDER')) {
-      setErrorMessage('Sign in as a provider before sending dispatch actions.');
+  async function handleCreateServiceOrder() {
+    if (!serviceQuote) {
+      setMessage('quote', 'Load the backend quote first.');
       return;
     }
-    setLoading(true);
-    clearMessages();
+    if (!serviceQuoteAccepted) {
+      setMessage('quote', 'Acknowledge the backend quote before payment.');
+      return;
+    }
+    setBusyState('serviceOrder', true);
+    setMessage('quote', '');
     try {
-      const payload = {
-        ...(action === 'eta' && detail.eta ? { etaMinutes: Number.parseInt(detail.eta, 10) || null } : {}),
-        ...(action === 'soft-contact' && detail.softContact ? { note: detail.softContact } : {}),
-        ...(action === 'hard-contact' && detail.hardContact ? { note: detail.hardContact } : {}),
-      };
-      const result = await api.applyProviderAction(requestId, action, payload, auth.sessionToken);
-      await loadRequestQueue(frontendConfig, auth.sessionToken);
-      setStatusMessage(result?.message || `${labelProviderAction(action)} accepted for ${requestId}.`);
+      const payload = await api().createPaypalOrder(
+        {
+          paymentKind: 'service',
+          requestId: serviceQuote.requestId,
+          quoteId: serviceQuote.quoteId,
+          quoteAccepted: true,
+        },
+        auth?.sessionToken || null
+      );
+      setMessage('quote', `Payment order created: ${payload.orderId}.`);
     } catch (error) {
-      setErrorMessage(error.message);
+      setMessage('quote', error.message);
     } finally {
-      setLoading(false);
+      setBusyState('serviceOrder', false);
     }
   }
 
-  function clearMessages() {
-    setStatusMessage('');
-    setErrorMessage('');
+  async function handleProviderQueue(tokenOverride = null) {
+    setBusyState('providerQueue', true);
+    setMessage('providerQueue', '');
+    try {
+      const payload = await api().listRequests(tokenOverride || auth?.sessionToken || null);
+      const requests = Array.isArray(payload.requests) ? payload.requests : [];
+      setProviderQueue(requests);
+      setMessage('providerQueue', `${requests.length} request(s) in queue.`);
+    } catch (error) {
+      setMessage('providerQueue', error.message);
+    } finally {
+      setBusyState('providerQueue', false);
+    }
   }
 
-  function renderScreen() {
-    if (screen === 'request') {
-      return renderRequestScreen();
+  async function handleProviderAction(requestId, action) {
+    setBusyState(`provider-${requestId}-${action}`, true);
+    setMessage('providerQueue', '');
+    try {
+      const payload = buildProviderActionPayload(action);
+      const response = await api().applyProviderAction(
+        requestId,
+        action,
+        payload,
+        auth?.sessionToken || null
+      );
+      setMessage(
+        'providerQueue',
+        response.committed === false
+          ? `${formatActionLabel(action)} accepted as pending backend work.`
+          : `${formatActionLabel(action)} committed to the request.`
+      );
+      await handleProviderQueue();
+    } catch (error) {
+      setMessage('providerQueue', error.message);
+    } finally {
+      setBusyState(`provider-${requestId}-${action}`, false);
     }
-    if (screen === 'subscriber') {
-      return renderSubscriberScreen();
-    }
-    if (screen === 'provider') {
-      return renderProviderScreen();
-    }
-    if (screen === 'admin') {
-      return renderAdminScreen();
-    }
-    if (screen === 'security') {
-      return renderSecurityScreen();
-    }
-    return renderHomeScreen();
   }
 
-  function renderHomeScreen() {
-    return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.heroCard}>
-          <Image source={homeGraphic} style={styles.heroImage} resizeMode="cover" />
-          <View style={styles.heroCopy}>
-            <Text style={styles.eyebrow}>AW Roadside Fire</Text>
-            <Text style={styles.title}>Welcome to AW Roadside Fire.</Text>
-            <Text style={styles.subtitle}>
-              Good service is a priority, and your safety is always our first concern.
-            </Text>
-          </View>
-        </View>
-
-        {__DEV__ ? (
-          <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>Backend Runtime</Text>
-            <InputField
-              label="Backend URL"
-              autoCapitalize="none"
-              value={backendUrl}
-              onChangeText={setBackendUrl}
-              placeholder="https://api.your-domain.com"
-            />
-            <Button label="Refresh Backend Config" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} />
-            <Text style={styles.mutedText}>Variant mode: {compatibilityVariant?.mode || compatibilityManifest?.mode || 'Unverified'}</Text>
-            <Text style={styles.mutedText}>Active authority: {compatibilityManifest?.activeVariantId || 'Unknown'}</Text>
-          </View>
-        ) : null}
-
-        {renderRequestWorkPanel('Guest Request')}
-
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Member / Provider Sign In</Text>
-          <InputField
-            label="Username or Email"
-            autoCapitalize="none"
-            value={signinForm.identifier}
-            onChangeText={(value) => setSigninForm((current) => ({ ...current, identifier: value }))}
-          />
-          <InputField
-            label="Password"
-            secureTextEntry
-            value={signinForm.password}
-            onChangeText={(value) => setSigninForm((current) => ({ ...current, password: value }))}
-          />
-          <Button label="Sign In" onPress={handleSignin} />
-        </View>
-
-        <View style={styles.dualGrid}>
-          <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>Subscriber Signup</Text>
-            <Text style={styles.mutedText}>Monthly fee: {formatMoney(5)}</Text>
-            <Text style={styles.mutedText}>By creating a subscriber account, you accept the current member terms and stored vehicle/payment profile rules.</Text>
-            {renderSubscriberSignupFields()}
-            <Button label="Create Subscriber Account" onPress={handleSubscriberSignup} />
-          </View>
-
-          <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>Provider Signup</Text>
-            <Text style={styles.mutedText}>Application fee: {formatMoney(5.99)}</Text>
-            <Text style={styles.mutedText}>By applying as a provider, you accept provider verification, fee, dispatch, and future policy update terms.</Text>
-            {renderProviderSignupFields()}
-            <Button label="Create Provider Account" onPress={handleProviderSignup} />
-          </View>
-        </View>
-      </ScrollView>
-    );
+  async function handleAdminLogin() {
+    setBusyState('adminLogin', true);
+    setMessage('adminLogin', '');
+    try {
+      const payload = await api().adminLogin(adminForm);
+      setAdmin({
+        token: payload.token || null,
+        locationZone: adminForm.locationZone || null,
+        roles: payload.roles || [],
+        twoFactorVerified: Boolean(payload.twoFactorVerified),
+      });
+      setMessage('adminLogin', payload.twoFactorRequired ? payload.message : 'Admin session ready.');
+      if (payload.token) {
+        await handleAdminDashboard(payload.token, adminForm.locationZone || null, Boolean(payload.twoFactorVerified));
+      }
+    } catch (error) {
+      setMessage('adminLogin', error.message);
+    } finally {
+      setBusyState('adminLogin', false);
+    }
   }
 
-  function renderRequestScreen() {
-    return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        {renderRequestWorkPanel('Guest / Customer Request')}
-
-        <View style={styles.graphicPanel}>
-          <Image source={subscriberGraphic} style={styles.secondaryGraphic} resizeMode="cover" />
-          <View style={styles.graphicCopy}>
-            <Text style={styles.sectionTitle}>Subscriber Profile</Text>
-            <Text style={styles.mutedText}>
-              {profile?.subscriberProfile?.vehicle
-                ? `${profile.subscriberProfile.vehicle.year} ${profile.subscriberProfile.vehicle.make} ${profile.subscriberProfile.vehicle.model} ${profile.subscriberProfile.vehicle.color}`
-                : 'No subscriber vehicle profile loaded.'}
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    );
+  async function handleAdminDashboard(
+    token = admin?.token || null,
+    locationZone = admin?.locationZone || null,
+    twoFactorVerified = admin?.twoFactorVerified || false
+  ) {
+    if (!token) {
+      return;
+    }
+    setBusyState('adminDashboard', true);
+    setMessage('adminDashboard', '');
+    try {
+      const payload = await api().getAdminDashboard(token, {
+        ...(locationZone ? { 'x-location-zone': locationZone } : {}),
+        ...(twoFactorVerified ? { 'x-2fa-verified': 'true' } : {}),
+      });
+      setAdminDashboard(payload);
+    } catch (error) {
+      setMessage('adminDashboard', error.message);
+    } finally {
+      setBusyState('adminDashboard', false);
+    }
   }
 
-  function renderSubscriberScreen() {
-    return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Subscriber Info</Text>
-          <Text style={styles.mutedText}>Session: {auth?.sessionToken ? 'Signed in' : 'Guest'}</Text>
-          <Text style={styles.mutedText}>Name: {profile?.fullName || (auth?.userId ? `User ${auth.userId}` : 'Not signed in')}</Text>
-          <Text style={styles.mutedText}>Subscriber active: {profile?.subscriberActive || auth?.subscriberActive ? 'Yes' : 'No'}</Text>
-          <Text style={styles.mutedText}>
-            Vehicle: {profile?.subscriberProfile?.vehicle
-              ? `${profile.subscriberProfile.vehicle.year} ${profile.subscriberProfile.vehicle.make} ${profile.subscriberProfile.vehicle.model} ${profile.subscriberProfile.vehicle.color}`
-              : 'No subscriber vehicle loaded.'}
-          </Text>
-          <View style={styles.buttonGrid}>
-            <Button label="Refresh Subscriber Profile" onPress={() => loadProfile().catch((error) => setErrorMessage(error.message))} kind="secondary" />
-            <Button label="Use Profile For Request" onPress={prefillRequestFromSubscriber} />
-          </View>
-        </View>
-
-        {renderRequestWorkPanel('Subscriber Request')}
-      </ScrollView>
-    );
-  }
-
-  function renderRequestWorkPanel(title) {
-    const guestServiceBasePrice = paymentConfig?.serviceBasePrice || frontendConfig?.serviceBasePrice || 55;
-    const priorityAddOnPrice = paymentConfig?.priorityServicePrice || frontendConfig?.priorityServicePrice || 25;
-
+  function renderHome() {
     return (
       <>
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>{title}</Text>
-          <Text style={styles.mutedText}>
-            Guest service base rate: {formatMoney(guestServiceBasePrice)}
-          </Text>
-          <Text style={styles.mutedText}>
-            Optional priority dispatch add-on: {formatMoney(priorityAddOnPrice)}. This is not the full service price.
-          </Text>
-          <Text style={styles.mutedText}>Service payment stays locked until the backend records a hard ETA and returns a quote.</Text>
-          <View style={styles.serviceGrid}>
-            {serviceOptions.map((service) => (
-              <ServiceCard
-                key={service.id}
-                active={requestForm.serviceType === service.id}
-                label={service.label}
-                price={formatMoney(guestServiceBasePrice)}
-                detail={service.detail}
-                onPress={() => setRequestForm((current) => ({ ...current, serviceType: service.id }))}
-              />
-            ))}
-          </View>
-          <InputField label="Full Name" value={requestForm.fullName} onChangeText={(value) => setRequestForm((current) => ({ ...current, fullName: value }))} />
-          <InputField label="Phone Number" value={requestForm.phoneNumber} onChangeText={(value) => setRequestForm((current) => ({ ...current, phoneNumber: value }))} />
-          <InputField label="Location" value={requestForm.location} onChangeText={(value) => setRequestForm((current) => ({ ...current, location: value }))} />
-          <InputField label="Notes" multiline value={requestForm.notes} onChangeText={(value) => setRequestForm((current) => ({ ...current, notes: value }))} />
-          <Button label="Submit Request" onPress={handleGuestRequest} />
-          <Text style={styles.mutedText}>
-            Request status: {latestRequest?.requestId || latestRequest?.id ? `Submitted as ${latestRequest.requestId || latestRequest.id}` : 'Not submitted yet'}
-          </Text>
-        </View>
+        <HeroPanel
+          title="Roadside help with a clear path."
+          copy="Request service, manage membership, or work provider dispatch without fighting through mixed screens or hidden steps."
+          onPrimary={() => {
+            setScreen('request');
+            setRequestView('compose');
+          }}
+          onSecondary={() => {
+            setScreen('account');
+            setAccountView(auth?.sessionToken ? 'profile' : 'join');
+          }}
+        />
 
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Payment</Text>
-          <Text style={styles.mutedText}>
-            Payment mode: {paymentConfig?.paypalMode || frontendConfig?.paypalMode || 'Unavailable'}
-          </Text>
-          <Text style={styles.mutedText}>
-            Service quote: {servicePaymentQuote?.amount?.value ? `${servicePaymentQuote.amount.value} ${servicePaymentQuote.amount.currency_code}` : 'Not requested'}
-          </Text>
-          <Text style={styles.mutedText}>Priority add-on: {formatMoney(priorityAddOnPrice)}</Text>
-          <Text style={styles.mutedText}>Service agreement: {serviceQuoteAccepted ? 'Accepted' : 'Pending'}</Text>
-          <Text style={styles.mutedText}>
-            Order status: {paymentOrder?.status || (paymentOrder?.captured ? 'CAPTURED' : 'No active order')}
-          </Text>
-          <View style={styles.buttonGrid}>
-            <Button label="Check Service Quote" onPress={handleFetchServiceQuote} kind="secondary" />
-            <Button label="Agree To Service Price" onPress={handleAgreeServiceQuote} kind="secondary" />
-            <Button label="Create Payment Order" onPress={handleCreatePaymentOrder} kind="secondary" />
-            <Button label="Capture Payment" onPress={handleCapturePayment} />
+        <MetricsRow
+          items={[
+            {
+              label: 'Dispatch',
+              value: boot.health?.status?.toUpperCase() || 'OFF',
+              detail: boot.config?.securityLayer || 'Protected backend',
+            },
+            {
+              label: 'Priority',
+              value: formatUsd(boot.config?.priorityServicePrice || 25),
+              detail: 'Guest request entry point',
+            },
+            {
+              label: 'Membership',
+              value: formatUsd(boot.payment?.subscriberMonthlyFee || 5),
+              detail: 'Subscriber monthly fee',
+            },
+          ]}
+        />
+
+        <Section
+          title="Choose Your Path"
+          subtitle="Each path leads somewhere specific so the app feels usable from the first screen."
+        >
+          <View style={styles.pathGrid}>
+            <JourneyTile
+              eyebrow="Guest"
+              title="Request help now"
+              detail="Guest roadside request with dispatch-only platform liability."
+              onPress={() => {
+                setScreen('request');
+                setRequestView('compose');
+              }}
+            />
+            <JourneyTile
+              eyebrow="Subscriber"
+              title="Member access"
+              detail="Join, sign in, accept ETA, and manage service from one member path."
+              onPress={() => {
+                setScreen('account');
+                setAccountView(auth?.sessionToken ? 'profile' : 'join');
+              }}
+            />
+            <JourneyTile
+              eyebrow="Provider"
+              title="Provider work"
+              detail="Application, verification, queue, and service log separated from customer screens."
+              onPress={() => {
+                setScreen('provider');
+                setProviderView(auth?.roles?.includes('PROVIDER') ? 'dispatch' : 'apply');
+              }}
+            />
           </View>
-        </View>
+        </Section>
+
+        <Section
+          title="Quick Guest Request"
+          subtitle="This stays lightweight on the home screen, then opens the full request journey."
+        >
+          <ServicePicker
+            selected={requestForm.serviceType}
+            onSelect={(serviceType) => setRequestForm((current) => ({ ...current, serviceType }))}
+          />
+          <InputField
+            label="Full Name"
+            value={requestForm.fullName}
+            onChangeText={(value) => setRequestForm((current) => ({ ...current, fullName: value }))}
+          />
+          <TwoColumnFields
+            left={
+              <InputField
+                label="Phone Number"
+                value={requestForm.phoneNumber}
+                onChangeText={(value) => setRequestForm((current) => ({ ...current, phoneNumber: value }))}
+              />
+            }
+            right={
+              <InputField
+                label="Location"
+                value={requestForm.location}
+                onChangeText={(value) => setRequestForm((current) => ({ ...current, location: value }))}
+              />
+            }
+          />
+          <Button
+            label="Open Full Request Flow"
+            onPress={() => {
+              setScreen('request');
+              setRequestView('compose');
+            }}
+          />
+        </Section>
       </>
     );
   }
 
-  function prefillRequestFromSubscriber() {
-    setRequestForm((current) => ({
-      ...current,
-      fullName: profile?.fullName || current.fullName,
-      notes: profile?.subscriberProfile?.vehicle
-        ? `${profile.subscriberProfile.vehicle.year} ${profile.subscriberProfile.vehicle.make} ${profile.subscriberProfile.vehicle.model} ${profile.subscriberProfile.vehicle.color}${current.notes ? ` - ${current.notes}` : ''}`
-        : current.notes,
-    }));
-    setStatusMessage('Subscriber info copied into the request form.');
-    setErrorMessage('');
-  }
+  function renderRequest() {
+    const isSubscriber = auth?.roles?.includes('SUBSCRIBER');
+    const currentRequest = latestRequest;
+    const hasEta = Number.isFinite(Number(currentRequest?.etaMinutes));
+    const canConfirmArrival = currentRequest?.status === 'ARRIVED' && !currentRequest?.arrivalConfirmedAt;
+    const canConfirmCompletion = currentRequest?.status === 'COMPLETED' && !currentRequest?.completionConfirmedAt;
 
-  function renderProviderScreen() {
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Provider Profile</Text>
-          <Text style={styles.mutedText}>
-            Status: {profile?.providerStatus || auth?.providerStatus || 'Not signed in'}
-          </Text>
-          <Text style={styles.mutedText}>
-            Services: {Array.isArray(profile?.services) && profile.services.length ? profile.services.join(', ') : 'None loaded'}
-          </Text>
-          <Text style={styles.mutedText}>
-            Vehicle: {profile?.providerProfile?.vehicleInfo
-              ? `${profile.providerProfile.vehicleInfo.year} ${profile.providerProfile.vehicleInfo.make} ${profile.providerProfile.vehicleInfo.model} ${profile.providerProfile.vehicleInfo.color}`
-              : 'No provider vehicle loaded'}
-          </Text>
-          <Button
-            label="Refresh Provider Queue"
-            onPress={() => loadRequestQueue().catch((error) => setErrorMessage(error.message))}
-            kind="secondary"
+      <>
+        <Section
+          title="Request Journey"
+          subtitle="Compose the request, follow backend status, accept ETA, then move into payment and confirmation."
+        >
+          <StageRail
+            value={requestView}
+            items={[
+              { id: 'compose', label: 'Compose' },
+              { id: 'status', label: 'Status' },
+              { id: 'payment', label: 'Payment' },
+            ]}
+            onSelect={setRequestView}
           />
-          <Text style={styles.mutedText}>Provider monthly fee: {formatMoney(profile?.providerMonthly || 5.99)}</Text>
-        </View>
+        </Section>
 
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Provider Dispatch Screen</Text>
-          <Text style={styles.mutedText}>
-            Dispatch actions are routed to the protected backend. ETA, contact, arrived, and completed depend on provider session authority.
-          </Text>
-          {requests.length === 0 ? (
-            <Text style={styles.mutedText}>No request queue loaded.</Text>
-          ) : (
-            requests.map((request) => {
-              const local = providerActions[request.requestId || request.id] || {};
-              const requestId = request.requestId || request.id;
-              return (
-                <View key={requestId} style={styles.queueCard}>
-                  <Text style={styles.queueTitle}>{request.serviceType} · {request.fullName}</Text>
-                  <Text style={styles.mutedText}>{request.location}</Text>
-                  <Text style={styles.mutedText}>Phone: {request.phoneNumber}</Text>
-                  <Text style={styles.mutedText}>Current status: {request.status}</Text>
-                  <Text style={styles.mutedText}>ETA minutes: {request.etaMinutes ?? 'Not set'}</Text>
-                  <InputField
-                    label="ETA"
-                    value={local.eta || ''}
-                    onChangeText={(value) => recordProviderAction(requestId, 'eta', value)}
+        {requestView === 'compose' ? (
+          <Section
+            title="Request Details"
+            subtitle={
+              isSubscriber
+                ? 'Subscriber request with membership pricing and backend quote flow.'
+                : 'Guest request with dispatch-only platform liability and service charge.'
+            }
+          >
+            <ServicePicker
+              selected={requestForm.serviceType}
+              onSelect={(serviceType) => setRequestForm((current) => ({ ...current, serviceType }))}
+            />
+            <InputField
+              label="Full Name"
+              value={requestForm.fullName}
+              onChangeText={(value) => setRequestForm((current) => ({ ...current, fullName: value }))}
+            />
+            <TwoColumnFields
+              left={
+                <InputField
+                  label="Phone Number"
+                  value={requestForm.phoneNumber}
+                  onChangeText={(value) => setRequestForm((current) => ({ ...current, phoneNumber: value }))}
+                />
+              }
+              right={
+                <InputField
+                  label="Location"
+                  value={requestForm.location}
+                  onChangeText={(value) => setRequestForm((current) => ({ ...current, location: value }))}
+                />
+              }
+            />
+            <TwoColumnFields
+              left={
+                <InputField
+                  label="Vehicle Year"
+                  value={requestForm.year}
+                  onChangeText={(value) => setRequestForm((current) => ({ ...current, year: value }))}
+                />
+              }
+              right={
+                <InputField
+                  label="Vehicle Make"
+                  value={requestForm.make}
+                  onChangeText={(value) => setRequestForm((current) => ({ ...current, make: value }))}
+                />
+              }
+            />
+            <TwoColumnFields
+              left={
+                <InputField
+                  label="Vehicle Model"
+                  value={requestForm.model}
+                  onChangeText={(value) => setRequestForm((current) => ({ ...current, model: value }))}
+                />
+              }
+              right={
+                <InputField
+                  label="Vehicle Color"
+                  value={requestForm.color}
+                  onChangeText={(value) => setRequestForm((current) => ({ ...current, color: value }))}
+                />
+              }
+            />
+            <InputField
+              label="Notes"
+              multiline
+              value={requestForm.notes}
+              onChangeText={(value) => setRequestForm((current) => ({ ...current, notes: value }))}
+            />
+            <PolicyBox
+              title="Dispatch Terms"
+              body="AW Roadside manages the dispatch transaction. Independent providers remain responsible for their actual roadside services, and the no-refund policy applies once payment is submitted."
+            />
+            <Button
+              label={busy.requestSubmit ? 'Submitting...' : isSubscriber ? 'Submit Subscriber Request' : 'Submit Guest Request'}
+              onPress={submitRequest}
+            />
+            <Message text={messages.requestSubmit} success={messages.requestSubmit?.includes('submitted')} />
+          </Section>
+        ) : null}
+
+        {requestView !== 'compose' ? (
+          <>
+            <Section title="Current Status" subtitle="Track the request, provider ETA, and confirmation steps from one clean status view.">
+              <RequestStatusCard request={currentRequest} />
+              <Message text={messages.requestStatus} success={messages.requestStatus?.includes('confirmed') || messages.requestStatus?.includes('accepted')} />
+              <View style={styles.inlineButtonStack}>
+                {isSubscriber && hasEta && !currentRequest?.customerEtaAcceptedAt ? (
+                  <Button
+                    label={busy.acceptEta ? 'Accepting ETA...' : 'Accept ETA'}
+                    onPress={handleAcceptEta}
                   />
-                  <InputField
-                    label="Soft Contact Info"
-                    value={local.softContact || ''}
-                    onChangeText={(value) => recordProviderAction(requestId, 'softContact', value)}
+                ) : null}
+                {canConfirmArrival ? (
+                  <Button
+                    label={busy['confirm-arrived'] ? 'Confirming...' : 'Confirm Arrival'}
+                    kind="secondary"
+                    onPress={handleArrivalConfirm}
                   />
-                  <InputField
-                    label="Hard Contact Info"
-                    value={local.hardContact || ''}
-                    onChangeText={(value) => recordProviderAction(requestId, 'hardContact', value)}
+                ) : null}
+                {canConfirmCompletion ? (
+                  <Button
+                    label={busy['confirm-completion'] ? 'Confirming...' : 'Confirm Completion'}
+                    kind="secondary"
+                    onPress={handleCompletionConfirm}
                   />
-                  <View style={styles.buttonGrid}>
-                    <Button label="Accept" onPress={() => runProviderAction(requestId, 'accept')} />
-                    <Button label="Set ETA" onPress={() => runProviderAction(requestId, 'eta')} kind="secondary" />
-                    <Button label="Soft Contact" onPress={() => runProviderAction(requestId, 'soft-contact')} kind="secondary" />
-                    <Button label="Hard Contact" onPress={() => runProviderAction(requestId, 'hard-contact')} kind="secondary" />
-                    <Button label="Arrived" onPress={() => runProviderAction(requestId, 'arrived')} />
-                    <Button label="Completed" onPress={() => runProviderAction(requestId, 'completed')} kind="danger" />
-                  </View>
-                </View>
-              );
-            })
-          )}
-        </View>
-      </ScrollView>
+                ) : null}
+              </View>
+            </Section>
+
+            <Section
+              title="Payment and Quote"
+              subtitle="The backend controls when quote and payment are available. The app should make that progression obvious."
+            >
+              <View style={styles.inlineButtonStack}>
+                <Button
+                  label={busy.quote ? 'Loading Quote...' : 'Load Backend Quote'}
+                  onPress={handleLoadQuote}
+                />
+                <Button
+                  label={serviceQuoteAccepted ? 'Quote Accepted' : 'Acknowledge Quote'}
+                  kind="secondary"
+                  onPress={() => {
+                    if (!serviceQuote) {
+                      setMessage('quote', 'Load a backend quote first.');
+                      return;
+                    }
+                    setServiceQuoteAccepted(true);
+                    setMessage('quote', 'Backend quote acknowledged in the app.');
+                  }}
+                />
+                <Button
+                  label={busy.serviceOrder ? 'Creating Order...' : 'Create Payment Order'}
+                  kind="secondary"
+                  onPress={handleCreateServiceOrder}
+                />
+              </View>
+              <Message
+                text={messages.quote || (!boot.payment?.enabled ? 'PayPal is not configured on the backend yet.' : '')}
+                success={messages.quote?.includes('Quote ready') || messages.quote?.includes('acknowledged') || messages.quote?.includes('created')}
+              />
+              <KeyValueList
+                rows={[
+                  ['Quote ID', serviceQuote?.quoteId || '--'],
+                  ['Amount', serviceQuote ? `${serviceQuote.amount?.value || '--'} ${serviceQuote.amount?.currency_code || 'USD'}` : '--'],
+                  ['Status', serviceQuote?.status || '--'],
+                  ['ETA Accepted', currentRequest?.customerEtaAcceptedAt ? 'Yes' : 'No'],
+                  ['No Refund Policy', boot.payment?.noRefundPolicy ? 'Active' : 'Unavailable'],
+                ]}
+              />
+            </Section>
+          </>
+        ) : null}
+      </>
     );
   }
 
-  function renderAdminScreen() {
+  function renderProvider() {
+    const providerSignedIn = auth?.roles?.includes('PROVIDER');
+
     return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Admin Sign In</Text>
-          <InputField label="Admin Email" autoCapitalize="none" value={adminSignin.email} onChangeText={(value) => setAdminSignin((current) => ({ ...current, email: value }))} />
-          <InputField label="Password" secureTextEntry value={adminSignin.password} onChangeText={(value) => setAdminSignin((current) => ({ ...current, password: value }))} />
-          <InputField label="Location Zone" value={adminSignin.locationZone} onChangeText={(value) => setAdminSignin((current) => ({ ...current, locationZone: value }))} />
-          <InputField label="2FA Code" value={adminSignin.twoFactorCode} onChangeText={(value) => setAdminSignin((current) => ({ ...current, twoFactorCode: value }))} />
-          <Button label="Admin Login" onPress={handleAdminSignin} />
-        </View>
+      <>
+        <Section
+          title="Provider Journey"
+          subtitle="Application, approval, dispatch, and service logging belong in one provider-specific flow."
+        >
+          <StageRail
+            value={providerView}
+            items={
+              providerSignedIn
+                ? [
+                    { id: 'dispatch', label: 'Dispatch' },
+                    { id: 'log', label: 'Service Log' },
+                  ]
+                : [
+                    { id: 'signin', label: 'Sign In' },
+                    { id: 'apply', label: 'Apply' },
+                  ]
+            }
+            onSelect={setProviderView}
+          />
+        </Section>
 
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Admin Backend Controls</Text>
-          <Text style={styles.mutedText}>Email path: admin@adub.com</Text>
-          <Text style={styles.mutedText}>Dashboard status: {adminDashboard ? 'Loaded' : 'Not loaded'}</Text>
-          <Text style={styles.mutedText}>Request count: {adminDashboard?.requestCount ?? 0}</Text>
-          <Text style={styles.mutedText}>Payment configured: {adminDashboard?.paymentConfigured ? 'Yes' : 'No'}</Text>
-          <View style={styles.buttonGrid}>
-            <Button label="Refresh Dashboard" onPress={() => loadAdminDashboard().catch((error) => setErrorMessage(error.message))} />
-            <Button label="Refresh Security" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} kind="secondary" />
-            <Button label="Admin Logout" onPress={handleAdminLogout} kind="danger" />
-          </View>
-        </View>
-      </ScrollView>
-    );
-  }
+        {!providerSignedIn && providerView === 'signin' ? (
+          <Section title="Provider Sign In" subtitle="Provider entry should be clean, not merged into customer account setup.">
+            <InputField
+              label="Username or Email"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={providerSignin.identifier}
+              onChangeText={(value) => setProviderSignin((current) => ({ ...current, identifier: value }))}
+            />
+            <InputField
+              label="Password"
+              secureTextEntry
+              value={providerSignin.password}
+              onChangeText={(value) => setProviderSignin((current) => ({ ...current, password: value }))}
+            />
+            <Button label={busy.providerSignin ? 'Signing In...' : 'Provider Sign In'} onPress={handleProviderSignin} />
+            <Message text={messages.providerSignin} success={messages.providerSignin === 'Provider signed in.'} />
+          </Section>
+        ) : null}
 
-  function renderSecurityScreen() {
-    return (
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Security Layer</Text>
-          <Text style={styles.mutedText}>Layer: {securityStatus?.layer || securityStatus?.watchdog?.layer || 'Unknown'}</Text>
-          <Text style={styles.mutedText}>Integrity: {securityStatus?.watchdog?.integrityOk ? 'READY' : 'CHECK'}</Text>
-          <Text style={styles.mutedText}>Scanned: {securityStatus?.watchdog?.scannedAt || 'Not available'}</Text>
-          <Button label="Refresh Security Status" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} />
-        </View>
+        {!providerSignedIn && providerView === 'apply' ? (
+          <>
+            <Section
+              title="Provider Profile"
+              subtitle="This is the real onboarding path: identity, vehicle, service area, hours, document upload markers, and safety answers."
+            >
+              <Image source={subscriberArt} style={styles.sideImage} resizeMode="cover" />
+              <InputField
+                label="Full Name"
+                value={providerForm.fullName}
+                onChangeText={(value) => setProviderForm((current) => ({ ...current, fullName: value }))}
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Phone Number"
+                    value={providerForm.phoneNumber}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, phoneNumber: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Company"
+                    value={providerForm.companyName}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, companyName: value }))}
+                  />
+                }
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Username"
+                    autoCapitalize="none"
+                    value={providerForm.username}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, username: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Email"
+                    autoCapitalize="none"
+                    value={providerForm.email}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, email: value }))}
+                  />
+                }
+              />
+              <InputField
+                label="Password"
+                secureTextEntry
+                value={providerForm.password}
+                onChangeText={(value) => setProviderForm((current) => ({ ...current, password: value }))}
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Vehicle Year"
+                    value={providerForm.year}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, year: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Vehicle Make"
+                    value={providerForm.make}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, make: value }))}
+                  />
+                }
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Vehicle Model"
+                    value={providerForm.model}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, model: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Vehicle Color"
+                    value={providerForm.color}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, color: value }))}
+                  />
+                }
+              />
+              <InputField
+                label="Service Area"
+                value={providerForm.serviceArea}
+                onChangeText={(value) => setProviderForm((current) => ({ ...current, serviceArea: value }))}
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Current Location"
+                    value={providerForm.currentLocation}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, currentLocation: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Equipment"
+                    value={providerForm.equipment}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, equipment: value }))}
+                  />
+                }
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Monday Hours"
+                    value={providerForm.mondayHours}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, mondayHours: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Tuesday Hours"
+                    value={providerForm.tuesdayHours}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, tuesdayHours: value }))}
+                  />
+                }
+              />
+              <InputField
+                label="Experience"
+                multiline
+                value={providerForm.experience}
+                onChangeText={(value) => setProviderForm((current) => ({ ...current, experience: value }))}
+              />
+            </Section>
 
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Runtime Status</Text>
-          <Text style={styles.mutedText}>Protected API: {frontendConfig?.apiBaseUrl || 'Unavailable'}</Text>
-          <Text style={styles.mutedText}>Raw API: {frontendConfig?.rawApiBaseUrl || 'Unavailable'}</Text>
-          <Text style={styles.mutedText}>
-            Optional priority add-on: {formatMoney(frontendConfig?.priorityServicePrice || 25)}
-          </Text>
-          <Text style={styles.mutedText}>Compatibility manifest: {frontendConfig?.compatibilityManifestUrl || 'Unavailable'}</Text>
-          <Text style={styles.mutedText}>Compatibility repository: {frontendConfig?.compatibilityRepositoryUrl || 'Unavailable'}</Text>
-        </View>
-      </ScrollView>
-    );
-  }
+            <Section title="Document Markers" subtitle="These values are written into `.txt` upload records for backend verification.">
+              <InputField
+                label="License Number"
+                value={providerForm.licenseNumber}
+                onChangeText={(value) => setProviderForm((current) => ({ ...current, licenseNumber: value }))}
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Registration Number"
+                    value={providerForm.registrationNumber}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, registrationNumber: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Insurance Number"
+                    value={providerForm.insuranceNumber}
+                    onChangeText={(value) => setProviderForm((current) => ({ ...current, insuranceNumber: value }))}
+                  />
+                }
+              />
+              <InputField
+                label="Helper ID Number"
+                value={providerForm.helperIdNumber}
+                onChangeText={(value) => setProviderForm((current) => ({ ...current, helperIdNumber: value }))}
+              />
+            </Section>
 
-  function renderSubscriberSignupFields() {
-    return (
-      <View style={styles.fieldStack}>
-        <InputField label="Full Name" value={subscriberSignup.fullName} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, fullName: value }))} />
-        <InputField label="Username" autoCapitalize="none" value={subscriberSignup.username} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, username: value }))} />
-        <InputField label="Email" autoCapitalize="none" value={subscriberSignup.email} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, email: value }))} />
-        <InputField label="Password" secureTextEntry value={subscriberSignup.password} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, password: value }))} />
-        <InputField label="Vehicle Year" value={subscriberSignup.year} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, year: value }))} />
-        <InputField label="Vehicle Make" value={subscriberSignup.make} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, make: value }))} />
-        <InputField label="Vehicle Model" value={subscriberSignup.model} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, model: value }))} />
-        <InputField label="Vehicle Color" value={subscriberSignup.color} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, color: value }))} />
-        <InputField label="Payment Reference" value={subscriberSignup.paymentMethodMasked} onChangeText={(value) => setSubscriberSignup((current) => ({ ...current, paymentMethodMasked: value }))} />
-      </View>
-    );
-  }
-
-  function renderProviderSignupFields() {
-    return (
-      <View style={styles.fieldStack}>
-        <InputField label="Full Name" value={providerSignup.fullName} onChangeText={(value) => setProviderSignup((current) => ({ ...current, fullName: value }))} />
-        <InputField label="Username" autoCapitalize="none" value={providerSignup.username} onChangeText={(value) => setProviderSignup((current) => ({ ...current, username: value }))} />
-        <InputField label="Email" autoCapitalize="none" value={providerSignup.email} onChangeText={(value) => setProviderSignup((current) => ({ ...current, email: value }))} />
-        <InputField label="Password" secureTextEntry value={providerSignup.password} onChangeText={(value) => setProviderSignup((current) => ({ ...current, password: value }))} />
-        <InputField label="Vehicle Year" value={providerSignup.year} onChangeText={(value) => setProviderSignup((current) => ({ ...current, year: value }))} />
-        <InputField label="Vehicle Make" value={providerSignup.make} onChangeText={(value) => setProviderSignup((current) => ({ ...current, make: value }))} />
-        <InputField label="Vehicle Model" value={providerSignup.model} onChangeText={(value) => setProviderSignup((current) => ({ ...current, model: value }))} />
-        <InputField label="Vehicle Color" value={providerSignup.color} onChangeText={(value) => setProviderSignup((current) => ({ ...current, color: value }))} />
-        <InputField label="Experience" multiline value={providerSignup.experience} onChangeText={(value) => setProviderSignup((current) => ({ ...current, experience: value }))} />
-        <Text style={styles.label}>Services</Text>
-        <View style={styles.pillWrap}>
-          {providerServiceOptions.map((service) => {
-            const active = providerSignup.services.includes(service);
-            return (
-              <Pressable
-                key={service}
+            <Section
+              title="Safety Assessment"
+              subtitle="The provider flow should feel serious. These answers drive backend approval readiness."
+            >
+              {PROVIDER_QUESTIONS.map((question) => (
+                <InputField
+                  key={question.id}
+                  label={question.label}
+                  multiline
+                  value={providerForm.assessmentAnswers[question.id]}
+                  onChangeText={(value) =>
+                    setProviderForm((current) => ({
+                      ...current,
+                      assessmentAnswers: {
+                        ...current.assessmentAnswers,
+                        [question.id]: value,
+                      },
+                    }))
+                  }
+                />
+              ))}
+              <ToggleRow
+                label="Provider terms accepted"
+                value={providerForm.providerTermsAccepted}
                 onPress={() =>
-                  setProviderSignup((current) => ({
+                  setProviderForm((current) => ({
                     ...current,
-                    services: active
-                      ? current.services.filter((entry) => entry !== service)
-                      : [...current.services, service],
+                    providerTermsAccepted: !current.providerTermsAccepted,
                   }))
                 }
-                style={[styles.pill, active ? styles.pillActive : null]}
-              >
-                <Text style={[styles.pillLabel, active ? styles.pillLabelActive : null]}>{service}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+              />
+              <ToggleRow
+                label="Provider liability accepted"
+                value={providerForm.providerLiabilityAccepted}
+                onPress={() =>
+                  setProviderForm((current) => ({
+                    ...current,
+                    providerLiabilityAccepted: !current.providerLiabilityAccepted,
+                  }))
+                }
+              />
+              <Button label={busy.providerSignup ? 'Submitting...' : 'Submit Provider Application'} onPress={handleProviderSignup} />
+              <Message
+                text={messages.providerSignup}
+                success={messages.providerSignup === 'Provider profile submitted for approval.'}
+              />
+            </Section>
+          </>
+        ) : null}
+
+        {providerSignedIn && providerView === 'dispatch' ? (
+          <>
+            <Section title="Provider Dispatch" subtitle="Queue, current status, and service actions should feel operational.">
+              <KeyValueList
+                rows={[
+                  ['Provider', auth?.fullName || auth?.email || '--'],
+                  ['Status', auth?.providerStatus || '--'],
+                  ['Service Area', auth?.providerProfile?.serviceArea || '--'],
+                  ['Current Location', auth?.providerProfile?.currentLocation || '--'],
+                ]}
+              />
+              <Button label={busy.providerQueue ? 'Refreshing Queue...' : 'Refresh Queue'} onPress={() => handleProviderQueue()} />
+              <Message text={messages.providerQueue} success={messages.providerQueue?.includes('request(s)')} />
+            </Section>
+
+            {providerQueue.length ? (
+              providerQueue.map((entry) => (
+                <Section
+                  key={entry.requestId || entry.id}
+                  title={`${entry.serviceType || 'Service'} · ${entry.fullName || 'Customer'}`}
+                  subtitle={`${entry.location || 'No location'} · ${entry.status || 'UNKNOWN'}`}
+                >
+                  <KeyValueList
+                    rows={[
+                      ['Vehicle', entry.vehicleInfo || '--'],
+                      ['ETA', entry.etaMinutes ? `${entry.etaMinutes} min` : '--'],
+                      ['Payment', entry.paymentStatus || '--'],
+                    ]}
+                  />
+                  <View style={styles.chipGrid}>
+                    {PROVIDER_ACTIONS.map((action) => (
+                      <ActionChip
+                        key={action.id}
+                        label={action.label}
+                        onPress={() => handleProviderAction(entry.requestId || entry.id, action.id)}
+                      />
+                    ))}
+                  </View>
+                </Section>
+              ))
+            ) : (
+              <Section title="Queue" subtitle="No requests loaded yet.">
+                <Text style={styles.helperText}>
+                  Approved providers should see work here after the backend queue populates.
+                </Text>
+              </Section>
+            )}
+          </>
+        ) : null}
+
+        {providerSignedIn && providerView === 'log' ? (
+          <Section title="Service Log" subtitle="Keep completed work, payout details, and service history in one provider-facing record.">
+            <KeyValueList
+              rows={[
+                ['Approved', auth?.providerStatus === 'APPROVED' ? 'Yes' : 'Pending'],
+                ['Hours', auth?.providerProfile?.hoursOfService?.days?.monday || '--'],
+                ['Equipment', Array.isArray(auth?.providerProfile?.equipment) ? auth.providerProfile.equipment.join(', ') : '--'],
+                ['Average Rating', String(auth?.providerRating?.averageRating || auth?.providerProfile?.rates?.averageRating || 0)],
+              ]}
+            />
+            <Text style={styles.helperText}>
+              Completed service records, payout calculations, and time/location logs should be rendered here after request completion data is returned by the backend.
+            </Text>
+          </Section>
+        ) : null}
+      </>
+    );
+  }
+
+  function renderAccount() {
+    const signedIn = Boolean(auth?.sessionToken);
+
+    return (
+      <>
+        <Section
+          title="Member Journey"
+          subtitle="Sign in and join should feel deliberate, not mixed with provider or internal controls."
+        >
+          <StageRail
+            value={signedIn ? 'profile' : accountView}
+            items={
+              signedIn
+                ? [
+                    { id: 'profile', label: 'Profile' },
+                    { id: 'service', label: 'Service' },
+                  ]
+                : [
+                    { id: 'signin', label: 'Sign In' },
+                    { id: 'join', label: 'Join' },
+                  ]
+            }
+            onSelect={setAccountView}
+          />
+        </Section>
+
+        {!signedIn && accountView === 'signin' ? (
+          <Section title="Member Sign In" subtitle="Use your subscriber credentials to return to your request and account flow.">
+            <InputField
+              label="Username or Email"
+              autoCapitalize="none"
+              autoCorrect={false}
+              value={memberSignin.identifier}
+              onChangeText={(value) => setMemberSignin((current) => ({ ...current, identifier: value }))}
+            />
+            <InputField
+              label="Password"
+              secureTextEntry
+              value={memberSignin.password}
+              onChangeText={(value) => setMemberSignin((current) => ({ ...current, password: value }))}
+            />
+            <Button label={busy.memberSignin ? 'Signing In...' : 'Member Sign In'} onPress={handleMemberSignin} />
+            <Message text={messages.memberSignin} success={messages.memberSignin === 'Member signed in.'} />
+          </Section>
+        ) : null}
+
+        {!signedIn && accountView === 'join' ? (
+          <>
+            <Section title="Subscriber Membership" subtitle="Subscriber setup should read like a real membership flow.">
+              <Image source={subscriberArt} style={styles.sideImage} resizeMode="cover" />
+              <InputField
+                label="Full Name"
+                value={subscriberForm.fullName}
+                onChangeText={(value) => setSubscriberForm((current) => ({ ...current, fullName: value }))}
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Phone Number"
+                    value={subscriberForm.phoneNumber}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, phoneNumber: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Username"
+                    autoCapitalize="none"
+                    value={subscriberForm.username}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, username: value }))}
+                  />
+                }
+              />
+              <InputField
+                label="Email"
+                autoCapitalize="none"
+                value={subscriberForm.email}
+                onChangeText={(value) => setSubscriberForm((current) => ({ ...current, email: value }))}
+              />
+              <InputField
+                label="Password"
+                secureTextEntry
+                value={subscriberForm.password}
+                onChangeText={(value) => setSubscriberForm((current) => ({ ...current, password: value }))}
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Vehicle Year"
+                    value={subscriberForm.year}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, year: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Vehicle Make"
+                    value={subscriberForm.make}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, make: value }))}
+                  />
+                }
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Vehicle Model"
+                    value={subscriberForm.model}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, model: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Vehicle Color"
+                    value={subscriberForm.color}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, color: value }))}
+                  />
+                }
+              />
+              <TwoColumnFields
+                left={
+                  <InputField
+                    label="Payment Method"
+                    placeholder="****1111"
+                    value={subscriberForm.paymentMethodMasked}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, paymentMethodMasked: value }))}
+                  />
+                }
+                right={
+                  <InputField
+                    label="Billing ZIP"
+                    value={subscriberForm.billingZip}
+                    onChangeText={(value) => setSubscriberForm((current) => ({ ...current, billingZip: value }))}
+                  />
+                }
+              />
+              <PolicyBox
+                title={`Subscriber Terms · ${formatUsd(boot.payment?.subscriberMonthlyFee || 5)}/month`}
+                body="Platform liability is limited to dispatch management. Independent providers are liable for damages from their own services, and the no-refund policy applies after payment submission."
+              />
+              <ToggleRow
+                label="Subscriber terms accepted"
+                value={subscriberForm.subscriberTermsAccepted}
+                onPress={() =>
+                  setSubscriberForm((current) => ({
+                    ...current,
+                    subscriberTermsAccepted: !current.subscriberTermsAccepted,
+                  }))
+                }
+              />
+              <ToggleRow
+                label="Dispatch-only liability accepted"
+                value={subscriberForm.dispatchOnlyLiabilityAccepted}
+                onPress={() =>
+                  setSubscriberForm((current) => ({
+                    ...current,
+                    dispatchOnlyLiabilityAccepted: !current.dispatchOnlyLiabilityAccepted,
+                  }))
+                }
+              />
+              <ToggleRow
+                label="No-refund policy accepted"
+                value={subscriberForm.noRefundPolicyAccepted}
+                onPress={() =>
+                  setSubscriberForm((current) => ({
+                    ...current,
+                    noRefundPolicyAccepted: !current.noRefundPolicyAccepted,
+                  }))
+                }
+              />
+              <Button
+                label={busy.subscriberSignup ? 'Creating Membership...' : 'Activate Subscriber Membership'}
+                onPress={handleSubscriberSignup}
+              />
+              <Message
+                text={messages.subscriberSignup}
+                success={messages.subscriberSignup === 'Subscriber membership activated.'}
+              />
+            </Section>
+          </>
+        ) : null}
+
+        {signedIn ? (
+          <>
+            <Section title="Member Profile" subtitle="Signed-in member state, membership details, and stored vehicle data.">
+              <KeyValueList
+                rows={[
+                  ['Member', auth?.fullName || auth?.email || '--'],
+                  ['Roles', auth?.roles?.join(' / ') || '--'],
+                  ['Membership', auth?.subscriberActive ? 'Active' : 'Inactive'],
+                  ['Next Billing', auth?.nextBillingDate || '--'],
+                  ['Payment', auth?.subscriberProfile?.paymentInfo?.paymentMethodMasked || auth?.subscriberProfile?.paymentMethodMasked || '--'],
+                ]}
+              />
+              <View style={styles.inlineButtonStack}>
+                <Button
+                  label="Open Request Journey"
+                  onPress={() => {
+                    setScreen('request');
+                    setRequestView('status');
+                  }}
+                />
+                <Button label="Sign Out" kind="secondary" onPress={signOutUser} />
+              </View>
+              <Message text={messages.account} success={messages.account === 'Signed out.'} />
+            </Section>
+
+            <Section title="Member Service Controls" subtitle="The member flow should move naturally into request status and confirmations.">
+              <KeyValueList
+                rows={[
+                  ['Current Request', latestRequest?.requestId || '--'],
+                  ['Service', latestRequest?.serviceType || '--'],
+                  ['Status', latestRequest?.status || '--'],
+                  ['ETA Accepted', latestRequest?.customerEtaAcceptedAt ? 'Yes' : 'No'],
+                ]}
+              />
+            </Section>
+          </>
+        ) : null}
+      </>
     );
   }
 
   return (
-    <SafeAreaView style={styles.app}>
+    <SafeAreaView style={styles.safe}>
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.brand}>A-Dub Roadside Fire</Text>
-          <Text style={styles.headerMeta}>Mobile rebuild from cloud graphics and backend rules.</Text>
-        </View>
-        <View style={styles.headerActions}>
-          {auth?.sessionToken ? <Button label="Logout" onPress={handleUserLogout} kind="secondary" /> : null}
-          {loading ? <ActivityIndicator color={theme.colors.gold} /> : null}
+      <View style={styles.app}>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Header
+            title="AW Roadside"
+            subtitle="Mobile assistance"
+            role={auth?.roles?.join(' / ') || 'Guest'}
+            live={boot.loading ? 'BOOT' : boot.health?.status?.toUpperCase() || 'OFF'}
+            onSecretTap={revealSystem}
+          />
+
+          {boot.loading ? (
+            <View style={styles.loadingCard}>
+              <ActivityIndicator color={theme.colors.gold} />
+              <Text style={styles.loadingText}>Connecting to roadside service...</Text>
+            </View>
+          ) : null}
+
+          {boot.error ? <Message text={boot.error} success={false} /> : null}
+
+          {screen === 'home' ? renderHome() : null}
+          {screen === 'request' ? renderRequest() : null}
+          {screen === 'provider' ? renderProvider() : null}
+          {screen === 'account' ? renderAccount() : null}
+
+          {systemOpen ? (
+            <HiddenSystemPanel
+              runtimeDraft={runtimeDraft}
+              setRuntimeDraft={setRuntimeDraft}
+              onApplyRuntime={() => setApiBaseUrl(runtimeDraft.trim().replace(/\/$/, ''))}
+              onUseRecordedRuntime={() => {
+                setRuntimeDraft(RECORDED_RUNTIME_URL);
+                setApiBaseUrl(RECORDED_RUNTIME_URL);
+              }}
+              boot={boot}
+              adminForm={adminForm}
+              setAdminForm={setAdminForm}
+              adminDashboard={adminDashboard}
+              busy={busy}
+              messages={messages}
+              onAdminLogin={handleAdminLogin}
+              onAdminDashboard={handleAdminDashboard}
+            />
+          ) : null}
+        </ScrollView>
+
+        <View style={styles.bottomNav}>
+          {PRIMARY_SCREENS.map((item) => (
+            <Pressable
+              key={item.id}
+              onPress={() => setScreen(item.id)}
+              style={[styles.navItem, screen === item.id ? styles.navItemActive : null]}
+            >
+              <Text style={[styles.navLabel, screen === item.id ? styles.navLabelActive : null]}>{item.label}</Text>
+            </Pressable>
+          ))}
         </View>
       </View>
-
-      <View style={styles.navBar}>
-        {navItems.map((item) => (
-          <Pressable key={item.id} style={[styles.navPill, screen === item.id ? styles.navPillActive : null]} onPress={() => setScreen(item.id)}>
-            <Text style={[styles.navPillLabel, screen === item.id ? styles.navPillLabelActive : null]}>{item.label}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      {statusMessage ? <Text style={styles.successBanner}>{statusMessage}</Text> : null}
-      {errorMessage ? <Text style={styles.errorBanner}>{errorMessage}</Text> : null}
-
-      {renderScreen()}
     </SafeAreaView>
   );
 }
 
-function formatMoney(value) {
-  const numeric = Number(value || 0);
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(numeric);
+function Header({ title, subtitle, role, live, onSecretTap }) {
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerCopy}>
+        <Pressable onPress={onSecretTap}>
+          <Text style={styles.eyebrow}>AW Roadside Fire</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>{subtitle}</Text>
+        </Pressable>
+      </View>
+      <View style={styles.liveBadge}>
+        <Text style={styles.liveLabel}>Role</Text>
+        <Text style={styles.liveValue}>{role}</Text>
+        <Text style={styles.liveState}>{live}</Text>
+      </View>
+    </View>
+  );
 }
 
-function labelProviderAction(action) {
-  if (action === 'soft-contact') {
-    return 'Soft contact';
+function HeroPanel({ title, copy, onPrimary, onSecondary }) {
+  return (
+    <View style={styles.hero}>
+      <Image source={homeArt} style={styles.heroImage} resizeMode="cover" />
+      <View style={styles.heroOverlay} />
+      <View style={styles.heroCopyBlock}>
+        <Text style={styles.heroEyebrow}>Protected Dispatch</Text>
+        <Text style={styles.heroTitle}>{title}</Text>
+        <Text style={styles.heroText}>{copy}</Text>
+        <View style={styles.heroButtons}>
+          <Button label="Request Help" onPress={onPrimary} />
+          <Button label="Member Access" kind="secondary" onPress={onSecondary} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function MetricsRow({ items }) {
+  return (
+    <View style={styles.metricsRow}>
+      {items.map((item) => (
+        <View key={item.label} style={styles.metricCard}>
+          <Text style={styles.metricLabel}>{item.label}</Text>
+          <Text style={styles.metricValue}>{item.value}</Text>
+          <Text style={styles.metricDetail}>{item.detail}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Section({ title, subtitle, children }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.sectionSubtitle}>{subtitle}</Text> : null}
+      <View style={styles.sectionBody}>{children}</View>
+    </View>
+  );
+}
+
+function JourneyTile({ eyebrow, title, detail, onPress }) {
+  return (
+    <Pressable style={styles.journeyTile} onPress={onPress}>
+      <Text style={styles.journeyEyebrow}>{eyebrow}</Text>
+      <Text style={styles.journeyTitle}>{title}</Text>
+      <Text style={styles.journeyDetail}>{detail}</Text>
+    </Pressable>
+  );
+}
+
+function StageRail({ items, value, onSelect }) {
+  return (
+    <View style={styles.stageRail}>
+      {items.map((item) => (
+        <Pressable
+          key={item.id}
+          style={[styles.stagePill, item.id === value ? styles.stagePillActive : null]}
+          onPress={() => onSelect(item.id)}
+        >
+          <Text style={[styles.stageLabel, item.id === value ? styles.stageLabelActive : null]}>{item.label}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function ServicePicker({ selected, onSelect }) {
+  return (
+    <View style={styles.serviceGrid}>
+      {SERVICE_OPTIONS.map((option) => (
+        <ServiceCard
+          key={option.id}
+          active={selected === option.id}
+          label={option.id}
+          price=""
+          detail={option.detail}
+          onPress={() => onSelect(option.id)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function RequestStatusCard({ request }) {
+  return (
+    <View style={styles.statusCard}>
+      <KeyValueList
+        rows={[
+          ['Reference', request?.requestId || request?.id || '--'],
+          ['Service', request?.serviceType || '--'],
+          ['Status', request?.status || '--'],
+          ['ETA', request?.etaMinutes ? `${request.etaMinutes} min` : '--'],
+          ['Payment', request?.paymentStatus || '--'],
+        ]}
+      />
+    </View>
+  );
+}
+
+function PolicyBox({ title, body }) {
+  return (
+    <View style={styles.policyBox}>
+      <Text style={styles.policyTitle}>{title}</Text>
+      <Text style={styles.policyBody}>{body}</Text>
+    </View>
+  );
+}
+
+function ToggleRow({ label, value, onPress }) {
+  return (
+    <Pressable style={[styles.toggleRow, value ? styles.toggleRowActive : null]} onPress={onPress}>
+      <View style={[styles.toggleDot, value ? styles.toggleDotActive : null]} />
+      <Text style={styles.toggleLabel}>{label}</Text>
+      <Text style={styles.toggleState}>{value ? 'On' : 'Off'}</Text>
+    </Pressable>
+  );
+}
+
+function ActionChip({ label, onPress }) {
+  return (
+    <Pressable style={styles.actionChip} onPress={onPress}>
+      <Text style={styles.actionChipLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function HiddenSystemPanel({
+  runtimeDraft,
+  setRuntimeDraft,
+  onApplyRuntime,
+  onUseRecordedRuntime,
+  boot,
+  adminForm,
+  setAdminForm,
+  adminDashboard,
+  busy,
+  messages,
+  onAdminLogin,
+  onAdminDashboard,
+}) {
+  return (
+    <Section title="System Controls" subtitle="Hidden runtime and admin panel. Keep this off the public app surface.">
+      <KeyValueList
+        rows={[
+          ['Recorded Runtime', RECORDED_RUNTIME_URL],
+          ['Current Runtime', runtimeDraft || '--'],
+          ['Runtime Health', boot.health?.status || '--'],
+          ['PayPal', boot.payment?.enabled ? 'Ready' : 'Offline'],
+        ]}
+      />
+      <InputField
+        label="Runtime URL"
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={runtimeDraft}
+        onChangeText={setRuntimeDraft}
+      />
+      <View style={styles.inlineButtonStack}>
+        <Button label="Use Recorded" kind="secondary" onPress={onUseRecordedRuntime} />
+        <Button label="Apply Runtime" onPress={onApplyRuntime} />
+      </View>
+
+      <InputField
+        label="Admin Email"
+        autoCapitalize="none"
+        value={adminForm.email}
+        onChangeText={(value) => setAdminForm((current) => ({ ...current, email: value }))}
+      />
+      <InputField
+        label="Admin Password"
+        secureTextEntry
+        value={adminForm.password}
+        onChangeText={(value) => setAdminForm((current) => ({ ...current, password: value }))}
+      />
+      <TwoColumnFields
+        left={
+          <InputField
+            label="Location Zone"
+            value={adminForm.locationZone}
+            onChangeText={(value) => setAdminForm((current) => ({ ...current, locationZone: value }))}
+          />
+        }
+        right={
+          <InputField
+            label="2FA Code"
+            value={adminForm.twoFactorCode}
+            onChangeText={(value) => setAdminForm((current) => ({ ...current, twoFactorCode: value }))}
+          />
+        }
+      />
+      <View style={styles.inlineButtonStack}>
+        <Button label={busy.adminLogin ? 'Logging In...' : 'Admin Login'} onPress={onAdminLogin} />
+        <Button label="Refresh Admin" kind="secondary" onPress={() => onAdminDashboard()} />
+      </View>
+      <Message text={messages.adminLogin} success={messages.adminLogin === 'Admin session ready.'} />
+      <Message text={messages.adminDashboard} success={false} />
+      {adminDashboard ? (
+        <KeyValueList
+          rows={[
+            ['Requests', String(adminDashboard.requestCount ?? 0)],
+            ['Queue', String(adminDashboard.queue?.length ?? 0)],
+            ['In Service', String(adminDashboard.inService?.length ?? 0)],
+            ['Pending Providers', String(adminDashboard.stats?.pendingProviders ?? 0)],
+          ]}
+        />
+      ) : null}
+    </Section>
+  );
+}
+
+function KeyValueList({ rows }) {
+  return (
+    <View style={styles.valuePanel}>
+      {rows.map(([label, value]) => (
+        <View key={label} style={styles.valueRow}>
+          <Text style={styles.valueLabel}>{label}</Text>
+          <Text style={styles.valueValue}>{value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function Message({ text, success }) {
+  if (!text) {
+    return null;
   }
-  if (action === 'hard-contact') {
-    return 'Hard contact';
-  }
+  return (
+    <View style={[styles.message, success ? styles.messageSuccess : styles.messageError]}>
+      <Text style={styles.messageText}>{text}</Text>
+    </View>
+  );
+}
+
+function TwoColumnFields({ left, right }) {
+  return (
+    <View style={styles.twoColumn}>
+      <View style={styles.column}>{left}</View>
+      <View style={styles.column}>{right}</View>
+    </View>
+  );
+}
+
+function hydrateRequestFromProfile(current, auth) {
+  const vehicle = Array.isArray(auth?.savedVehicles) && auth.savedVehicles.length ? auth.savedVehicles[0] : {};
+  return {
+    ...current,
+    fullName: auth?.fullName || current.fullName,
+    phoneNumber: auth?.phoneNumber || current.phoneNumber,
+    year: vehicle?.year || current.year,
+    make: vehicle?.make || current.make,
+    model: vehicle?.model || current.model,
+    color: vehicle?.color || current.color,
+  };
+}
+
+function buildProviderDocumentsPayload(form) {
+  return {
+    license: createTextDocument('license', form.licenseNumber || 'license-on-file'),
+    registration: createTextDocument('registration', form.registrationNumber || 'registration-on-file'),
+    insurance: createTextDocument('insurance', form.insuranceNumber || 'insurance-on-file'),
+    helperId: createTextDocument('helperId', form.helperIdNumber || 'helper-id-pending'),
+  };
+}
+
+function createTextDocument(label, value) {
+  return {
+    fileName: `${label}.txt`,
+    contentType: 'text/plain',
+    documentNumber: value,
+    note: `${label}: ${value}`,
+  };
+}
+
+function splitCsv(value) {
+  return String(value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function buildProviderActionPayload(action) {
   if (action === 'eta') {
-    return 'ETA';
+    return { etaMinutes: 25, note: 'mobile-provider-eta', actorRole: 'PROVIDER' };
   }
-  return String(action || 'Provider action')
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (value) => value.toUpperCase());
+  return { note: `mobile-provider-${action}`, actorRole: 'PROVIDER' };
+}
+
+function formatUsd(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    return '$0.00';
+  }
+  return `$${amount.toFixed(2)}`;
+}
+
+function formatActionLabel(action) {
+  return String(action)
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }
 
 const styles = StyleSheet.create({
-  app: {
-    backgroundColor: theme.colors.background,
+  safe: {
     flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  app: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  content: {
+    gap: 18,
+    paddingHorizontal: 16,
     paddingTop: 12,
+    paddingBottom: 110,
   },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
   },
-  brand: {
-    color: theme.colors.text,
-    fontSize: 24,
+  headerCopy: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  eyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
     fontWeight: '900',
+    letterSpacing: 1.8,
+    textTransform: 'uppercase',
   },
-  headerMeta: {
+  title: {
+    color: theme.colors.text,
+    fontSize: 30,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+  subtitle: {
     color: theme.colors.muted,
-    fontSize: 12,
+    fontSize: 13,
     marginTop: 4,
   },
-  headerActions: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
+  liveBadge: {
+    alignItems: 'flex-end',
+    backgroundColor: theme.colors.panelSoft,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    minWidth: 96,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
-  navBar: {
+  liveLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  liveValue: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  liveState: {
+    color: theme.colors.gold,
+    fontSize: 16,
+    fontWeight: '900',
+    marginTop: 6,
+  },
+  hero: {
+    borderColor: theme.colors.line,
+    borderRadius: 28,
+    borderWidth: 1,
+    minHeight: 260,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  heroImage: {
+    height: '100%',
+    position: 'absolute',
+    width: '100%',
+  },
+  heroOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(5, 9, 19, 0.52)',
+  },
+  heroCopyBlock: {
+    justifyContent: 'flex-end',
+    minHeight: 260,
+    padding: 20,
+  },
+  heroEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    color: theme.colors.text,
+    fontSize: 28,
+    fontWeight: '900',
+    marginTop: 8,
+  },
+  heroText: {
+    color: '#d7e0ec',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 10,
+    maxWidth: 320,
+  },
+  heroButtons: {
+    gap: 10,
+    marginTop: 18,
+  },
+  metricsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.sm,
+    gap: 10,
   },
-  navPill: {
+  metricCard: {
+    backgroundColor: theme.colors.panel,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    flexGrow: 1,
+    minWidth: '30%',
+    padding: 14,
+  },
+  metricLabel: {
+    color: theme.colors.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  metricValue: {
+    color: theme.colors.text,
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 6,
+  },
+  metricDetail: {
+    color: '#c4d0de',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  section: {
+    backgroundColor: theme.colors.card,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    padding: 18,
+  },
+  sectionTitle: {
+    color: theme.colors.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  sectionSubtitle: {
+    color: theme.colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  sectionBody: {
+    gap: 12,
+    marginTop: 16,
+  },
+  pathGrid: {
+    gap: 10,
+  },
+  journeyTile: {
+    backgroundColor: theme.colors.panel,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    padding: 16,
+  },
+  journeyEyebrow: {
+    color: theme.colors.gold,
+    fontSize: 11,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  journeyTitle: {
+    color: theme.colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 6,
+  },
+  journeyDetail: {
+    color: theme.colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 6,
+  },
+  stageRail: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  stagePill: {
     backgroundColor: theme.colors.panel,
     borderColor: theme.colors.line,
     borderRadius: 999,
@@ -1066,164 +2107,209 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  navPillActive: {
+  stagePillActive: {
     backgroundColor: theme.colors.accentSoft,
     borderColor: theme.colors.accent,
   },
-  navPillLabel: {
-    color: theme.colors.text,
+  stageLabel: {
+    color: theme.colors.muted,
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
   },
-  navPillLabelActive: {
-    color: theme.colors.gold,
-  },
-  successBanner: {
-    backgroundColor: '#173326',
-    color: '#9ef0c4',
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.sm,
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-  },
-  errorBanner: {
-    backgroundColor: '#411b1a',
-    color: '#ffb4aa',
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.sm,
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-  },
-  screen: {
-    flex: 1,
-  },
-  content: {
-    gap: theme.spacing.md,
-    padding: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
-  },
-  heroCard: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.line,
-    borderRadius: theme.radius.lg,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  heroImage: {
-    height: 240,
-    width: '100%',
-  },
-  heroCopy: {
-    gap: 8,
-    padding: theme.spacing.lg,
-  },
-  eyebrow: {
-    color: theme.colors.gold,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  title: {
+  stageLabelActive: {
     color: theme.colors.text,
-    fontSize: 28,
-    fontWeight: '900',
-    lineHeight: 34,
-  },
-  subtitle: {
-    color: theme.colors.muted,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  panel: {
-    backgroundColor: theme.colors.card,
-    borderColor: theme.colors.line,
-    borderRadius: theme.radius.md,
-    borderWidth: 1,
-    gap: theme.spacing.sm,
-    padding: theme.spacing.md,
-  },
-  sectionTitle: {
-    color: theme.colors.text,
-    fontSize: 19,
-    fontWeight: '900',
-  },
-  mutedText: {
-    color: theme.colors.muted,
-    fontSize: 13,
-    lineHeight: 19,
-  },
-  dualGrid: {
-    gap: theme.spacing.md,
-  },
-  fieldStack: {
-    gap: theme.spacing.sm,
   },
   serviceGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: theme.spacing.sm,
+    gap: 10,
   },
-  graphicPanel: {
-    backgroundColor: theme.colors.card,
+  valuePanel: {
+    gap: 10,
+  },
+  valueRow: {
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: 10,
+  },
+  valueLabel: {
+    color: theme.colors.muted,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  valueValue: {
+    color: theme.colors.text,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
+  statusCard: {
+    backgroundColor: theme.colors.panel,
     borderColor: theme.colors.line,
     borderRadius: theme.radius.md,
     borderWidth: 1,
-    overflow: 'hidden',
+    padding: 14,
   },
-  secondaryGraphic: {
-    height: 240,
-    width: '100%',
-  },
-  graphicCopy: {
-    gap: theme.spacing.sm,
-    padding: theme.spacing.md,
-  },
-  queueCard: {
-    backgroundColor: theme.colors.panel,
-    borderColor: theme.colors.line,
-    borderRadius: theme.radius.sm,
+  policyBox: {
+    backgroundColor: '#162434',
+    borderColor: '#355270',
+    borderRadius: theme.radius.md,
     borderWidth: 1,
-    gap: theme.spacing.sm,
-    padding: theme.spacing.sm,
+    padding: 14,
   },
-  queueTitle: {
-    color: theme.colors.text,
-    fontSize: 16,
+  policyTitle: {
+    color: '#f3f7fc',
+    fontSize: 13,
     fontWeight: '900',
   },
-  buttonGrid: {
-    gap: theme.spacing.sm,
+  policyBody: {
+    color: '#d7e0ec',
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 6,
   },
-  label: {
-    color: theme.colors.text,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  pillWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  pill: {
+  toggleRow: {
+    alignItems: 'center',
     backgroundColor: theme.colors.panel,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+  toggleRowActive: {
+    borderColor: theme.colors.accent,
+  },
+  toggleDot: {
+    backgroundColor: 'transparent',
+    borderColor: theme.colors.line,
+    borderRadius: 999,
+    borderWidth: 2,
+    height: 18,
+    width: 18,
+  },
+  toggleDotActive: {
+    backgroundColor: theme.colors.accent,
+    borderColor: theme.colors.accent,
+  },
+  toggleLabel: {
+    color: theme.colors.text,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  toggleState: {
+    color: theme.colors.gold,
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  actionChip: {
+    backgroundColor: theme.colors.panelSoft,
     borderColor: theme.colors.line,
     borderRadius: 999,
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  pillActive: {
-    backgroundColor: theme.colors.accentSoft,
-    borderColor: theme.colors.accent,
+  actionChipLabel: {
+    color: theme.colors.text,
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
-  pillLabel: {
+  chipGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  inlineButtonStack: {
+    gap: 10,
+  },
+  message: {
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  messageSuccess: {
+    backgroundColor: 'rgba(50, 97, 58, 0.25)',
+    borderColor: 'rgba(115, 240, 162, 0.38)',
+  },
+  messageError: {
+    backgroundColor: 'rgba(123, 26, 30, 0.28)',
+    borderColor: 'rgba(215, 52, 58, 0.45)',
+  },
+  messageText: {
+    color: theme.colors.text,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  twoColumn: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  column: {
+    flex: 1,
+  },
+  sideImage: {
+    borderRadius: theme.radius.md,
+    height: 148,
+    width: '100%',
+  },
+  loadingCard: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.panel,
+    borderColor: theme.colors.line,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 14,
+  },
+  loadingText: {
+    color: theme.colors.text,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  helperText: {
+    color: theme.colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  bottomNav: {
+    backgroundColor: '#09111b',
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+  },
+  navItem: {
+    alignItems: 'center',
+    borderRadius: 16,
+    flex: 1,
+    paddingVertical: 10,
+  },
+  navItemActive: {
+    backgroundColor: theme.colors.accentSoft,
+  },
+  navLabel: {
     color: theme.colors.muted,
     fontSize: 12,
     fontWeight: '800',
+    textTransform: 'uppercase',
   },
-  pillLabelActive: {
-    color: theme.colors.gold,
+  navLabelActive: {
+    color: theme.colors.text,
   },
 });

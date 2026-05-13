@@ -26,7 +26,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.danger,
   },
   label: {
-    color: '#101010',
+    color: '#f7fbff',
     fontSize: 15,
     fontWeight: '900',
     textTransform: 'uppercase',

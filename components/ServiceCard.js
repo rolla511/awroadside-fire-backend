@@ -32,7 +32,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   activeLabel: {
-    color: '#fff3ea',
+    color: '#f3f7fc',
   },
   price: {
     color: theme.colors.gold,
