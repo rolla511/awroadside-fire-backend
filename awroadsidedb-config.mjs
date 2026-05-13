@@ -37,9 +37,11 @@ export function createAwRoadsideDbConfig({
   projectId = "awroadside-fire",
   backendEntry = "backend/server.mjs"
 } = {}) {
+  // ARCHITECTURAL NOTE: This module is the central authority for Database Configuration.
+  // It handles the transition from file-runtime to external-db (Postgres).
   const client = normalizeString(env.DB_CLIENT || env.AW_DB_CLIENT || "postgres").toLowerCase();
   const host = normalizeString(env.DB_HOST || env.AW_DB_HOST);
-  const database = normalizeString(env.DB_NAME || env.AW_DB_NAME);
+  const database = normalizeString(env.db_id || env.DB_NAME || env.AW_DB_NAME);
   const user = normalizeString(env.DB_USER || env.AW_DB_USER);
   const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
   const port = Number.parseInt(normalizeString(env.DB_PORT || env.AW_DB_PORT || `${DEFAULT_POSTGRES_PORT}`), 10);

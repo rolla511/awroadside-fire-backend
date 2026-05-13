@@ -426,7 +426,7 @@ const PAYPAL_WEBHOOK_IDS = Object.freeze({
 const paypalWebhookId =
   (process.env.PAYPAL_WEBHOOK_ID || "").trim() || PAYPAL_WEBHOOK_IDS[paypalMode] || "";
 const paypalWebhookPath = "/api/paypal/webhook";
-const mapboxAccessToken = (process.env.MAPBOX_ACCESS_TOKEN || "").trim();
+const mapboxAccessToken = (process.env.mapbox_access_token || process.env.MAPBOX_ACCESS_TOKEN || "").trim();
 const providerServiceRadiusMiles = Number.parseFloat(process.env.PROVIDER_SERVICE_RADIUS_MILES || "20");
 const requestAcceptanceWindowMinutes = Number.parseFloat(process.env.REQUEST_ACCEPTANCE_WINDOW_MINUTES || "5");
 const parsedRequestAcceptanceRequeueLimit = Number.parseInt(process.env.REQUEST_ACCEPTANCE_REQUEUE_LIMIT || "1", 10);
