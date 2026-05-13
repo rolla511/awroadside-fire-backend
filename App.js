@@ -27,6 +27,13 @@ const DEFAULT_LOCAL_BACKEND_URL = Platform.select({
   ios: 'http://localhost:3001',
   default: 'http://localhost:3001',
 });
+
+/**
+ * ARCHITECTURAL RULE: The Frontend (Mobile/Web) ALWAYS points to the Backend API.
+ * The Backend API then handles logic and DB configuration (via awroadsidedb-config.mjs).
+ * There is no "loop" because the Mobile App is a client consuming the API, 
+ * while the Backend only serves static files to Web Browsers as a fallback.
+ */
 const CONFIGURED_BACKEND_URL =
   typeof process !== 'undefined' ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || '' : '';
 
@@ -381,7 +388,7 @@ export default function App() {
       const sessionToken = typeof payload.sessionToken === 'string' ? payload.sessionToken.trim() : '';
       const userId = Number(payload.userId);
       if (!sessionToken || !Number.isInteger(userId)) {
-        throw new Error('Sign-in response was invalid. Verify the Service URL points to the backend API.');
+        throw new Error('Sign-in response was invalid. Verify the Backend URL points to the Backend API.');
       }
       const nextAuth = {
         userId,
@@ -745,7 +752,7 @@ export default function App() {
       const payload = await api.adminLogin(adminSignin);
       const token = typeof payload.token === 'string' ? payload.token.trim() : '';
       if (!token && !payload.twoFactorRequired) {
-        throw new Error('Admin sign-in response was invalid. Verify the Service URL points to the backend API.');
+        throw new Error('Admin sign-in response was invalid. Verify the Backend URL points to the Backend API.');
       }
       const nextSession = {
         token: token || null,
@@ -1260,14 +1267,14 @@ export default function App() {
             <View style={styles.panel}>
               <Text style={styles.sectionTitle}>Service Runtime</Text>
               <InputField
-                label="Service URL"
+                label="Backend API URL"
                 autoCapitalize="none"
                 value={backendUrl}
                 onChangeText={setBackendUrl}
                 placeholder="https://api.your-domain.com"
               />
               <View style={styles.buttonGrid}>
-                <Button label="Refresh Service Config" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} />
+                <Button label="Sync Runtime Config" onPress={() => loadBootstrap().catch((error) => setErrorMessage(error.message))} />
               </View>
               <Text style={styles.mutedText}>Variant mode: {compatibilityVariant?.mode || compatibilityManifest?.mode || 'Unverified'}</Text>
               <Text style={styles.mutedText}>Active authority: {compatibilityManifest?.activeVariantId || 'Unknown'}</Text>

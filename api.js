@@ -29,6 +29,8 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
     getSecurityStatus() {
       return request('/api/aw-roadside/security/status');
     },
+    // The Backend API is the source of truth for all data.
+    // Ensure the Backend URL points to the running server.mjs instance.
     signup(payload) {
       return request('/api/aw-roadside/auth/signup', {
         method: 'POST',
@@ -238,7 +240,7 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
     }
 
     if (contentType && !contentType.includes('application/json')) {
-      const error = new Error('Unexpected response from the service. Verify the Service URL points to the backend API.');
+      const error = new Error('Unexpected response from the Backend API. Verify the Backend URL points to the backend server (not the frontend/index).');
       error.status = response.status;
       error.payload = payload;
       throw error;
