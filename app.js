@@ -1,4 +1,4 @@
-const storageKey = "adub-auth-session";
+const storageKey = "server-auth-session";
 const processingLogKey = `${storageKey}-processing-log`;
 const requestHistoryKey = `${storageKey}-request-history`;
 const paymentLedgerKey = `${storageKey}-payment-ledger`;
