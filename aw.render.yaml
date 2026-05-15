@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: awroadside-fire-structure
+    name: awroadside-fire-backend
     runtime: node
     plan: starter
     rootDir: .
