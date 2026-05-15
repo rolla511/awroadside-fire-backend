@@ -1,7 +1,7 @@
 const DEFAULT_BASE_URL =
-  typeof process !== 'undefined'
-    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.() || ''
-    : '';
+  (typeof process !== 'undefined'
+    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.()
+    : '') || 'https://awroadside-fire-backend.onrender.com';
 
 export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
@@ -217,7 +217,8 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
 
-    const response = await fetch(`${normalizedBaseUrl}${path}`, {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const response = await fetch(`${normalizedBaseUrl}${normalizedPath}`, {
       method: options.method || 'GET',
       headers,
       body: options.body,
