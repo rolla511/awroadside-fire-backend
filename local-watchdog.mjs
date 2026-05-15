@@ -26,6 +26,15 @@ const CANDIDATE_WATCHED_RELATIVE_FILES = [
   "web/index.html",
   "web/customer.html",
   "web/provider.html",
+  "awroadside-fire-work/index.js",
+  "awroadside-fire-work/App.js",
+  "awroadside-fire-work/app.json",
+  "awroadside-fire-work/package.json",
+  "awroadside-fire-work/lib/api.js",
+  "awroadside-fire-work/web/app.js",
+  "awroadside-fire-work/web/index.html",
+  "awroadside-fire-work/web/customer.html",
+  "awroadside-fire-work/web/provider.html",
   BLUEPRINT_RELATIVE_PATH,
   "package.json"
 ];
@@ -247,6 +256,12 @@ function compareFiles(baselineFiles, currentFiles) {
   return currentFiles.map((current) => {
     const baseline = baselineMap.get(current.path);
     if (!baseline) {
+      if (current.missing) {
+        return {
+          path: current.path,
+          status: "unchanged"
+        };
+      }
       return {
         path: current.path,
         status: "untracked"
@@ -307,13 +322,9 @@ async function resolveWatchedRelativeFiles(projectRoot) {
     return CANDIDATE_WATCHED_RELATIVE_FILES;
   }
 
-  const { allowedMatchers, ignoredMatchers } = blueprintFilter;
+  const { ignoredMatchers } = blueprintFilter;
   return CANDIDATE_WATCHED_RELATIVE_FILES.filter((relativePath) => {
     const normalizedPath = normalizeRelativePath(relativePath);
-    const allowed = allowedMatchers.length === 0 || allowedMatchers.some((matcher) => matcher.test(normalizedPath));
-    if (!allowed) {
-      return false;
-    }
     return !ignoredMatchers.some((matcher) => matcher.test(normalizedPath));
   });
 }
