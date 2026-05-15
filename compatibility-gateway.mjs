@@ -263,6 +263,10 @@ function buildStatus(req, helpers) {
     policy: "current backend is authority; legacy variants are reference-only unless explicitly mapped",
     activeBackend: {
       protectedApiBaseUrl: `${baseUrl}/api/aw-roadside`,
+      protectedApiAliasUrls: [
+        `${baseUrl}/api/aw-roadside`,
+        `${baseUrl}/api/awroadside-fire`
+      ],
       rawApiBaseUrl: `${baseUrl}/api`,
       uiBaseUrl: baseUrl
     },

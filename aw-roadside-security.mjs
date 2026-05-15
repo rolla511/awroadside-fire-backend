@@ -7,6 +7,11 @@ import {
 } from "./subscription-controller.mjs";
 
 const DEFAULT_ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
+const CANONICAL_PROTECTED_API_PREFIX = "/api/aw-roadside";
+const PROTECTED_API_PREFIX_ALIASES = Object.freeze([
+  CANONICAL_PROTECTED_API_PREFIX,
+  "/api/awroadside-fire"
+]);
 const PROVIDER_ONLY_ACTIONS = new Set(["accept", "eta", "soft-contact", "hard-contact", "arrived", "completed"]);
 const CUSTOMER_ONLY_ACTIONS = new Set([
   "subscriber-accept-eta",
@@ -25,7 +30,8 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
 
   return {
     async handle(req, res, pathname, helpers) {
-      if (!pathname.startsWith("/api/aw-roadside/")) {
+      pathname = normalizeProtectedApiPath(pathname);
+      if (!pathname) {
         return false;
       }
 
@@ -522,6 +528,20 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
       return true;
     }
   };
+
+  function normalizeProtectedApiPath(pathname) {
+    if (typeof pathname !== "string" || !pathname) {
+      return null;
+    }
+
+    for (const prefix of PROTECTED_API_PREFIX_ALIASES) {
+      if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+        return `${CANONICAL_PROTECTED_API_PREFIX}${pathname.slice(prefix.length)}`;
+      }
+    }
+
+    return null;
+  }
 
   async function readThroughCache(cacheKey, producer) {
     try {

@@ -247,6 +247,11 @@ const AW_ROADSIDE_POLICY = Object.freeze({
   }
 });
 
+const PROTECTED_API_BASE_PATH = "/api/aw-roadside";
+const PROTECTED_API_ALIAS_PATHS = Object.freeze([
+  "/api/awroadside-fire"
+]);
+
 const SERVER_AUTHORITY = Object.freeze({
   serviceId: "awroadside-fire-backend",
   runtime: "node",
@@ -254,7 +259,8 @@ const SERVER_AUTHORITY = Object.freeze({
   rootShimEntrypoint: "server.mjs",
   compatibilityGatewayPath: "/api/compat/status",
   compatibilityManifestPath: "/api/compat/manifest",
-  protectedApiBasePath: "/api/aw-roadside",
+  protectedApiBasePath: PROTECTED_API_BASE_PATH,
+  protectedApiAliasPaths: PROTECTED_API_ALIAS_PATHS,
   rawApiBasePath: "/api",
   statement:
     "backend/server.mjs is the active awroadside-fire backend authority. Legacy variants must resolve through the compatibility gateway and use backend pricing."
@@ -284,7 +290,8 @@ function buildAuthorityDescriptor(req = null) {
       runtimeStatus: `${baseUrl}/api/runtime/status`,
       compatibilityGateway: `${baseUrl}${SERVER_AUTHORITY.compatibilityGatewayPath}`,
       compatibilityManifest: `${baseUrl}${SERVER_AUTHORITY.compatibilityManifestPath}`,
-      protectedApiBase: `${baseUrl}${SERVER_AUTHORITY.protectedApiBasePath}`,
+      protectedApiBase: `${baseUrl}${resolveProtectedApiBasePath(req)}`,
+      protectedApiAliases: getProtectedApiAliasUrls(req),
       rawApiBase: `${baseUrl}${SERVER_AUTHORITY.rawApiBasePath}`
     }
   };
@@ -1961,7 +1968,8 @@ async function getFrontendConfigPayload(req = null) {
   const baseUrl = resolveRequestBaseUrl(req);
   return {
     authority: buildAuthorityDescriptor(req),
-    apiBaseUrl: `${baseUrl}/api/aw-roadside`,
+    apiBaseUrl: getProtectedApiBaseUrl(req),
+    apiAliasBaseUrls: getProtectedApiAliasUrls(req),
     rawApiBaseUrl: `${baseUrl}/api`,
     uiBaseUrl: baseUrl,
     expectedHtmlIntegrationPath: "web/index.html",
@@ -2072,11 +2080,12 @@ function getIntegrationTargetPayload(req = null) {
     expectedPayload: {
       htmlFile: "web/index.html",
       mountSelector: ".page-shell",
-      apiConsumer: `fetch('${baseUrl}/api/aw-roadside/health')`
+      apiConsumer: `fetch('${getProtectedApiBaseUrl(req)}/health')`
     },
     expectedHtmlIntegrationPath: "web/index.html",
     uiBaseUrl: baseUrl,
-    apiBaseUrl: `${baseUrl}/api/aw-roadside`,
+    apiBaseUrl: getProtectedApiBaseUrl(req),
+    apiAliasBaseUrls: getProtectedApiAliasUrls(req),
     rawApiBaseUrl: `${baseUrl}/api`,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
   };
@@ -2096,7 +2105,22 @@ function normalizeVehicleInfo(value) {
 }
 
 function getProtectedApiBaseUrl(req = null) {
-  return `${resolveRequestBaseUrl(req)}/api/aw-roadside`;
+  return `${resolveRequestBaseUrl(req)}${resolveProtectedApiBasePath(req)}`;
+}
+
+function getProtectedApiAliasUrls(req = null) {
+  const baseUrl = resolveRequestBaseUrl(req);
+  return [PROTECTED_API_BASE_PATH, ...PROTECTED_API_ALIAS_PATHS].map((path) => `${baseUrl}${path}`);
+}
+
+function resolveProtectedApiBasePath(req = null) {
+  const requestPath = typeof req?.url === "string" ? new URL(req.url, "http://localhost").pathname : "";
+  for (const candidate of [PROTECTED_API_BASE_PATH, ...PROTECTED_API_ALIAS_PATHS]) {
+    if (requestPath === candidate || requestPath.startsWith(`${candidate}/`)) {
+      return candidate;
+    }
+  }
+  return PROTECTED_API_BASE_PATH;
 }
 
 function resolveRequestBaseUrl(req = null) {
