@@ -284,6 +284,16 @@ function normalizeApiErrorMessage(payload, status) {
       'paypal-create-failed': 'Unable to start the payment right now.',
       'paypal-capture-failed': 'Unable to complete the payment right now.',
       'method-not-allowed': 'That action is not available right now.',
+      'bad-request': 'The request was invalid. Please check your information.',
+      'auth-failed': 'Sign-in failed. Please check your email and password.',
+      'user-not-found': 'Account not found. Please sign up first.',
+      'user-already-exists': 'An account with this email already exists.',
+      'session-expired': 'Your session has expired. Please sign in again.',
+      'missing-fullname': 'Please enter your full name.',
+      'missing-phonenumber': 'Please enter your phone number.',
+      'missing-servicetype': 'Please select a service type.',
+      'missing-location': 'Please provide your location.',
+      'missing-vehicleinfo': 'Please provide vehicle information.',
     }[code];
 
   if (mapped) {
