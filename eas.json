@@ -9,12 +9,18 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://10.0.2.2:3000"
+      },
+      "android": {
+        "image": "latest"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://awroadside-fire-backend.onrender.com"
+      },
+      "android": {
+        "image": "latest"
       }
     },
     "production": {
@@ -22,7 +28,8 @@
       "developmentClient": false,
       "android": {
         "buildType": "app-bundle",
-        "gradleCommand": ":app:bundleRelease"
+        "gradleCommand": ":app:bundleRelease",
+        "image": "latest"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://awroadside-fire-backend.onrender.com"
