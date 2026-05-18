@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://awroadside-fire-backend.onrender.com"
+        "EXPO_PUBLIC_API_BASE_URL": "http://10.0.2.2:3000"
       }
     },
     "preview": {
@@ -21,8 +21,8 @@
       "autoIncrement": true,
       "developmentClient": false,
       "android": {
-        "buildType": "apk",
-        "gradleCommand": ":app:assembleRelease"
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:bundleRelease"
       },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://awroadside-fire-backend.onrender.com"
