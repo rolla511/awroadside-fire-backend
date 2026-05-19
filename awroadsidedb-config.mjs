@@ -46,7 +46,12 @@ export function createAwRoadsideDbConfig({
   const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
   const port = Number.parseInt(normalizeString(env.DB_PORT || env.AW_DB_PORT || `${DEFAULT_POSTGRES_PORT}`), 10);
   const ssl = readBooleanEnv(env.DB_SSL || env.AW_DB_SSL, false);
-  const connectionString = normalizeString(env.DATABASE_URL || env.AW_DATABASE_URL);
+  const connectionString = normalizeString(
+    env.DATABASE_URL ||
+    env.AW_DATABASE_URL ||
+    env.INTERNAL_DB_URL ||
+    env.internal_db_url
+  );
   const applicationName = normalizeString(env.DB_APPLICATION_NAME || env.AW_DB_APPLICATION_NAME || "awroadside-server");
   const mode = normalizeString(env.AW_DB_MODE || (connectionString || host ? "external-db" : "file-runtime")) || "file-runtime";
   const configured = Boolean(connectionString || (host && database && user));
