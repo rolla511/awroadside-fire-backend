@@ -251,6 +251,189 @@ const PROTECTED_API_BASE_PATH = "/api/aw-roadside";
 const PROTECTED_API_ALIAS_PATHS = Object.freeze([
   "/api/awroadside-fire"
 ]);
+const SANDBOX_MANUAL_TEST_SERVICE_TYPES = Object.freeze([
+  "JUMP_START",
+  "LOCKOUT",
+  "TIRE_CHANGE",
+  "GAS_DELIVERY",
+  "BATTERY_INSTALL"
+]);
+const SANDBOX_PROVIDER_DOCUMENT_TYPES = Object.freeze(["license", "registration", "insurance"]);
+const SANDBOX_PROVIDER_ASSESSMENT_ANSWERS = Object.freeze({
+  jumpstartProcedure: "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+  jackPlacement: "Use the manufacturer jack points on the pinch weld or frame support.",
+  specialtyVehicleJack: "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+  spoolDefinition: "A spool is a lift or jack support point adapter used on some vehicles.",
+  frozenLugNut: "Use penetrating oil, proper socket fit, leverage, and controlled heat only when appropriate.",
+  lockoutTools: "Air wedge, long reach tool, protective sleeve, and manufacturer-safe entry tools.",
+  lockoutDamagePrevention: "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+  incorrectLockoutDamage: "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+  tirePlugKnowledge: "Yes, after confirming the puncture is repairable and not sidewall damage.",
+  severeDamageDecision: "Inform the customer of the possible damage and do not complete the service."
+});
+const SANDBOX_MANUAL_TEST_USERS = Object.freeze([
+  {
+    key: "sandbox_subscriber_trenton_1",
+    role: "SUBSCRIBER",
+    fullName: "Sandbox Subscriber Trenton One",
+    username: "sandbox.trenton.sub1",
+    email: "sandbox.trenton.sub1@awroadside.test",
+    password: "SandboxSubT1!",
+    passwordHash: "scrypt$c4e066ac1332761cd6b24fe5912a54e9$4629c4a127f427de11da0ab4b19b30b8e0085f46f12c6af2228b9c179d31d9bf9259f683334a984c035a1b4046375bc3127193baee09b97f29dfc1413f4e81ba",
+    phoneNumber: "6095551101",
+    city: "Trenton, NJ",
+    billingZip: "08608",
+    vehicle: { year: "2022", make: "Toyota", model: "Camry", color: "Blue" },
+    paymentMethodMasked: "SANDBOX-VISA-1101"
+  },
+  {
+    key: "sandbox_subscriber_trenton_2",
+    role: "SUBSCRIBER",
+    fullName: "Sandbox Subscriber Trenton Two",
+    username: "sandbox.trenton.sub2",
+    email: "sandbox.trenton.sub2@awroadside.test",
+    password: "SandboxSubT2!",
+    passwordHash: "scrypt$1058e76f20c62ab1e9bedb5c70dc0d3f$080eba92cb3ef74a95c2cca9517feb43deb3e27833c68e118283577323966a15798894282cf36511a17a1438967eab4f2dd93297ae5db4996f4d9b8349747847",
+    phoneNumber: "6095551102",
+    city: "Trenton, NJ",
+    billingZip: "08618",
+    vehicle: { year: "2021", make: "Honda", model: "Accord", color: "Silver" },
+    paymentMethodMasked: "SANDBOX-VISA-1102"
+  },
+  {
+    key: "sandbox_subscriber_philadelphia_1",
+    role: "SUBSCRIBER",
+    fullName: "Sandbox Subscriber Philadelphia One",
+    username: "sandbox.philly.sub1",
+    email: "sandbox.philly.sub1@awroadside.test",
+    password: "SandboxSubP1!",
+    passwordHash: "scrypt$609850dfb4fe77cc367ac077d55f257b$a69fcde8f1f748942634a92dbd84f75dd40999496bc063e5547842b47195dba5b85739180480cbaa4cb641fec0bf31ba162a858da99647042a1a73438aa4bf1a",
+    phoneNumber: "2155551103",
+    city: "Philadelphia, PA",
+    billingZip: "19107",
+    vehicle: { year: "2020", make: "Nissan", model: "Altima", color: "Black" },
+    paymentMethodMasked: "SANDBOX-VISA-1103"
+  },
+  {
+    key: "sandbox_provider_trenton_1",
+    role: "PROVIDER",
+    fullName: "Sandbox Provider Trenton One",
+    username: "sandbox.trenton.prov1",
+    email: "sandbox.trenton.prov1@awroadside.test",
+    password: "SandboxProvT1!",
+    passwordHash: "scrypt$b822ab6d7ff07a0fd2342ad1c51df220$abf89bbbccf70136e0a9a2493b26bb71851fbb1c6437bdd993f69f3b52cf19816ee2d2cb5d8bdde89d94c18417fa4ae0acfaa31e7d60537b842778d443ee8503",
+    phoneNumber: "6095552101",
+    city: "Trenton, NJ",
+    vehicleInfo: { year: "2020", make: "Ford", model: "Transit", color: "White" },
+    payoutEmail: "sandbox.trenton.prov1-biz@awroadside.test",
+    providerAccountId: "SBX-PROV-TRENTON-1",
+    payoutStatus: "COMPLETED"
+  },
+  {
+    key: "sandbox_provider_trenton_2",
+    role: "PROVIDER",
+    fullName: "Sandbox Provider Trenton Two",
+    username: "sandbox.trenton.prov2",
+    email: "sandbox.trenton.prov2@awroadside.test",
+    password: "SandboxProvT2!",
+    passwordHash: "scrypt$67c55b687f6fe77db39a6c097a03f1db$85050d3d5b88d8a835fa9d3dac6116fe5fb3f5916e189493cee1bcb2b0005b7e3fba5ee2c03328808c5af09517a83e66748eb23f989bb2dadb255128d34ed8f5",
+    phoneNumber: "6095552102",
+    city: "Trenton, NJ",
+    vehicleInfo: { year: "2019", make: "Chevrolet", model: "Silverado", color: "Black" },
+    payoutEmail: "sandbox.trenton.prov2-biz@awroadside.test",
+    providerAccountId: "SBX-PROV-TRENTON-2",
+    payoutStatus: "PENDING"
+  },
+  {
+    key: "sandbox_provider_philadelphia_1",
+    role: "PROVIDER",
+    fullName: "Sandbox Provider Philadelphia One",
+    username: "sandbox.philly.prov1",
+    email: "sandbox.philly.prov1@awroadside.test",
+    password: "SandboxProvP1!",
+    passwordHash: "scrypt$5f22220413580fa71ec89258abed57e9$8ea516871fb3ad01df7e9033abd4b358641af1e101718e28250c64f6d0bc5fdc5a849cf2d8de201e2f9763f42d4b5996505f7225a2fab92e771babef8f95faca",
+    phoneNumber: "2155552103",
+    city: "Philadelphia, PA",
+    vehicleInfo: { year: "2021", make: "Ram", model: "ProMaster", color: "Gray" },
+    payoutEmail: "sandbox.philly.prov1-biz@awroadside.test",
+    providerAccountId: "SBX-PROV-PHILLY-1",
+    payoutStatus: "ON_HOLD"
+  }
+]);
+const SANDBOX_MANUAL_TEST_REQUEST_FIXTURES = Object.freeze([
+  {
+    requestId: "sandbox-history-trenton-complete",
+    subscriberKey: "sandbox_subscriber_trenton_1",
+    providerKey: "sandbox_provider_trenton_1",
+    location: "Trenton, NJ",
+    serviceType: "LOCKOUT",
+    requestState: "COMPLETED",
+    paymentState: "CAPTURED",
+    payoutState: "COMPLETED",
+    startedMinutesAgo: 7200,
+    note: "Completed sandbox lockout flow for wallet and subscriber history."
+  },
+  {
+    requestId: "sandbox-history-trenton-pending",
+    subscriberKey: "sandbox_subscriber_trenton_2",
+    providerKey: "sandbox_provider_trenton_2",
+    location: "Trenton, NJ",
+    serviceType: "JUMP_START",
+    requestState: "COMPLETED",
+    paymentState: "CAPTURED",
+    payoutState: "PENDING",
+    startedMinutesAgo: 5760,
+    note: "Captured sandbox jump start with payout still pending."
+  },
+  {
+    requestId: "sandbox-history-philadelphia-hold",
+    subscriberKey: "sandbox_subscriber_philadelphia_1",
+    providerKey: "sandbox_provider_philadelphia_1",
+    location: "Philadelphia, PA",
+    serviceType: "TIRE_CHANGE",
+    requestState: "COMPLETED",
+    paymentState: "CAPTURED",
+    payoutState: "ON_HOLD",
+    startedMinutesAgo: 4320,
+    note: "Captured sandbox tire change with payout placed on hold."
+  },
+  {
+    requestId: "sandbox-open-trenton-1",
+    subscriberKey: "sandbox_subscriber_trenton_1",
+    providerKey: null,
+    location: "Trenton, NJ",
+    serviceType: "BATTERY_INSTALL",
+    requestState: "SUBMITTED",
+    paymentState: "NOT_PAID",
+    payoutState: "UNASSIGNED",
+    startedMinutesAgo: 90,
+    note: "Open sandbox battery install for provider acceptance testing."
+  },
+  {
+    requestId: "sandbox-open-trenton-2",
+    subscriberKey: "sandbox_subscriber_trenton_2",
+    providerKey: null,
+    location: "Trenton, NJ",
+    serviceType: "GAS_DELIVERY",
+    requestState: "SUBMITTED",
+    paymentState: "NOT_PAID",
+    payoutState: "UNASSIGNED",
+    startedMinutesAgo: 60,
+    note: "Open sandbox fuel delivery for provider acceptance testing."
+  },
+  {
+    requestId: "sandbox-open-philadelphia-1",
+    subscriberKey: "sandbox_subscriber_philadelphia_1",
+    providerKey: null,
+    location: "Philadelphia, PA",
+    serviceType: "LOCKOUT",
+    requestState: "SUBMITTED",
+    paymentState: "NOT_PAID",
+    payoutState: "UNASSIGNED",
+    startedMinutesAgo: 30,
+    note: "Open sandbox Philadelphia lockout for provider acceptance testing."
+  }
+]);
 
 const SERVER_AUTHORITY = Object.freeze({
   serviceId: "awroadside-fire-backend",
@@ -514,6 +697,7 @@ await localWatchdog.initialize();
 await auditBlueprintNodeRuntime();
 await localWatchdog.scanAndRecord();
 await storageAuthority.initialize();
+await ensureSandboxManualTestFixtures();
 localWatchdog.startPeriodicScan(watchdogIntervalMs);
 await auditWebEntrypoint();
 await writeRuntimeArtifacts();
@@ -4071,6 +4255,494 @@ async function recordCustomerFeedback(requestId, payload, session = null) {
     providerRating: calculateProviderRatingSummary(provider),
     providerDiscipline: createProviderDisciplineSnapshot(provider)
   };
+}
+
+async function ensureSandboxManualTestFixtures() {
+  if (paypalMode !== "sandbox") {
+    return;
+  }
+
+  const sandboxUserIds = await ensureSandboxManualTestUsers();
+  await ensureSandboxManualTestRequests(sandboxUserIds);
+  console.log(
+    `[DEBUG_LOG] Sandbox manual test fixtures ready: ${sandboxUserIds.size} users, ${SANDBOX_MANUAL_TEST_REQUEST_FIXTURES.length} requests`
+  );
+}
+
+async function ensureSandboxManualTestUsers() {
+  return mutateUsers(async (users) => {
+    const seededUsers = new Map();
+    for (const descriptor of SANDBOX_MANUAL_TEST_USERS) {
+      let user = users.find((entry) => {
+        return (
+          readOptionalString(entry?.username).toLowerCase() === descriptor.username.toLowerCase() ||
+          readOptionalString(entry?.email).toLowerCase() === descriptor.email.toLowerCase()
+        );
+      });
+
+      if (!user) {
+        user = { id: allocateUserId(users) };
+        users.push(user);
+      }
+
+      const normalized = descriptor.role === "PROVIDER"
+        ? buildSandboxProviderUser(user, descriptor)
+        : buildSandboxSubscriberUser(user, descriptor);
+      Object.keys(user).forEach((key) => {
+        delete user[key];
+      });
+      Object.assign(user, normalized);
+      seededUsers.set(descriptor.key, user.id);
+    }
+    return seededUsers;
+  });
+}
+
+async function ensureSandboxManualTestRequests(sandboxUserIds) {
+  await mutateRequests(async (requests) => {
+    for (const fixture of SANDBOX_MANUAL_TEST_REQUEST_FIXTURES) {
+      const record = buildSandboxManualTestRequest(fixture, sandboxUserIds);
+      const index = requests.findIndex((entry) => String(entry?.requestId || entry?.id) === fixture.requestId);
+      if (index >= 0) {
+        requests[index] = record;
+      } else {
+        requests.unshift(record);
+      }
+    }
+    return null;
+  });
+}
+
+function buildSandboxSubscriberUser(existingUser, descriptor) {
+  const createdAt = optionalIsoString(existingUser?.createdAt) || new Date().toISOString();
+  const seededAt = new Date().toISOString();
+  const vehicle = descriptor.vehicle;
+  return {
+    ...existingUser,
+    id: Number(existingUser?.id),
+    fullName: descriptor.fullName,
+    username: descriptor.username,
+    email: descriptor.email,
+    phoneNumber: descriptor.phoneNumber,
+    passwordHash: descriptor.passwordHash,
+    roles: ["SUBSCRIBER"],
+    subscriberActive: true,
+    subscriberProfile: {
+      ...(existingUser?.subscriberProfile && typeof existingUser.subscriberProfile === "object" ? existingUser.subscriberProfile : {}),
+      membershipPrice: subscriberMonthlyFee,
+      vehicle,
+      savedVehicles: [vehicle],
+      paymentMethodMasked: descriptor.paymentMethodMasked,
+      paymentInfo: {
+        paymentMethodMasked: descriptor.paymentMethodMasked,
+        billingZip: descriptor.billingZip,
+        paymentProvider: "paypal-sandbox"
+      },
+      termsAcceptedAt: seededAt,
+      termsVersion: AW_ROADSIDE_POLICY.subscriber.termsVersion
+    },
+    providerStatus: null,
+    providerProfile: null,
+    termsAccepted: true,
+    terms: {
+      ...(existingUser?.terms && typeof existingUser.terms === "object" ? existingUser.terms : {}),
+      subscriber: {
+        accepted: true,
+        acceptedAt: seededAt,
+        termsVersion: AW_ROADSIDE_POLICY.subscriber.termsVersion,
+        dispatchOnlyLiabilityAccepted: true,
+        noRefundPolicyAccepted: true,
+        platformLiability: AW_ROADSIDE_POLICY.subscriber.platformLiability,
+        providerLiability: AW_ROADSIDE_POLICY.provider.liabilityStatement
+      }
+    },
+    trustedZone: {
+      type: "sandbox-city",
+      label: descriptor.city
+    },
+    services: [],
+    available: false,
+    activeShiftId: null,
+    accountState: "ACTIVE",
+    nextBillingDate: ensureFutureIso(existingUser?.nextBillingDate, 30),
+    createdAt,
+    signUpDate: optionalIsoString(existingUser?.signUpDate) || createdAt,
+    sandboxProfile: {
+      key: descriptor.key,
+      city: descriptor.city,
+      role: descriptor.role,
+      seededBy: "backend/server.mjs",
+      seededAt
+    }
+  };
+}
+
+function buildSandboxProviderUser(existingUser, descriptor) {
+  const createdAt = optionalIsoString(existingUser?.createdAt) || new Date().toISOString();
+  const seededAt = new Date().toISOString();
+  const existingProviderProfile =
+    existingUser?.providerProfile && typeof existingUser.providerProfile === "object"
+      ? existingUser.providerProfile
+      : {};
+  const existingPaypal = normalizeProviderPaypalProfile(existingProviderProfile.paypal);
+  const paypalProfile = buildSandboxProviderPaypalProfile(descriptor, existingPaypal, seededAt);
+
+  return {
+    ...existingUser,
+    id: Number(existingUser?.id),
+    fullName: descriptor.fullName,
+    username: descriptor.username,
+    email: descriptor.email,
+    phoneNumber: descriptor.phoneNumber,
+    passwordHash: descriptor.passwordHash,
+    roles: ["PROVIDER"],
+    subscriberActive: false,
+    subscriberProfile: null,
+    providerStatus: "APPROVED",
+    providerProfile: {
+      ...existingProviderProfile,
+      providerInfo: {
+        legalName: descriptor.fullName,
+        phoneNumber: descriptor.phoneNumber,
+        email: descriptor.email,
+        companyName: "AW Roadside Sandbox Network",
+        w9Name: "Sandbox Provider",
+        taxIdLast4: "0000"
+      },
+      vehicleInfo: descriptor.vehicleInfo,
+      documents: createSandboxProviderDocuments(seededAt),
+      documentStatus: {
+        required: [...SANDBOX_PROVIDER_DOCUMENT_TYPES],
+        submittedCount: SANDBOX_PROVIDER_DOCUMENT_TYPES.length,
+        missing: [],
+        meetsMinimumRequirements: true
+      },
+      experience: "Sandbox manual test provider",
+      assessment: {
+        complete: true,
+        passed: true,
+        missing: [],
+        answers: SANDBOX_PROVIDER_ASSESSMENT_ANSWERS,
+        evaluatedAt: seededAt,
+        safeDamageDecision: true
+      },
+      hoursOfService: {
+        timezone: "America/New_York",
+        days: {
+          monday: "00:00-23:59",
+          tuesday: "00:00-23:59",
+          wednesday: "00:00-23:59",
+          thursday: "00:00-23:59",
+          friday: "00:00-23:59",
+          saturday: "00:00-23:59",
+          sunday: "00:00-23:59"
+        },
+        hasHours: true
+      },
+      serviceArea: descriptor.city,
+      currentLocation: descriptor.city,
+      equipment: ["Jump pack", "Lockout kit", "Hydraulic jack", "Fuel can"],
+      profileSubmittedAt: optionalIsoString(existingProviderProfile.profileSubmittedAt) || createdAt,
+      profileSubmissionStatus: "APPROVED",
+      rates: existingProviderProfile.rates && typeof existingProviderProfile.rates === "object"
+        ? existingProviderProfile.rates
+        : {
+            ratingTotal: 0,
+            ratingCount: 0,
+            averageRating: 0
+          },
+      noteExchangeEnabled: true,
+      paypal: paypalProfile
+    },
+    termsAccepted: true,
+    terms: {
+      ...(existingUser?.terms && typeof existingUser.terms === "object" ? existingUser.terms : {}),
+      provider: {
+        accepted: true,
+        acceptedAt: seededAt,
+        termsVersion: AW_ROADSIDE_POLICY.provider.termsVersion,
+        liabilityAccepted: true,
+        liabilityStatement: AW_ROADSIDE_POLICY.provider.liabilityStatement,
+        holdHarmlessAccepted: true
+      }
+    },
+    trustedZone: {
+      type: "sandbox-city",
+      label: descriptor.city
+    },
+    services: [...SANDBOX_MANUAL_TEST_SERVICE_TYPES],
+    available: true,
+    activeShiftId: null,
+    accountState: "ACTIVE",
+    nextBillingDate: null,
+    createdAt,
+    signUpDate: optionalIsoString(existingUser?.signUpDate) || createdAt,
+    providerMonthly: providerMonthlyFee,
+    approvedAt: optionalIsoString(existingUser?.approvedAt) || seededAt,
+    approvalNote: "sandbox manual test profile",
+    sandboxProfile: {
+      key: descriptor.key,
+      city: descriptor.city,
+      role: descriptor.role,
+      seededBy: "backend/server.mjs",
+      seededAt
+    }
+  };
+}
+
+function buildSandboxProviderPaypalProfile(descriptor, existingPaypal, seededAt) {
+  const payouts = {
+    ...existingPaypal.payouts,
+    lastStatus: descriptor.payoutStatus,
+    lastEventType: descriptor.payoutStatus === "COMPLETED"
+      ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
+      : descriptor.payoutStatus === "PENDING"
+        ? "PAYMENT.PAYOUTSBATCH.PROCESSING"
+        : "PAYMENT.PAYOUTS-ITEM.HELD",
+    lastEventId: existingPaypal.payouts.lastEventId || `sandbox-payout-${descriptor.key}`,
+    lastEventAt: existingPaypal.payouts.lastEventAt || seededAt,
+    lastRequestId: existingPaypal.payouts.lastRequestId || null,
+    lastBatchId: existingPaypal.payouts.lastBatchId || `sandbox-batch-${descriptor.key}`,
+    lastItemId: existingPaypal.payouts.lastItemId || `sandbox-item-${descriptor.key}`,
+    lastCustomerPayoutId: existingPaypal.payouts.lastCustomerPayoutId || `sandbox-customer-payout-${descriptor.key}`,
+    succeededCount: descriptor.payoutStatus === "COMPLETED" ? Math.max(existingPaypal.payouts.succeededCount, 1) : existingPaypal.payouts.succeededCount,
+    failedCount: existingPaypal.payouts.failedCount,
+    heldCount: descriptor.payoutStatus === "ON_HOLD" ? Math.max(existingPaypal.payouts.heldCount, 1) : existingPaypal.payouts.heldCount
+  };
+
+  return {
+    ...existingPaypal,
+    providerAccountId: descriptor.providerAccountId,
+    email: descriptor.payoutEmail,
+    onboardingStatus: existingPaypal.onboardingStatus || "COMPLETED",
+    consentStatus: existingPaypal.consentStatus || "GRANTED",
+    accountLifecycleStatus: existingPaypal.accountLifecycleStatus || "ACTIVE",
+    payouts,
+    recentEvents: Array.isArray(existingPaypal.recentEvents) ? existingPaypal.recentEvents : [],
+    lastWebhookEventId: existingPaypal.lastWebhookEventId || payouts.lastEventId,
+    lastWebhookEventType: existingPaypal.lastWebhookEventType || payouts.lastEventType,
+    lastWebhookAt: existingPaypal.lastWebhookAt || payouts.lastEventAt,
+    onboardingCompletedAt: existingPaypal.onboardingCompletedAt || seededAt,
+    accountCreatedAt: existingPaypal.accountCreatedAt || seededAt,
+    lastAccountUpdateAt: existingPaypal.lastAccountUpdateAt || seededAt
+  };
+}
+
+function createSandboxProviderDocuments(timestamp) {
+  const documents = {};
+  for (const docType of PROVIDER_DOCUMENT_TYPES) {
+    documents[docType] = {
+      submitted: docType !== "helperId",
+      verified: false,
+      uploadedAt: docType !== "helperId" ? timestamp : null,
+      fileName: null,
+      contentType: null,
+      sizeBytes: 0,
+      storagePath: null,
+      sourceUrl: null,
+      documentNumber: null,
+      expiresAt: null,
+      note: null
+    };
+  }
+  return documents;
+}
+
+function buildSandboxManualTestRequest(fixture, sandboxUserIds) {
+  const subscriber = findSandboxUserDescriptor(fixture.subscriberKey);
+  const userId = sandboxUserIds.get(fixture.subscriberKey);
+  const providerId = fixture.providerKey ? sandboxUserIds.get(fixture.providerKey) : null;
+  if (!Number.isInteger(userId)) {
+    throw new Error(`Sandbox subscriber fixture ${fixture.subscriberKey} is missing a seeded user id.`);
+  }
+  if (fixture.providerKey && !Number.isInteger(providerId)) {
+    throw new Error(`Sandbox provider fixture ${fixture.providerKey} is missing a seeded user id.`);
+  }
+
+  const pricing = resolveServicePricing({
+    customerTier: "SUBSCRIBER",
+    subscriberActive: true,
+    roles: ["SUBSCRIBER"]
+  });
+  const submittedAt = minutesAgoIso(fixture.startedMinutesAgo);
+  const acceptedAt = fixture.providerKey ? shiftIso(submittedAt, 8) : null;
+  const etaUpdatedAt = fixture.providerKey ? shiftIso(submittedAt, 15) : null;
+  const arrivedAt = fixture.requestState === "COMPLETED" ? shiftIso(submittedAt, 55) : null;
+  const completedAt = fixture.requestState === "COMPLETED" ? shiftIso(submittedAt, 80) : null;
+  const payoutCompletedAt = fixture.payoutState === "COMPLETED" ? shiftIso(submittedAt, 95) : null;
+  const updatedAt = payoutCompletedAt || completedAt || etaUpdatedAt || submittedAt;
+  const amountCollected = fixture.paymentState === "CAPTURED" ? pricing.serviceCharge : 0;
+
+  return {
+    id: fixture.requestId,
+    requestId: fixture.requestId,
+    status: fixture.requestState,
+    completionStatus: fixture.requestState === "COMPLETED" ? "COMPLETED" : "OPEN",
+    paymentStatus: fixture.paymentState,
+    locationDisclosureLevel: fixture.paymentState === "CAPTURED" ? "EXACT" : "MASKED",
+    contactDisclosureLevel: fixture.paymentState === "CAPTURED" ? "UNLOCKED" : "LOCKED",
+    softEtaMinutes: fixture.providerKey ? 18 : null,
+    hardEtaMinutes: fixture.requestState === "COMPLETED" ? 12 : null,
+    etaStage: fixture.providerKey ? (fixture.requestState === "COMPLETED" ? "HARD" : "SOFT") : "PENDING",
+    providerActivatedAt: fixture.paymentState === "CAPTURED" ? acceptedAt : null,
+    exactLocationUnlockedAt: fixture.paymentState === "CAPTURED" ? acceptedAt : null,
+    contactUnlockedAt: fixture.paymentState === "CAPTURED" ? acceptedAt : null,
+    customerEtaAcceptedAt: fixture.requestState === "COMPLETED" ? shiftIso(submittedAt, 20) : null,
+    arrivalConfirmedAt: fixture.requestState === "COMPLETED" ? arrivedAt : null,
+    completionConfirmedAt: fixture.requestState === "COMPLETED" ? completedAt : null,
+    paymentPromptedAt: fixture.requestState === "COMPLETED" ? shiftIso(submittedAt, 70) : null,
+    noteExchange: fixture.requestState === "COMPLETED"
+      ? [
+          {
+            actorRole: "PROVIDER",
+            authorUserId: providerId,
+            message: fixture.note,
+            createdAt: shiftIso(submittedAt, 40)
+          }
+        ]
+      : [],
+    providerPayoutStatus: fixture.payoutState,
+    amountCharged: amountCollected,
+    amountCollected,
+    refundIssued: false,
+    refundFlag: false,
+    disputeFlag: false,
+    lastPaymentOrderId: fixture.paymentState === "CAPTURED" ? `sandbox-order-${fixture.requestId}` : null,
+    serviceTaxAmount: pricing.serviceTaxAmount,
+    providerTaxWithheld: pricing.providerTaxWithheld,
+    assignmentFee: pricing.assignmentFee,
+    dispatchFee: pricing.dispatchFee,
+    platformShareAmount: pricing.platformShare,
+    providerPayoutAmount: pricing.providerPayout,
+    requestAcceptanceWindowMinutes: 720,
+    requestAcceptanceExpiresAt: shiftIso(submittedAt, 720),
+    dispatchRequeueCount: 0,
+    lastRequeuedAt: null,
+    expiredAt: null,
+    submittedAt,
+    createdAt: submittedAt,
+    updatedAt,
+    userId,
+    roles: ["SUBSCRIBER"],
+    subscriberActive: true,
+    customerTier: "SUBSCRIBER",
+    pricing,
+    fullName: subscriber.fullName,
+    phoneNumber: subscriber.phoneNumber,
+    serviceType: fixture.serviceType,
+    location: fixture.location,
+    locationSummary: fixture.location,
+    notes: fixture.note,
+    vehicleInfo: formatSandboxVehicleLabel(subscriber.vehicle),
+    termsAccepted: true,
+    noRefundPolicyAccepted: true,
+    dispatchOnlyLiabilityAccepted: true,
+    liabilityNotice: AW_ROADSIDE_POLICY.platform.holdHarmless,
+    amount: {
+      currency_code: "USD",
+      value: priorityServicePrice.toFixed(2)
+    },
+    maskedNotes: "Detailed customer notes unlock after payment and provider activation.",
+    policyVersion: AW_ROADSIDE_POLICY.subscriber.termsVersion,
+    assignedProviderId: providerId,
+    acceptedAt,
+    providerActions: fixture.providerKey
+      ? buildSandboxProviderActionLog(providerId, submittedAt, fixture.requestState === "COMPLETED")
+      : [],
+    etaMinutes: fixture.providerKey ? 18 : null,
+    etaUpdatedAt,
+    arrivedAt,
+    completedAt,
+    payoutCompletedAt,
+    payoutReference: fixture.payoutState === "COMPLETED" ? `sandbox-payout-${fixture.requestId}` : null,
+    payoutBatchId: fixture.payoutState !== "UNASSIGNED" ? `sandbox-batch-${fixture.requestId}` : null,
+    payoutItemId: fixture.payoutState !== "UNASSIGNED" ? `sandbox-item-${fixture.requestId}` : null,
+    payoutLastEventType: fixture.payoutState === "COMPLETED"
+      ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
+      : fixture.payoutState === "PENDING"
+        ? "PAYMENT.PAYOUTSBATCH.PROCESSING"
+        : fixture.payoutState === "ON_HOLD"
+          ? "PAYMENT.PAYOUTS-ITEM.HELD"
+          : null,
+    payoutLastEventAt: fixture.payoutState !== "UNASSIGNED" ? updatedAt : null,
+    paymentProvider: fixture.paymentState === "CAPTURED" ? "paypal" : "manual-test-mode"
+  };
+}
+
+function buildSandboxProviderActionLog(providerId, submittedAt, includeCompletion) {
+  const actions = [
+    {
+      action: "accept",
+      providerUserId: providerId,
+      etaMinutes: 0,
+      note: "",
+      actorRole: "PROVIDER",
+      createdAt: shiftIso(submittedAt, 8)
+    },
+    {
+      action: "eta",
+      providerUserId: providerId,
+      etaMinutes: 18,
+      note: "",
+      actorRole: "PROVIDER",
+      createdAt: shiftIso(submittedAt, 15)
+    }
+  ];
+
+  if (includeCompletion) {
+    actions.push(
+      {
+        action: "arrived",
+        providerUserId: providerId,
+        etaMinutes: 0,
+        note: "",
+        actorRole: "PROVIDER",
+        createdAt: shiftIso(submittedAt, 55)
+      },
+      {
+        action: "completed",
+        providerUserId: providerId,
+        etaMinutes: 0,
+        note: "",
+        actorRole: "PROVIDER",
+        createdAt: shiftIso(submittedAt, 80)
+      }
+    );
+  }
+
+  return actions;
+}
+
+function findSandboxUserDescriptor(key) {
+  const descriptor = SANDBOX_MANUAL_TEST_USERS.find((entry) => entry.key === key);
+  if (!descriptor) {
+    throw new Error(`Sandbox descriptor ${key} was not found.`);
+  }
+  return descriptor;
+}
+
+function formatSandboxVehicleLabel(vehicle) {
+  if (!vehicle || typeof vehicle !== "object") {
+    return "Vehicle details not provided from app runtime";
+  }
+  return [vehicle.year, vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(" ");
+}
+
+function ensureFutureIso(value, daysFromNow) {
+  const parsed = new Date(value || "").getTime();
+  if (Number.isFinite(parsed) && parsed > Date.now()) {
+    return new Date(parsed).toISOString();
+  }
+  return shiftIso(new Date().toISOString(), daysFromNow * 24 * 60);
+}
+
+function minutesAgoIso(minutes) {
+  return new Date(Date.now() - Number(minutes || 0) * 60 * 1000).toISOString();
+}
+
+function shiftIso(baseIso, minutes) {
+  const base = new Date(baseIso);
+  return new Date(base.getTime() + Number(minutes || 0) * 60 * 1000).toISOString();
 }
 
 async function readUsers() {
