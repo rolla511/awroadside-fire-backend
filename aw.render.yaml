@@ -24,9 +24,9 @@ services:
         - package-lock.json
         - aw.render.yaml
         - app/runtime/**/*
-      ignoredPaths:
         - awroadside-fire-work/android/**
-        - awroadside-fire-work/ios/**
+      ignoredPaths:
+         - awroadside-fire-work/ios/**
         - dist-app-variant/**
         - dist/**
         - out/**
