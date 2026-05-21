@@ -43,7 +43,7 @@ services:
         value: 20
       - key: PUBLIC_BASE_URL
         value: https://awroadside-fire-backend.onrender.com
-      - key: DATABASE_URL
+      - key: INTERNAL_DB_URL
         sync: false
       - key: AW_DB_MODE
         value: external-db
