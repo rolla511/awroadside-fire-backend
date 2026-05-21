@@ -36,7 +36,7 @@ services:
         - "**/*.txt"
         - "**/*.zip"
     buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/build.mjs
-    startCommand: npm start
+    startCommand: node backend/server.mjs
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION

@@ -5,7 +5,7 @@ services:
     plan: starter
     rootDir: .
     buildCommand: npm install
-    startCommand: npm start
+    startCommand: node backend/server.mjs
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
