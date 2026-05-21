@@ -1,4 +1,4 @@
-const DEFAULT_BASE_URL = 'https://awroadside-fire-backend.onrender.com';
+const DEFAULT_BASE_URL = (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_BASE_URL) || 'https://awroadside-fire-backend.onrender.com';
 
 export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);

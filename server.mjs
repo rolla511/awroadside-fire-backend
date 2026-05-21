@@ -41,7 +41,7 @@ function loadInternalEnv() {
 }
 loadInternalEnv();
 
-const BLUEPRINT_RELATIVE_PATH = "render.yaml";
+const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
 const runtimeFileRoot = path.resolve(__dirname, "..");
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
 console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
@@ -641,6 +641,18 @@ const subscriberDispatchFee = Number.parseFloat(process.env.SUBSCRIBER_DISPATCH_
 const sessionSecret = process.env.AW_SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const sessionTtlMs = Number.parseInt(process.env.AW_SESSION_TTL_MS || `${12 * 60 * 60 * 1000}`, 10);
 const watchdogIntervalMs = Number.parseInt(process.env.AW_WATCHDOG_INTERVAL_MS || `${5 * 60 * 1000}`, 10);
+const sseClients = new Set();
+
+function broadcastSseEvent(event, data) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.res.write(payload);
+    } catch (err) {
+      console.error("[DEBUG_LOG] Error broadcasting SSE to client:", err.message);
+    }
+  }
+}
 const userSessions = new Map();
 let userMutationQueue = Promise.resolve();
 let requestMutationQueue = Promise.resolve();
@@ -709,7 +721,12 @@ for (const payment of initialPayments) {
 }
 await ensureSandboxManualTestFixtures();
 localWatchdog.startPeriodicScan(watchdogIntervalMs);
-await auditWebEntrypoint();
+// auditWebEntrypoint removed as per user request to remove expo related logic
+localWatchdog.record("server-started", {
+  port: port,
+  nodeVersion: process.version,
+  dbMode: process.env.AW_DB_MODE || "file-runtime"
+});
 await writeRuntimeArtifacts();
 
 // --- ARCHITECTURAL NOTE: UNIFIED SIGNAL MULTIPLEXING ---
@@ -756,6 +773,19 @@ const server = http.createServer(async (req, res) => {
         stream.pipe(res);
         return;
       }
+    }
+
+    if (pathname === "/api/events") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
+      });
+      res.write(": ok\n\n");
+      const client = { req, res };
+      sseClients.add(client);
+      req.on("close", () => sseClients.delete(client));
+      return;
     }
 
     const commonHelpers = {
@@ -811,7 +841,8 @@ const server = http.createServer(async (req, res) => {
       getCompatibilityManifest: () => runtimeRepository.getManifest(),
       acknowledgeCompatibilityVariant: (payload) => runtimeRepository.acknowledgeVariant(payload),
       getProtectedApiBaseUrl: (request) => getProtectedApiBaseUrl(request),
-      getRequestBaseUrl: (request) => resolveRequestBaseUrl(request)
+      getRequestBaseUrl: (request) => resolveRequestBaseUrl(request),
+      broadcastEvent: (event, data) => broadcastSseEvent(event, data)
     };
 
     const adminHandled = await adminController.handle(req, res, pathname, {
@@ -4783,6 +4814,7 @@ function mutateUsers(mutator) {
     const users = await readUsers();
     const result = await mutator(users);
     await writeUsers(users);
+    broadcastSseEvent("users-updated", { timestamp: new Date().toISOString() });
     return result;
   };
   const run = userMutationQueue.then(task, task);
@@ -4890,6 +4922,7 @@ async function createServiceRequest(serviceRequest) {
 
   await fs.mkdir(requestsRoot, { recursive: true });
   await fs.appendFile(requestLogPath, `${JSON.stringify(savedRequest)}\n`);
+  await storageAuthority.syncRequests([savedRequest]);
 
   return savedRequest;
 }
@@ -5018,6 +5051,7 @@ function mutateRequests(mutator) {
     const requests = await readRequestLog();
     const result = await mutator(requests);
     await writeRequestLog(requests);
+    broadcastSseEvent("requests-updated", { timestamp: new Date().toISOString() });
     return result;
   };
   const run = requestMutationQueue.then(task, task);
@@ -5320,32 +5354,6 @@ function contentType(filePath) {
     default:
       return "text/html; charset=utf-8";
   }
-}
-
-async function auditWebEntrypoint() {
-  try {
-    const indexPath = path.join(webRoot, "index.html");
-    const indexBody = await fs.readFile(indexPath, "utf8");
-    if (!looksLikeExpoShell(indexBody)) {
-      return;
-    }
-
-    console.error("[SECURITY] web/index.html contains Expo shell markers.");
-    await localWatchdog.record("expo-shell-detected", {
-      path: "web/index.html"
-    });
-  } catch (error) {
-    console.error("[WARN] Web entrypoint audit failed:", error);
-  }
-}
-
-function looksLikeExpoShell(body) {
-  const value = String(body || "");
-  return (
-    value.includes("expo/AppEntry.bundle") ||
-    value.includes("Use static rendering with Expo Router") ||
-    value.includes("react-native-web")
-  );
 }
 
 async function recordBlockedFallback(pathname, reason) {

@@ -482,6 +482,9 @@ export function createAwRoadsideStorageAuthority({
     },
     async syncUsers(users) {
       if (!enabled || !sql) {
+        if (status.mode === "external-db") {
+          throw new Error(`Cannot sync users: database is not enabled (status: ${status.lastEvent})`);
+        }
         return;
       }
       try {
@@ -493,6 +496,9 @@ export function createAwRoadsideStorageAuthority({
     },
     async syncRequests(requests) {
       if (!enabled || !sql) {
+        if (status.mode === "external-db") {
+          throw new Error(`Cannot sync requests: database is not enabled (status: ${status.lastEvent})`);
+        }
         return;
       }
       try {
@@ -505,6 +511,9 @@ export function createAwRoadsideStorageAuthority({
     },
     async appendPaymentEvent(entry) {
       if (!enabled || !sql) {
+        if (status.mode === "external-db") {
+          throw new Error(`Cannot append payment event: database is not enabled (status: ${status.lastEvent})`);
+        }
         return;
       }
       try {

@@ -9,9 +9,9 @@
     ".": "./backend/server.mjs",
     "./storage/index": "./backend/storage/index.mjs"
   },
-  "awBlueprint": "render.yaml",
+  "awBlueprint": "aw.backend.yaml",
   "engines": {
-    "node": ">=20 <23"
+    "node": ">=20"
   },
   "scripts": {
     "start": "node backend/server.mjs",
