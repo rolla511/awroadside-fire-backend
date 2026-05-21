@@ -41,7 +41,7 @@ function loadInternalEnv() {
 }
 loadInternalEnv();
 
-const BLUEPRINT_RELATIVE_PATH = "aw.render.yaml";
+const BLUEPRINT_RELATIVE_PATH = "render.yaml";
 const runtimeFileRoot = path.resolve(__dirname, "..");
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
 console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
