@@ -422,7 +422,7 @@ export function createAwRoadsideStorageAuthority({
         lastEvent: "awroadsidedb-config-initialized"
       };
 
-      if (!resolvedDbConfig.authority.configured || resolvedDbConfig.authority.mode === "file-runtime") {
+      if (resolvedDbConfig.authority.mode === "file-runtime") {
         status = {
           ...status,
           enabled: false,
@@ -431,6 +431,17 @@ export function createAwRoadsideStorageAuthority({
         await record("storage-authority-file-runtime", {
           repositories: Object.keys(repositories)
         });
+        if (resolvedDbConfig.authority.strict) {
+          throw new Error("AW Roadside storage authority refused file-runtime mode while strict mode is enabled.");
+        }
+        return;
+      }
+
+      if (!resolvedDbConfig.authority.configured) {
+        await handleFailure(
+          new Error("AW Roadside storage authority is in external-db mode but no database connection is configured."),
+          "storage-authority-db-not-configured"
+        );
         return;
       }
 

@@ -1,30 +1,29 @@
 {
-  "name": "awroadside-fire",
-  "main": "./index.js",
+  "name": "awroadside-fire-backend",
   "version": "1.0.0",
+  "private": true,
+  "description": "awroadside-fire-backend",
+  "type": "module",
+  "main": "./backend/server.mjs",
+  "exports": {
+    ".": "./backend/server.mjs",
+    "./storage/index": "./backend/storage/index.mjs"
+  },
+  "awBlueprint": "aw.render.yaml",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
-    "build:android:development": "EAS_NO_VCS=1 npx eas-cli build --platform android --profile development --non-interactive"
+    "start": "node backend/server.mjs",
+    "dev": "node backend/server.mjs",
+    "healthcheck": "node scripts/healthcheck.mjs",
+    "db:check": "node scripts/db-storage-check.mjs",
+    "build": "node scripts/build.mjs",
+    "watchdog": "node scripts/watchdog.mjs",
+    "watchdog:refresh": "node scripts/watchdog-refresh.mjs",
+    "test:paypal:webhook-sim": "node scripts/test-paypal-webhook-sim.mjs"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~55.0.10",
-    "expo": "~55.0.17",
-    "expo-dev-client": "~55.0.28",
-    "expo-splash-screen": "~55.0.19",
-    "expo-status-bar": "~55.0.5",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "react-native": "0.83.6",
-    "react-native-web": "~0.21.0"
-  },
-  "engines": {
-    "node": ">=20 <22"
-  },
-  "private": true,
-  "devDependencies": {
-    "@types/react": "~19.2.10"
+    "pg": "^8.20.0"
   }
 }

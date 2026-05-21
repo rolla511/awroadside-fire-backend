@@ -697,6 +697,16 @@ await localWatchdog.initialize();
 await auditBlueprintNodeRuntime();
 await localWatchdog.scanAndRecord();
 await storageAuthority.initialize();
+const [initialUsers, initialRequests, initialPayments] = await Promise.all([
+  readUsers(),
+  readRequestLog(),
+  readPaymentLog()
+]);
+await storageAuthority.syncUsers(initialUsers);
+await storageAuthority.syncRequests(initialRequests);
+for (const payment of initialPayments) {
+  await storageAuthority.appendPaymentEvent(payment);
+}
 await ensureSandboxManualTestFixtures();
 localWatchdog.startPeriodicScan(watchdogIntervalMs);
 await auditWebEntrypoint();
@@ -1357,6 +1367,9 @@ async function createRuntimeStatus() {
       webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
       webhookPath: paypalWebhookPath
     },
+    database: typeof awRoadsideDbConfig.getPublicStatus === "function"
+      ? awRoadsideDbConfig.getPublicStatus()
+      : null,
     watchdog: {
       active: true,
       intervalMs: watchdogIntervalMs,

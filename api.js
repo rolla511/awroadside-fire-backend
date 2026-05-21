@@ -1,7 +1,4 @@
-const DEFAULT_BASE_URL =
-  (typeof process !== 'undefined'
-    ? process.env?.EXPO_PUBLIC_API_BASE_URL?.trim?.()
-    : '') || 'https://awroadside-fire-backend.onrender.com';
+const DEFAULT_BASE_URL = 'https://awroadside-fire-backend.onrender.com';
 
 export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } = {}) {
   const normalizedBaseUrl = normalizeBaseUrl(baseUrl);
@@ -207,7 +204,7 @@ export function createApiClient({ baseUrl = DEFAULT_BASE_URL, getToken = null } 
 
   async function request(path, options = {}) {
     if (!normalizedBaseUrl) {
-      throw new Error('Backend URL is required. Set EXPO_PUBLIC_API_BASE_URL or enter it in the app runtime panel.');
+      throw new Error('Backend URL is required. Enter the deployed backend URL in the app runtime panel.');
     }
     const token = options.token || resolveToken(getToken);
     const headers = {

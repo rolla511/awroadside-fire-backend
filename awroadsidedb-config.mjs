@@ -31,6 +31,34 @@ function sanitizeConnectionString(value) {
   }
 }
 
+function parseConnectionString(value) {
+  const candidate = normalizeString(value);
+  if (!candidate) {
+    return {
+      host: "",
+      port: null,
+      database: "",
+      user: ""
+    };
+  }
+  try {
+    const parsed = new URL(candidate);
+    return {
+      host: normalizeString(parsed.hostname),
+      port: Number.parseInt(normalizeString(parsed.port), 10) || null,
+      database: normalizeString(parsed.pathname.replace(/^\/+/, "")),
+      user: normalizeString(parsed.username)
+    };
+  } catch {
+    return {
+      host: "",
+      port: null,
+      database: "",
+      user: ""
+    };
+  }
+}
+
 export function createAwRoadsideDbConfig({
   env = process.env,
   localWatchdog = null,
@@ -40,11 +68,15 @@ export function createAwRoadsideDbConfig({
   // ARCHITECTURAL NOTE: This module is the central authority for Database Configuration.
   // It handles the transition from file-runtime to external-db (Postgres).
   const client = normalizeString(env.DB_CLIENT || env.AW_DB_CLIENT || "postgres").toLowerCase();
-  const host = normalizeString(env.DB_HOST || env.AW_DB_HOST);
-  const database = normalizeString(env.db_id || env.DB_NAME || env.AW_DB_NAME);
-  const user = normalizeString(env.DB_USER || env.AW_DB_USER);
+  const configuredHost = normalizeString(env.DB_HOST || env.AW_DB_HOST);
+  const databaseId = normalizeString(env.db_id || env.DB_ID || env.AW_DB_ID);
+  const configuredDatabaseName = normalizeString(env.DB_NAME || env.AW_DB_NAME);
+  const configuredUser = normalizeString(env.DB_USER || env.AW_DB_USER);
   const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
-  const port = Number.parseInt(normalizeString(env.DB_PORT || env.AW_DB_PORT || `${DEFAULT_POSTGRES_PORT}`), 10);
+  const configuredPort = Number.parseInt(
+    normalizeString(env.DB_PORT || env.AW_DB_PORT || `${DEFAULT_POSTGRES_PORT}`),
+    10
+  );
   const ssl = readBooleanEnv(env.DB_SSL || env.AW_DB_SSL, false);
   const connectionString = normalizeString(
     env.DATABASE_URL ||
@@ -52,7 +84,12 @@ export function createAwRoadsideDbConfig({
     env.INTERNAL_DB_URL ||
     env.internal_db_url
   );
-  const applicationName = normalizeString(env.DB_APPLICATION_NAME || env.AW_DB_APPLICATION_NAME || "awroadside-server");
+  const parsedConnection = parseConnectionString(connectionString);
+  const host = configuredHost || parsedConnection.host;
+  const database = configuredDatabaseName || parsedConnection.database;
+  const user = configuredUser || parsedConnection.user;
+  const port = Number.isInteger(configuredPort) ? configuredPort : (parsedConnection.port || DEFAULT_POSTGRES_PORT);
+  const applicationName = normalizeString(env.DB_APPLICATION_NAME || env.AW_DB_APPLICATION_NAME || "awroadside-fire-backend");
   const mode = normalizeString(env.AW_DB_MODE || (connectionString || host ? "external-db" : "file-runtime")) || "file-runtime";
   const configured = Boolean(connectionString || (host && database && user));
   const strict = readBooleanEnv(env.AW_DB_STRICT, false);
@@ -67,6 +104,7 @@ export function createAwRoadsideDbConfig({
     host: host || null,
     port: Number.isInteger(port) ? port : DEFAULT_POSTGRES_PORT,
     database: database || null,
+    databaseId: databaseId || null,
     user: user || null,
     ssl,
     connectionString,
@@ -104,6 +142,7 @@ export function createAwRoadsideDbConfig({
         host: authority.host,
         port: authority.port,
         database: authority.database,
+        databaseId: authority.databaseId,
         applicationName: authority.applicationName,
         ssl: authority.ssl,
         connectionStringPreview: sanitizeConnectionString(authority.connectionString)
