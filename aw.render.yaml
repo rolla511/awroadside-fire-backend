@@ -48,7 +48,7 @@ services:
       - key: AW_DB_MODE
         value: external-db
       - key: AW_DB_STRICT
-        value: "false"
+        value: "true"
       - key: RUNTIME_ROOT
         value: /var/data/runtime
       - key: PAYPAL_ENV
