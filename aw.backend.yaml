@@ -4,24 +4,49 @@ services:
     runtime: node
     plan: starter
     rootDir: .
+    buildFilter:
+      paths:
+        - backend/storage/index.mjs
+        - backend/**/*.mjs
+        - backend/**/*.js
+        - backend/**/*.json
+        - awroadside-fire-work/android/**
+        - web/**/*.html
+        - web/**/*.js
+        - web/**/*.css
+        - scripts/**/*.mjs
+        - scripts/**/*.js
+        - node_modules/**/*
+        - package.json
+        - package-lock.json
+        - aw.backend.yaml
+        - app/runtime/**/*
+      ignoredPaths:
+        awroadside-fire-work/web/**/*.html
+        - awroadside-fire-work/web/**/*.js
+        - awroadside-fire-work/web/**/*.css
+        - awroadside-fire-work/web/assets/**/*
+        - awroadside-fire-work/ios/**
+        - dist-app-variant/**
+        - dist/**
+        - out/**
+        - wordpress/**
+        - src/**
+        - "**/*.md"
+        - "**/*.txt"
+        - "**/*.zip"
     buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/build.mjs
-    startCommand: node dist/backend/server.mjs
+    startCommand: node backend/server.mjs
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: 22.11.0
-      - key: NPM_CONFIG_ENGINE_STRICT
-        value: "true"
+        value: 20
       - key: PUBLIC_BASE_URL
         value: https://awroadside-fire-backend.onrender.com
       - key: INTERNAL_DB_URL
         sync: false
-      - key: AW_DB_NAME
-        sync: false
-      - key: AW_DB_ID
-        sync: false
       - key: AW_DB_MODE
-        value: external-db
+        value: file-runtime
       - key: AW_DB_STRICT
         value: "false"
       - key: RUNTIME_ROOT
@@ -35,8 +60,6 @@ services:
       - key: PAYPAL_WEBHOOK_ID
         sync: false
       - key: db_id
-        sync: false
-      - key: AW_DB_ID
         sync: false
       - key: mapbox_access_token
         sync: false

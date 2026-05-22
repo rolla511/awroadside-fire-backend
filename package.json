@@ -1,17 +1,17 @@
 {
-  "name": "awroadside-fire-structure",
+  "name": "awroadside-fire-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "awroadside-fire-structure",
+  "description": "awroadside-fire-backend",
   "type": "module",
   "main": "./backend/server.mjs",
   "exports": {
     ".": "./backend/server.mjs",
     "./storage/index": "./backend/storage/index.mjs"
   },
-  "awBlueprint": "render.yaml",
+  "awBlueprint": "aw.backend.yaml",
   "engines": {
-    "node": ">=20"
+    "node": "22.11.0"
   },
   "scripts": {
     "start": "node backend/server.mjs",
