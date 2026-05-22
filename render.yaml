@@ -5,7 +5,7 @@ services:
     plan: starter
     rootDir: .
     buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/build.mjs
-    startCommand: node backend/server.mjs
+    startCommand: node dist/backend/server.mjs
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
@@ -14,8 +14,10 @@ services:
         value: https://awroadside-fire-backend.onrender.com
       - key: INTERNAL_DB_URL
         sync: false
+      - key: AW_DB_NAME
+        sync: false
       - key: AW_DB_MODE
-        value: file-runtime
+        value: external-db
       - key: AW_DB_STRICT
         value: "false"
       - key: RUNTIME_ROOT
