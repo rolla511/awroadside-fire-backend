@@ -1,8 +1,8 @@
 {
-  "name": "awroadside-fire-backend",
+  "name": "awroadside-fire-structure",
   "version": "1.0.0",
   "private": true,
-  "description": "awroadside-fire-backend",
+  "description": "awroadside-fire-structure",
   "type": "module",
   "main": "./backend/server.mjs",
   "exports": {
