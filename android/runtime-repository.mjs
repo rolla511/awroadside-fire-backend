@@ -3,11 +3,11 @@ import path from "path";
 
 const DEFAULT_STALE_AFTER_MS = 5 * 60 * 1000;
 const DEFAULT_PROJECT_ID = "awroadside-fire";
-const DEFAULT_ACTIVE_VARIANT_ID = "awroadside-fire-backend";
+const DEFAULT_ACTIVE_VARIANT_ID = "com.awobemedia.awroadsidefire";
 const DEFAULT_VARIANT_MODE = "active";
 
 export function createRuntimeRepository({ runtimeRoot }) {
-  const repositoryPath = path.join(runtimeRoot, "compatibility-repository.json");
+  const repositoryPath = path.join(runtimeRoot, "index.mjs");
   let state = createEmptyState();
 
   return {
@@ -72,7 +72,7 @@ export function createRuntimeRepository({ runtimeRoot }) {
     async getSnapshot() {
       state = await readState(repositoryPath);
       return {
-        repository: "aw-roadside-runtime-repository",
+        repository: "index.mjs",
         repositoryPath,
         manifest: state.manifest,
         updatedAt: state.updatedAt,
@@ -152,7 +152,7 @@ function createManifest() {
     projectId: DEFAULT_PROJECT_ID,
     activeVariantId: DEFAULT_ACTIVE_VARIANT_ID,
     mode: DEFAULT_VARIANT_MODE,
-    authority: "protected-backend",
+    authority: "server.mjs",
     releaseStrategy: "acknowledge-before-write",
     generatedAt: new Date().toISOString()
   };
