@@ -1,5 +1,5 @@
-services:
-  - type: web
+services:deploy
+  - type: external_url
     name: awroadside-fire-backend
     runtime: node
     plan: starter
@@ -11,14 +11,15 @@ services:
         - backend/**/*.js
         - backend/**/*.json
         - awroadside-fire-work/android/**
-        - web/**/*.html
-        - web/**/*.js
-        - web/**/*.css
+        
+        
+        _src/**
         - scripts/**/*.mjs
         - scripts/**/*.js
         - node_modules/**/*
         - package.json
-        - package-lock.json
+
+        -backend/server.mjs
         - aw.backend.yaml
         - app/runtime/**/*
       ignoredPaths:
@@ -31,17 +32,17 @@ services:
         - dist/**
         - out/**
         - wordpress/**
-        - src/**
+        
         - "**/*.md"
         - "**/*.txt"
         - "**/*.zip"
-    buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/build.mjs
+    buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/
     startCommand: node backend/server.mjs
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: 20
-      - key: PUBLIC_BASE_URL
+      - key: package.json
         value: https://awroadside-fire-backend.onrender.com
       - key: INTERNAL_DB_URL
         sync: false
