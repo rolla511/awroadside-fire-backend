@@ -4,8 +4,8 @@ services:
     runtime: node
     plan: starter
     rootDir: .
-    buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/build.mjs
-    startCommand: node dist/backend/server.mjs
+    buildCommand: npm install && node scripts/build.mjs
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION

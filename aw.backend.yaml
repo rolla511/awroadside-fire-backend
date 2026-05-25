@@ -1,5 +1,5 @@
-services:deploy
-  - type: external_url
+Services:deploy
+  - type: backend/server.mjs
     name: awroadside-fire-backend
     runtime: node
     plan: starter
@@ -10,39 +10,32 @@ services:deploy
         - backend/**/*.mjs
         - backend/**/*.js
         - backend/**/*.json
-        - awroadside-fire-work/android/**
-        
-        
-        _src/**
+        - web/**/*
         - scripts/**/*.mjs
         - scripts/**/*.js
-        - node_modules/**/*
         - package.json
-
-        -backend/server.mjs
+        - src/**
         - aw.backend.yaml
+        - render.yaml
+        - .node-version
         - app/runtime/**/*
       ignoredPaths:
-        awroadside-fire-work/web/**/*.html
-        - awroadside-fire-work/web/**/*.js
-        - awroadside-fire-work/web/**/*.css
-        - awroadside-fire-work/web/assets/**/*
-        - awroadside-fire-work/ios/**
+        - 
         - dist-app-variant/**
-        - dist/**
+        - 
         - out/**
         - wordpress/**
         
         - "**/*.md"
         - "**/*.txt"
         - "**/*.zip"
-    buildCommand: npm install && (cd awroadside-fire-work && npm install --no-scripts) && node scripts/
-    startCommand: node backend/server.mjs
+    buildCommand: npm install && node scripts/build.mjs
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: 20
-      - key: package.json
+        value: 22.11.0
+      - key: PUBLIC_BASE_URL
         value: https://awroadside-fire-backend.onrender.com
       - key: INTERNAL_DB_URL
         sync: false

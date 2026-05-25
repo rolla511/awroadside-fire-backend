@@ -4,7 +4,7 @@ const [{ promises: fs }, { default: crypto }, { default: path }] = await Promise
   import("path")
 ]);
 
-const BLUEPRINT_RELATIVE_PATH = "aw.render.yaml";
+const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
 
 const CANDIDATE_WATCHED_RELATIVE_FILES = [
   "backend/server.mjs",
@@ -22,20 +22,24 @@ const CANDIDATE_WATCHED_RELATIVE_FILES = [
   "backend/smtp-mailer.mjs",
   "backend/request-service-controller.mjs",
   "backend/admin-controller.mjs",
+  "scripts/build.mjs",
   "web/app.js",
   "web/index.html",
+  "web/home.html",
   "web/customer.html",
   "web/provider.html",
-  "awroadside-fire-work/index.js",
-  "awroadside-fire-work/App.js",
-  "awroadside-fire-work/app.json",
-  "awroadside-fire-work/package.json",
-  "awroadside-fire-work/lib/api.js",
-  "awroadside-fire-work/web/app.js",
-  "awroadside-fire-work/web/index.html",
-  "awroadside-fire-work/web/customer.html",
-  "awroadside-fire-work/web/provider.html",
+  "web/provider-info.html",
+  "web/provider-wallet.html",
+  "web/provider-work.html",
+  "web/admin.html",
+  "web/admin-accounts.html",
+  "web/admin-dashboard.html",
+  "web/admin-financials.html",
+  "web/subscriber-access.html",
+  "web/styles.css",
+  "web/.well-known/assetlinks.json",
   BLUEPRINT_RELATIVE_PATH,
+  "render.yaml",
   "package.json"
 ];
 

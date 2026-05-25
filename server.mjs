@@ -439,7 +439,7 @@ const SERVER_AUTHORITY = Object.freeze({
   serviceId: "awroadside-fire-backend",
   runtime: "node",
   activeEntrypoint: "backend/server.mjs",
-  rootShimEntrypoint: "server.mjs",
+  rootShimEntrypoint: null,
   compatibilityGatewayPath: "/api/compat/status",
   compatibilityManifestPath: "/api/compat/manifest",
   protectedApiBasePath: PROTECTED_API_BASE_PATH,
@@ -490,11 +490,11 @@ function resolveWebRoot() {
         ? configuredWebRoot
         : path.resolve(projectRoot, configuredWebRoot)
       : null,
-    path.join(projectRoot, "awroadside-fire-work", "web"),
     path.join(projectRoot, "web"),
     path.join(cwd, "web"),
     path.join(projectRoot, "dist", "web"),
     path.join(cwd, "dist", "web"),
+    path.join(projectRoot, "awroadside-fire-work", "web"),
     path.join(parentRoot, "web"),
     path.join(parentRoot, "src", "web")
   ].filter(Boolean);
