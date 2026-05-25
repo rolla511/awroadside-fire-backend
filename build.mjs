@@ -8,12 +8,12 @@ const projectRoot = path.resolve(__dirname, "..");
 const distRoot = path.join(projectRoot, "dist");
 const webRoot = path.join(projectRoot, "awroadside-fire-work", "web");
 const appRoot = path.join(projectRoot, "app");
-const backendRoot = path.join(projectRoot, "backend");
+const backendRoot = path.join(projectRoot, "backend/server.mjs");
 
-const expoDistRoot = path.join(projectRoot, "awroadside-fire-work", "dist");
+
 
 // 0. Ensure we are not using the legacy variant
-const legacyVariant = path.join(projectRoot, "dist-app-variant");
+const legacyVariant = path.join(projectRoot, "com.awobemedia.awroadsidefire");
 if (await fs.stat(legacyVariant).catch(() => null)) {
   console.log("Excluding legacy dist-app-variant from build.");
 }
@@ -21,14 +21,8 @@ if (await fs.stat(legacyVariant).catch(() => null)) {
 await fs.rm(distRoot, { recursive: true, force: true });
 await fs.mkdir(distRoot, { recursive: true });
 
-// 1. Copy the "Formatted Front" (Expo Web Build) as the primary index
-if (await fs.stat(expoDistRoot).catch(() => null)) {
-  await copyDir(expoDistRoot, path.join(distRoot, "web"));
-} else {
-  console.log(`Warning: ${expoDistRoot} not found. Skipping Expo web assets.`);
-}
-
-// 2. Overlay the custom Dashboard/HTML utility pages from the web folder
+else {
+  // 2. Overlay the custom Dashboard/HTML utility pages from the web folder
 await copyDir(webRoot, path.join(distRoot, "web"), {
   skip: (sourcePath) => path.basename(sourcePath).startsWith("legacy-")
 });
