@@ -40,7 +40,8 @@ const CANDIDATE_WATCHED_RELATIVE_FILES = [
   "web/.well-known/assetlinks.json",
   BLUEPRINT_RELATIVE_PATH,
   "render.yaml",
-  "package.json"
+  "package.json",
+  "aw.backend.yamal"
 ];
 
 export function createLocalWatchdog({ projectRoot, runtimeRoot }) {
