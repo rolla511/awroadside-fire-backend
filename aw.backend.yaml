@@ -29,12 +29,12 @@ Services:deploy
         - "**/*.md"
         - "**/*.txt"
         - "**/*.zip"
-    buildCommand: npm install && node scripts/build.mjs
+    buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
-        value: 22.11.0
+        sync: false
       - key: PUBLIC_BASE_URL
         value: https://awroadside-fire-backend.onrender.com
       - key: INTERNAL_DB_URL

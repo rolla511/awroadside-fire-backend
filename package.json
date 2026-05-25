@@ -1,15 +1,83 @@
 {
-  "name": "awroadside-fire-backend",
+  "name": "awroadside-fire",
   "version": "1.0.0",
   "private": true,
+  "description": "AW Roadside Fire runtime stack manifest",
   "type": "module",
-  "engines": {
-    "node": "22.11.0"
+  "main": "./backend/storage/index.mjs",
+  "exports": {
+    ".": "./backend/storage/index.mjs",
+    "./server": "./backend/server.mjs",
+    "./storage": "./backend/storage/index.mjs",
+    "./storage/schema": "./backend/storage/schema.mjs",
+    "./db-config": "./backend/awroadsidedb-config.mjs"
   },
+  "files": [
+    "backend/",
+    "web/",
+    "app/runtime/security/",
+    "aw.backend.yaml",
+    ".env.example"
+  ],
   "scripts": {
-    "start": "node backend/server.mjs"
+    "start": "node ./backend/server.mjs",
+    "server": "node ./backend/server.mjs"
   },
-  "dependencies": {
-    "pg": "^8.20.0"
+  "awroadsideRuntime": {
+    "projectId": "awroadside-fire",
+    "entrypoints": {
+      "storage": "./backend/storage/index.mjs",
+      "server": "./backend/server.mjs",
+      "schema": "./backend/storage/schema.mjs",
+      "dbConfig": "./backend/awroadsidedb-config.mjs"
+    },
+    "database": {
+      "urlEnv": "internal_db_url",
+      "idEnv": "db_id",
+      "nameEnv": "AW_DB_NAME"
+    },
+    "deploy": {
+      "publicBaseUrlEnv": "PUBLIC_BASE_URL",
+      "defaultPublicBaseUrl": "https://awroadside-fire-backend.onrender.com"
+    },
+    "api": {
+      "events": "/api/events",
+      "health": "/api/health",
+      "authority": "/api/authority",
+      "frontendConfig": "/api/frontend-config",
+      "integrationTarget": "/api/integration-target",
+      "runtimeStatus": "/api/runtime/status",
+      "runtimeFiles": "/api/runtime/files",
+      "paymentsConfig": "/api/payments/config",
+      "paypalWebhook": "/api/paypal/webhook",
+      "protectedBasePath": "/api/aw-roadside",
+      "protectedFrontendConfig": "/api/aw-roadside/frontend-config"
+    },
+    "env": [
+      "HOST",
+      "PORT",
+      "PUBLIC_BASE_URL",
+      "internal_db_url",
+      "db_id",
+      "AW_DB_NAME",
+      "RUNTIME_ROOT",
+      "PAYPAL_ENV",
+      "PAYPAL_CLIENT_ID",
+      "PAYPAL_CLIENT_SECRET",
+      "PAYPAL_WEBHOOK_ID",
+      "MAIL_HOST",
+      "MAIL_PORT",
+      "MAIL_SECURE",
+      "MAIL_REQUIRE_STARTTLS",
+      "MAIL_USER",
+      "MAIL_PASSWORD",
+      "MAIL_FROM",
+      "MAIL_REPLY_TO",
+      "AW_SESSION_SECRET",
+      "ADMIN_EMAIL",
+      "ADMIN_PASSWORD",
+      "ADMIN_2FA_CODE",
+      "ADMIN_TRUSTED_ZONES"
+    ]
   }
 }
