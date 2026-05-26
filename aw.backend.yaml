@@ -5,7 +5,7 @@ Services:web
     plan: starter
     rootDir: server.mjs
     buildFilter:package.json
-      paths:server.mjs
+      paths:
         - backend/storage/index.mjs
         - backend/**/*.mjs
         - backend/**/*.js
