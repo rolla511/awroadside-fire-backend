@@ -63,7 +63,7 @@ export function createAwRoadsideDbConfig({
   env = process.env,
   localWatchdog = null,
   projectId = "awroadside-fire",
-  backendEntry = "backend/server.mjs"
+  backendEntry = "server.mjs"
 } = {}) {
   // ARCHITECTURAL NOTE: This module is the central authority for Database Configuration.
   // It handles the transition from file-runtime to external-db (Postgres).
