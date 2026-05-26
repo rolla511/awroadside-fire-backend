@@ -2,79 +2,18 @@
   "name": "awroadside-fire",
   "version": "1.0.0",
   "private": true,
-  "description": "AW Roadside Fire runtime stack manifest",
+  "description": "AW Roadside Fire runtime",
   "type": "module",
   "main": "index.mjs",
   "exports": {
-    ".": "index.mjs",
-    "./server": "server.mjs",
-    "./storage": "index.mjs",
-    "./storage/schema": "schema.mjs",
-    "./db-config": "awroadsidedb-config.mjs"
+    ".": "./index.mjs",
+    "./server": "./server.mjs",
+    "./storage": "./storage.mjs",
+    "./schema": "./schema.mjs",
+    "./db-config": "./db-config.mjs"
   },
-  "files": [
-    "aw.backend.yaml",
-    ".env.example"
-  ],
   "scripts": {
-    "start": "node: index.mjs",
-    "server": "node: server.mjs"
-  },
-  "awroadsideRuntime": {
-    "projectId": "awroadside-fire",
-    "entrypoints": {
-      "storage": "index.mjs",
-      "server": "server.mjs",
-      "schema": "schema.mjs",
-      "dbConfig": "awroadsidedb-config.mjs"
-    },
-    "database": {
-      "urlEnv": "internal_db_url",
-      "idEnv": "db_id",
-      "nameEnv": "AW_DB_NAME"
-    },
-    "deploy": {
-      "publicBaseUrlEnv": "PUBLIC_BASE_URL",
-      "defaultPublicBaseUrl": "https://awroadside-fire-backend.onrender.com"
-    },
-    "api": {
-      "events": "/api/events",
-      "health": "/api/health",
-      "authority": "/api/authority",
-      "frontendConfig": "/api/frontend-config",
-      "integrationTarget": "/api/integration-target",
-      "runtimeStatus": "/api/runtime/status",
-      "runtimeFiles": "/api/runtime/files",
-      "paymentsConfig": "/api/payments/config",
-      "paypalWebhook": "paypal-webhook.mjs",
-      "protectedBasePath": "/api/aw-roadside",
-      "protectedFrontendConfig": "/api/aw-roadside/frontend-config"
-    },
-    "env": [
-      "HOST",
-      "PORT",
-      "PUBLIC_BASE_URL",
-      "internal_db_url",
-      "db_id",
-      "AW_DB_NAME",
-      "RUNTIME_ROOT",
-      "PAYPAL_ENV",
-      "PAYPAL_CLIENT_ID",
-      "PAYPAL_CLIENT_SECRET",
-      "PAYPAL_WEBHOOK_ID",
-      "MAIL_HOST",
-      "MAIL_PORT",
-      "MAIL_SECURE",
-      "MAIL_REQUIRE_STARTTLS",
-      "MAIL_USER",
-      "MAIL_PASSWORD",
-      "MAIL_FROM",
-      "MAIL_REPLY_TO",
-      "AW_SESSION_SECRET",
-      "ADMIN_EMAIL",
-      "ADMIN_PASSWORD",
-      "ADMIN_2FA_CODE",
-      "ADMIN_TRUSTED_ZONES"
-    ]
+    "start": "node index.mjs",
+    "server": "node server.mjs"
   }
 }
