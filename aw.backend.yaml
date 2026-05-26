@@ -1,4 +1,4 @@
-Services:deploy
+Services:web
   - type: backend/server.mjs
     name: awroadside-fire-backend
     runtime: node
