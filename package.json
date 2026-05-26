@@ -4,32 +4,29 @@
   "private": true,
   "description": "AW Roadside Fire runtime stack manifest",
   "type": "module",
-  "main": "./backend/storage/index.mjs",
+  "main": "index.mjs",
   "exports": {
-    ".": "./backend/storage/index.mjs",
-    "./server": "./backend/server.mjs",
-    "./storage": "./backend/storage/index.mjs",
-    "./storage/schema": "./backend/storage/schema.mjs",
-    "./db-config": "./backend/awroadsidedb-config.mjs"
+    ".": "index.mjs",
+    "./server": "server.mjs",
+    "./storage": "index.mjs",
+    "./storage/schema": "schema.mjs",
+    "./db-config": "awroadsidedb-config.mjs"
   },
   "files": [
-    "backend/",
-    "web/",
-    "app/runtime/security/",
     "aw.backend.yaml",
     ".env.example"
   ],
   "scripts": {
-    "start": "node ./backend/storage/index.mjs",
-    "server": "node ./backend/server.mjs"
+    "start": "node: index.mjs",
+    "server": "node: server.mjs"
   },
   "awroadsideRuntime": {
     "projectId": "awroadside-fire",
     "entrypoints": {
-      "storage": "./backend/storage/index.mjs",
-      "server": "./backend/server.mjs",
-      "schema": "./backend/storage/schema.mjs",
-      "dbConfig": "./backend/awroadsidedb-config.mjs"
+      "storage": "index.mjs",
+      "server": "server.mjs",
+      "schema": "schema.mjs",
+      "dbConfig": "awroadsidedb-config.mjs"
     },
     "database": {
       "urlEnv": "internal_db_url",
@@ -49,7 +46,7 @@
       "runtimeStatus": "/api/runtime/status",
       "runtimeFiles": "/api/runtime/files",
       "paymentsConfig": "/api/payments/config",
-      "paypalWebhook": "/api/paypal/webhook",
+      "paypalWebhook": "paypal-webhook.mjs",
       "protectedBasePath": "/api/aw-roadside",
       "protectedFrontendConfig": "/api/aw-roadside/frontend-config"
     },
