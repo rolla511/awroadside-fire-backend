@@ -1,0 +1,496 @@
+{
+  "layer": "aw-roadside-local-watchdog",
+  "active": true,
+  "scannedAt": "2026-05-25T19:56:07.736Z",
+  "baselineCreatedAt": "2026-04-02T18:36:13.771Z",
+  "watchedFiles": 34,
+  "integrityOk": false,
+  "suspiciousFiles": [
+    {
+      "path": "backend/server.mjs",
+      "status": "modified",
+      "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+      "currentSha256": "cfda6c947eb3447fedc6488510af9168bfc8c421ff42ca1e450ea53f9b231eef"
+    },
+    {
+      "path": "backend/awroadsidedb-config.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/index.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/storage/schema.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/aw-roadside-security.mjs",
+      "status": "modified",
+      "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+      "currentSha256": "6be1518274edfabe5dcd5117b24c53fa804d8b205a562c44dd4fb0e4c3d0038b"
+    },
+    {
+      "path": "backend/subscription-controller.mjs",
+      "status": "modified",
+      "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+      "currentSha256": "d9f5098dfe9802711239494cfac0ae39fe88e8d6c196f6f253b2c789b2c07285"
+    },
+    {
+      "path": "backend/smtp-mailer.mjs",
+      "status": "untracked"
+    },
+    {
+      "path": "backend/request-service-controller.mjs",
+      "status": "modified",
+      "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+      "currentSha256": "7e80af0b01e8f0f206f8b31b2f7e9a00e6deecb200e2a55f6efa44f8e39d3e81"
+    },
+    {
+      "path": "backend/admin-controller.mjs",
+      "status": "modified",
+      "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+      "currentSha256": "c11a14a0848bb83713a6b170cf33bf7c6b3f43e55f17b08f9e239f6f067fc6da"
+    },
+    {
+      "path": "web/app.js",
+      "status": "modified",
+      "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
+      "currentSha256": "28e137225993fc966c084f8a9764746076d7ee9906aa9219b22f9ae994292d90"
+    },
+    {
+      "path": "web/index.html",
+      "status": "modified",
+      "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
+      "currentSha256": "123535ec1bf97bfec2477eb8e8490804dacbdd553c0578d1a58524aa70f3667a"
+    },
+    {
+      "path": "web/home.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/customer.html",
+      "status": "modified",
+      "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
+      "currentSha256": "1600b2125e92a5b6be14ec113f4b88c42e8dfa02a19b67b25837e7910373a3b4"
+    },
+    {
+      "path": "web/provider.html",
+      "status": "modified",
+      "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
+      "currentSha256": "d2dd64107f2e500cbd9b69e5e97123538fd44d74e031ebc92dd39c8a2cacc7fe"
+    },
+    {
+      "path": "web/provider-info.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/provider-wallet.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/provider-work.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/admin.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/admin-accounts.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/admin-dashboard.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/admin-financials.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/subscriber-access.html",
+      "status": "untracked"
+    },
+    {
+      "path": "web/styles.css",
+      "status": "untracked"
+    },
+    {
+      "path": "web/.well-known/assetlinks.json",
+      "status": "untracked"
+    },
+    {
+      "path": "aw.backend.yaml",
+      "status": "untracked"
+    },
+    {
+      "path": "render.yaml",
+      "status": "untracked"
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+      "currentSha256": "350e2c5caba1365c24108fb2fcfa5cfbb0bc0594b7279c48d2451a74c6e1832a"
+    }
+  ],
+  "recentEvents": [
+    {
+      "event": "integrity-drift-detected",
+      "suspiciousFiles": [
+        {
+          "path": "backend/server.mjs",
+          "status": "modified",
+          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+          "currentSha256": "cfda6c947eb3447fedc6488510af9168bfc8c421ff42ca1e450ea53f9b231eef"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/aw-roadside-security.mjs",
+          "status": "modified",
+          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+          "currentSha256": "6be1518274edfabe5dcd5117b24c53fa804d8b205a562c44dd4fb0e4c3d0038b"
+        },
+        {
+          "path": "backend/subscription-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+          "currentSha256": "d9f5098dfe9802711239494cfac0ae39fe88e8d6c196f6f253b2c789b2c07285"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/request-service-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+          "currentSha256": "7e80af0b01e8f0f206f8b31b2f7e9a00e6deecb200e2a55f6efa44f8e39d3e81"
+        },
+        {
+          "path": "backend/admin-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+          "currentSha256": "c11a14a0848bb83713a6b170cf33bf7c6b3f43e55f17b08f9e239f6f067fc6da"
+        },
+        {
+          "path": "web/app.js",
+          "status": "modified",
+          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
+          "currentSha256": "28e137225993fc966c084f8a9764746076d7ee9906aa9219b22f9ae994292d90"
+        },
+        {
+          "path": "web/index.html",
+          "status": "modified",
+          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
+          "currentSha256": "123535ec1bf97bfec2477eb8e8490804dacbdd553c0578d1a58524aa70f3667a"
+        },
+        {
+          "path": "web/home.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/customer.html",
+          "status": "modified",
+          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
+          "currentSha256": "1600b2125e92a5b6be14ec113f4b88c42e8dfa02a19b67b25837e7910373a3b4"
+        },
+        {
+          "path": "web/provider.html",
+          "status": "modified",
+          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
+          "currentSha256": "d2dd64107f2e500cbd9b69e5e97123538fd44d74e031ebc92dd39c8a2cacc7fe"
+        },
+        {
+          "path": "web/provider-info.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/provider-wallet.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/provider-work.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin-accounts.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin-dashboard.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin-financials.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/subscriber-access.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/styles.css",
+          "status": "untracked"
+        },
+        {
+          "path": "web/.well-known/assetlinks.json",
+          "status": "untracked"
+        },
+        {
+          "path": "aw.backend.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "render.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "package.json",
+          "status": "modified",
+          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+          "currentSha256": "350e2c5caba1365c24108fb2fcfa5cfbb0bc0594b7279c48d2451a74c6e1832a"
+        }
+      ],
+      "timestamp": "2026-05-25T19:56:07.755Z"
+    },
+    {
+      "event": "server-started",
+      "port": 3001,
+      "nodeVersion": "v20.20.2",
+      "dbMode": "file-runtime",
+      "timestamp": "2026-05-25T19:06:19.998Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-25T19:06:19.934Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-25T19:06:19.932Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "file-runtime",
+      "configured": false,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-05-25T19:06:19.930Z"
+    },
+    {
+      "event": "integrity-drift-detected",
+      "suspiciousFiles": [
+        {
+          "path": "backend/server.mjs",
+          "status": "modified",
+          "baselineSha256": "d033facd318fb7e85d93982f9c6f25812cff30a99364fef45f78bec4e88d5e41",
+          "currentSha256": "cfda6c947eb3447fedc6488510af9168bfc8c421ff42ca1e450ea53f9b231eef"
+        },
+        {
+          "path": "backend/awroadsidedb-config.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/index.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/storage/schema.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/aw-roadside-security.mjs",
+          "status": "modified",
+          "baselineSha256": "a0221bdbcd6aab72ab588896317118afbf82d64ce831a939010a4cb9d69294db",
+          "currentSha256": "6be1518274edfabe5dcd5117b24c53fa804d8b205a562c44dd4fb0e4c3d0038b"
+        },
+        {
+          "path": "backend/subscription-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "9a79213078c3c4054adb0e66b39e9439bf76c59f077a7cc58fe01429ec2a0679",
+          "currentSha256": "d9f5098dfe9802711239494cfac0ae39fe88e8d6c196f6f253b2c789b2c07285"
+        },
+        {
+          "path": "backend/smtp-mailer.mjs",
+          "status": "untracked"
+        },
+        {
+          "path": "backend/request-service-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "3ee9fee8b23ad8335a631116a3b9a8efa28bcb06250d2953454454ca699beee7",
+          "currentSha256": "7e80af0b01e8f0f206f8b31b2f7e9a00e6deecb200e2a55f6efa44f8e39d3e81"
+        },
+        {
+          "path": "backend/admin-controller.mjs",
+          "status": "modified",
+          "baselineSha256": "628265113f9e6889101a3155bb02e28bdd16d059fa5f6b64c9f4d728a047b561",
+          "currentSha256": "c11a14a0848bb83713a6b170cf33bf7c6b3f43e55f17b08f9e239f6f067fc6da"
+        },
+        {
+          "path": "web/app.js",
+          "status": "modified",
+          "baselineSha256": "acffec2e9bf5037de7888d8d283491a3d7b4b86ffa4cc1fb3c60d35e2ea20bee",
+          "currentSha256": "28e137225993fc966c084f8a9764746076d7ee9906aa9219b22f9ae994292d90"
+        },
+        {
+          "path": "web/index.html",
+          "status": "modified",
+          "baselineSha256": "d8b3fba06c1a05cd08b66a21628b968e5f191d1052a5437a2fdbb841f1613f16",
+          "currentSha256": "123535ec1bf97bfec2477eb8e8490804dacbdd553c0578d1a58524aa70f3667a"
+        },
+        {
+          "path": "web/home.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/customer.html",
+          "status": "modified",
+          "baselineSha256": "ec48174f09f9a3d9801251b09b57ad9662ba862b980938061e663a5a057f7d1f",
+          "currentSha256": "1600b2125e92a5b6be14ec113f4b88c42e8dfa02a19b67b25837e7910373a3b4"
+        },
+        {
+          "path": "web/provider.html",
+          "status": "modified",
+          "baselineSha256": "1a0c24e640d75d3d3b4393af130d14f31e9708a5ec9f53e9a2b5665401e6b914",
+          "currentSha256": "d2dd64107f2e500cbd9b69e5e97123538fd44d74e031ebc92dd39c8a2cacc7fe"
+        },
+        {
+          "path": "web/provider-info.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/provider-wallet.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/provider-work.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin-accounts.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin-dashboard.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/admin-financials.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/subscriber-access.html",
+          "status": "untracked"
+        },
+        {
+          "path": "web/styles.css",
+          "status": "untracked"
+        },
+        {
+          "path": "web/.well-known/assetlinks.json",
+          "status": "untracked"
+        },
+        {
+          "path": "aw.backend.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "render.yaml",
+          "status": "untracked"
+        },
+        {
+          "path": "package.json",
+          "status": "modified",
+          "baselineSha256": "88c03d73f150652d0081b03c5193cc8623a0eed8fa30ff9f03e6e08195951170",
+          "currentSha256": "dce494069f9c45eb0289f6daacb30d1b5b59914b0e5c137d9196d883dd79c8aa"
+        }
+      ],
+      "timestamp": "2026-05-25T19:06:19.908Z"
+    },
+    {
+      "event": "server-started",
+      "port": 0,
+      "nodeVersion": "v20.20.2",
+      "dbMode": "file-runtime",
+      "timestamp": "2026-05-25T17:45:47.050Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-25T17:45:46.986Z"
+    },
+    {
+      "event": "storage-authority-file-runtime",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-05-25T17:45:46.984Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "backend/server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "file-runtime",
+      "configured": false,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-05-25T17:45:46.983Z"
+    }
+  ]
+}
