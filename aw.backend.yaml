@@ -1,24 +1,19 @@
 Services:web
-  - type: backend/server.mjs
+  - type: server.mjs
     name: awroadside-fire-backend
     runtime: node
     plan: starter
     rootDir: server.mjs
     buildFilter:package.json
       paths:
-        - backend/storage/index.mjs
-        - backend/**/*.mjs
-        - backend/**/*.js
-        - backend/**/*.json
-        - web/**/*
-        - scripts/**/*.mjs
-        - scripts/**/*.js
-        - package.json
-        - src/**
+        -index.mjs
+        - *.mjs
+        - *.js
+        - *.json
+        - *.jsonl
         - aw.backend.yaml
         - render.yaml
         - .node-version
-        - app/runtime/**/*
       ignoredPaths:
         - 
         - dist-app-variant/**
@@ -31,7 +26,7 @@ Services:web
         - "**/*.zip"
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: {"health.json", "healthcheck.mjs"}
     envVars:
       - key: NODE_VERSION
         sync: false
