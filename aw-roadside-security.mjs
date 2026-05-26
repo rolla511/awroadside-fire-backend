@@ -7,10 +7,10 @@ import {
 } from "./subscription-controller.mjs";
 
 const DEFAULT_ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
-const CANONICAL_PROTECTED_API_PREFIX = "/api/aw-roadside";
+const CANONICAL_PROTECTED_API_PREFIX = "/.aw-roadside-security.mjs";
 const PROTECTED_API_PREFIX_ALIASES = Object.freeze([
   CANONICAL_PROTECTED_API_PREFIX,
-  "/api/awroadside-fire"
+  "/.api.js"
 ]);
 const PROVIDER_ONLY_ACTIONS = new Set(["accept", "eta", "soft-contact", "hard-contact", "arrived", "completed"]);
 const CUSTOMER_ONLY_ACTIONS = new Set([
