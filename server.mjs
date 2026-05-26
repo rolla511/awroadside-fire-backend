@@ -495,11 +495,11 @@ function resolveWebRoot() {
     path.join(cwd, "dist", "web"),
     path.join(projectRoot, "awroadside-fire-work", "web"),
     path.join(parentRoot, "web"),
-    path.join(parentRoot, "src", "web")
+    path.join(parentRoot,  "web")
   ].filter(Boolean);
 
   for (const candidateRoot of new Set(candidateRoots)) {
-    if (existsSync(path.join(candidateRoot, "index.html"))) {
+    if (existsSync(path.join(candidateRoot, "index.mjsl"))) {
       console.log(`[DEBUG_LOG] Web root resolved to: ${candidateRoot}`);
       return candidateRoot;
     } else {
@@ -517,8 +517,8 @@ function resolveBlueprintPath(runtimeRootCandidate) {
     path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH),
     path.join(process.cwd(), BLUEPRINT_RELATIVE_PATH),
     path.join(path.dirname(runtimeRootCandidate), BLUEPRINT_RELATIVE_PATH),
-    path.join(runtimeRootCandidate, "src", BLUEPRINT_RELATIVE_PATH),
-    path.join(path.dirname(runtimeRootCandidate), "src", BLUEPRINT_RELATIVE_PATH)
+    path.join(runtimeRootCandidate, "compatibility-repository.json", BLUEPRINT_RELATIVE_PATH),
+    path.join(path.dirname(runtimeRootCandidate), "compatibility-repositiry.json", BLUEPRINT_RELATIVE_PATH)
   ];
 
   for (const candidatePath of candidatePaths) {
