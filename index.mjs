@@ -1,4 +1,5 @@
 import { STORAGE_SCHEMA_SQL } from "./schema.mjs";
+import { pathToFileURL } from "url";
 
 // --- SQL HELPERS (Formerly sql-helpers.mjs) ---
 
@@ -548,4 +549,11 @@ export function createAwRoadsideStorageAuthority({
       throw error;
     }
   }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void import("../server.mjs").catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }

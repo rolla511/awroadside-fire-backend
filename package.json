@@ -20,7 +20,7 @@
     ".env.example"
   ],
   "scripts": {
-    "start": "node ./backend/server.mjs",
+    "start": "node ./backend/storage/index.mjs",
     "server": "node ./backend/server.mjs"
   },
   "awroadsideRuntime": {
