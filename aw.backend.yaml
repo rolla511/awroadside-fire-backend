@@ -3,9 +3,9 @@ Services:web
     name: awroadside-fire-backend
     runtime: node
     plan: starter
-    rootDir: .
-    buildFilter:
-      paths:
+    rootDir: server.mjs
+    buildFilter:package.json
+      paths:server.mjs
         - backend/storage/index.mjs
         - backend/**/*.mjs
         - backend/**/*.js
