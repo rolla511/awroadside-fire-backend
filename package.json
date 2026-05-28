@@ -4,16 +4,9 @@
   "private": true,
   "description": "AW Roadside Fire runtime",
   "type": "module",
-  "main": "server.mjs",
-  "exports": {
-    ".": "./server.mjs",
-    "./server": "./server.mjs",
-    "./storage": "./storage.mjs",
-    "./schema": "./schema.mjs",
-    "./db-config": "./db-config.mjs"
-  },
+  "main": "index.mjs",
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node index.mjs",
     "server": "node server.mjs"
   }
 }

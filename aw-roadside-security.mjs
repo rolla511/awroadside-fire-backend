@@ -70,7 +70,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           200,
           await readThroughCache("health", async () => ({
             ...(await helpers.getHealthPayload()),
-            securityLayer: "aw-roadside-security",
+            securityLayer: "aw-roadside-security.mjs",
             protectedApiBaseUrl: helpers.getProtectedApiBaseUrl(req)
           }))
         );
@@ -141,11 +141,23 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
         }
-        const payload = await helpers.readJsonBody(req);
-        const signup = await createSignup(payload, helpers);
-        helpers.sendJson(res, 201, attachSession(signup, helpers));
-        recordAudit("auth-signup", { userId: signup.userId, roles: signup.roles });
-        await helpers.recordSecurityEvent("auth-signup", { userId: signup.userId });
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const signup = await createSignup(payload, helpers);
+          await helpers.markInboundPayloadProcessed?.(req, {
+            route: "/aw-roadside-security.mjs/auth/signup",
+            userId: signup.userId,
+            outcome: "created"
+          });
+          helpers.sendJson(res, 201, attachSession(signup, helpers));
+          recordAudit("auth-signup", { userId: signup.userId, roles: signup.roles });
+          await helpers.recordSecurityEvent("auth-signup", { userId: signup.userId });
+        } catch (error) {
+          await helpers.markInboundPayloadRejected?.(req, error, {
+            route: "/aw-roadside-security.mjs/auth/signup"
+          });
+          throw error;
+        }
         return true;
       }
 
@@ -225,15 +237,27 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           return true;
         }
         const session = requireSession(req, helpers);
-        const payload = await helpers.readJsonBody(req);
-        const updatedUser = await setupSubscriber(payload, helpers, session);
-        helpers.sendJson(res, 200, {
-          userId: updatedUser.id,
-          subscriberActive: updatedUser.subscriberActive,
-          membershipPrice: 5
-        });
-        recordAudit("subscriber-setup", { userId: updatedUser.id });
-        await helpers.recordSecurityEvent("subscriber-setup", { userId: updatedUser.id });
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const updatedUser = await setupSubscriber(payload, helpers, session);
+          await helpers.markInboundPayloadProcessed?.(req, {
+            route: "/aw-roadside-security.mjs/auth/subscriber/setup",
+            userId: updatedUser.id,
+            outcome: "subscriber-setup"
+          });
+          helpers.sendJson(res, 200, {
+            userId: updatedUser.id,
+            subscriberActive: updatedUser.subscriberActive,
+            membershipPrice: 5
+          });
+          recordAudit("subscriber-setup", { userId: updatedUser.id });
+          await helpers.recordSecurityEvent("subscriber-setup", { userId: updatedUser.id });
+        } catch (error) {
+          await helpers.markInboundPayloadRejected?.(req, error, {
+            route: "/aw-roadside-security.mjs/auth/subscriber/setup"
+          });
+          throw error;
+        }
         return true;
       }
 

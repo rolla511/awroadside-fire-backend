@@ -4,6 +4,12 @@ const PASSWORD_HASH_ALGORITHM = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
 const DEFAULT_SUBSCRIBER_MONTHLY = 7.99;
 const DEFAULT_PROVIDER_MONTHLY = 6;
+const CANONICAL_SUBSCRIPTION_API_PREFIX = "/server.mjs";
+const SUBSCRIPTION_API_PREFIX_ALIASES = Object.freeze([
+  CANONICAL_SUBSCRIPTION_API_PREFIX,
+  "/subscription-controller.mjs",
+  "/api"
+]);
 
 function testingTermsBypassEnabled() {
   const value = String(process.env.AW_TESTING_SKIP_TERMS || "").trim().toLowerCase();
@@ -13,7 +19,12 @@ function testingTermsBypassEnabled() {
 export function createSubscriptionController() {
   return {
     async handle(req, res, pathname, helpers) {
-      if (pathname === "/api/subscriptions/config") {
+      pathname = normalizeSubscriptionApiPath(pathname);
+      if (!pathname) {
+        return false;
+      }
+
+      if (pathname === "/server.mjs/subscriptions/config") {
         const policy = getRoadsidePolicy(helpers);
         helpers.sendJson(res, 200, {
           subscriberMonthly: policy.subscriber.monthlyFee,
@@ -26,7 +37,7 @@ export function createSubscriptionController() {
         return true;
       }
 
-      if (pathname === "/api/auth/signup") {
+      if (pathname === "/server.mjs/auth/signup") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -35,8 +46,16 @@ export function createSubscriptionController() {
         try {
           const payload = await helpers.readJsonBody(req);
           const signup = await createSignup(payload, helpers);
+          await helpers.markInboundPayloadProcessed?.(req, {
+            route: "/server.mjs/auth/signup",
+            userId: signup.userId,
+            outcome: "created"
+          });
           helpers.sendJson(res, 201, withSession(signup, helpers));
         } catch (error) {
+          await helpers.markInboundPayloadRejected?.(req, error, {
+            route: "/server.mjs/auth/signup"
+          });
           helpers.sendJson(res, 400, {
             error: "signup-failed",
             message: error.message
@@ -45,7 +64,7 @@ export function createSubscriptionController() {
         return true;
       }
 
-      if (pathname === "/api/auth/login") {
+      if (pathname === "/server.mjs/auth/login") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -64,7 +83,7 @@ export function createSubscriptionController() {
         return true;
       }
 
-      if (pathname === "/api/auth/subscriber/setup") {
+      if (pathname === "/server.mjs/auth/subscriber/setup") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -74,12 +93,20 @@ export function createSubscriptionController() {
           const payload = await helpers.readJsonBody(req);
           const session = requireAuthenticatedUser(req, helpers);
           const updatedUser = await setupSubscriber(payload, helpers, session);
+          await helpers.markInboundPayloadProcessed?.(req, {
+            route: "/server.mjs/auth/subscriber/setup",
+            userId: updatedUser.id,
+            outcome: "subscriber-setup"
+          });
           helpers.sendJson(res, 200, {
             userId: updatedUser.id,
             subscriberActive: updatedUser.subscriberActive,
             membershipPrice: DEFAULT_SUBSCRIBER_MONTHLY
           });
         } catch (error) {
+          await helpers.markInboundPayloadRejected?.(req, error, {
+            route: "/server.mjs/auth/subscriber/setup"
+          });
           helpers.sendJson(res, 400, {
             error: "subscriber-setup-failed",
             message: error.message
@@ -88,7 +115,7 @@ export function createSubscriptionController() {
         return true;
       }
 
-      if (pathname === "/api/auth/provider/apply") {
+      if (pathname === "/server.mjs/auth/provider/apply") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -112,7 +139,7 @@ export function createSubscriptionController() {
         return true;
       }
 
-      if (pathname === "/api/auth/provider/documents") {
+      if (pathname === "/server.mjs/auth/provider/documents") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -139,6 +166,21 @@ export function createSubscriptionController() {
       return false;
     }
   };
+}
+
+function normalizeSubscriptionApiPath(pathname) {
+  if (typeof pathname !== "string" || !pathname) {
+    return "";
+  }
+  for (const prefix of SUBSCRIPTION_API_PREFIX_ALIASES) {
+    if (pathname === `${prefix}/subscriptions/config`) {
+      return `${CANONICAL_SUBSCRIPTION_API_PREFIX}/subscriptions/config`;
+    }
+    if (pathname.startsWith(`${prefix}/auth/`)) {
+      return `${CANONICAL_SUBSCRIPTION_API_PREFIX}${pathname.slice(prefix.length)}`;
+    }
+  }
+  return "";
 }
 
 export async function createSignup(payload, helpers) {
