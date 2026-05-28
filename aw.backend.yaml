@@ -31,13 +31,15 @@ Services:deploy
         - "**/*.zip"
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /api/health
+    healthCheckPath: /index.mjs/health
     envVars:
       - key: NODE_VERSION
         sync: false
       - key: PUBLIC_BASE_URL
         value: https://awroadside-fire-backend.onrender.com
-      - key: INTERNAL_DB_URL
+      - key: internal_db_url
+        sync: false
+      - key: AW_DB_NAME
         sync: false
       - key: AW_DB_MODE
         value: runtime-storage

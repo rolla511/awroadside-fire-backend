@@ -15,6 +15,20 @@ function readBooleanEnv(value, fallback = false) {
   return fallback;
 }
 
+function normalizeDbMode(value) {
+  const normalized = normalizeString(value).toLowerCase();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized === "external-db" || normalized === "internal-db") {
+    return "internal-db";
+  }
+  if (normalized === "file-runtime" || normalized === "runtime" || normalized === "runtime-storage") {
+    return "runtime-storage";
+  }
+  return normalized;
+}
+
 function sanitizeConnectionString(value) {
   const candidate = normalizeString(value);
   if (!candidate) {
@@ -66,11 +80,11 @@ export function createAwRoadsideDbConfig({
   backendEntry = "server.mjs"
 } = {}) {
   // ARCHITECTURAL NOTE: This module is the central authority for Database Configuration.
-  // It handles the transition from file-runtime to external-db (Postgres).
+  // It handles the transition from runtime-storage to internal-db (Postgres).
   const client = normalizeString(env.DB_CLIENT || env.AW_DB_CLIENT || "postgres").toLowerCase();
   const configuredHost = normalizeString(env.DB_HOST || env.AW_DB_HOST);
-  const databaseId = normalizeString(env.db_id || env.DB_ID || env.AW_DB_ID);
-  const configuredDatabaseName = normalizeString(env.DB_NAME || env.AW_DB_NAME);
+  const databaseId = normalizeString(env.db_id);
+  const configuredDatabaseName = normalizeString(env.AW_DB_NAME);
   const configuredUser = normalizeString(env.DB_USER || env.AW_DB_USER);
   const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
   const configuredPort = Number.parseInt(
@@ -78,19 +92,14 @@ export function createAwRoadsideDbConfig({
     10
   );
   const ssl = readBooleanEnv(env.DB_SSL || env.AW_DB_SSL || env.PGSSLMODE, false);
-  const connectionString = normalizeString(
-    env.INTERNAL_DB_URL ||
-    env.internal_db_url ||
-    env.DATABASE_URL ||
-    env.AW_DATABASE_URL
-  );
+  const connectionString = normalizeString(env.internal_db_url);
   const parsedConnection = parseConnectionString(connectionString);
   const host = configuredHost || parsedConnection.host;
   const database = configuredDatabaseName || parsedConnection.database;
   const user = configuredUser || parsedConnection.user;
   const port = Number.isInteger(configuredPort) ? configuredPort : (parsedConnection.port || DEFAULT_POSTGRES_PORT);
   const applicationName = normalizeString(env.DB_APPLICATION_NAME || env.AW_DB_APPLICATION_NAME || "awroadside-fire-backend");
-  const mode = normalizeString(env.AW_DB_MODE || (connectionString || host ? "external-db" : "file-runtime")) || "file-runtime";
+  const mode = normalizeDbMode(env.AW_DB_MODE || (connectionString || host ? "internal-db" : "runtime-storage")) || "runtime-storage";
   const configured = Boolean(connectionString || (host && database && user));
   const strict = readBooleanEnv(env.AW_DB_STRICT, false);
   const authority = Object.freeze({
