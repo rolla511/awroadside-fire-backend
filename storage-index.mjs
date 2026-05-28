@@ -423,26 +423,30 @@ export function createAwRoadsideStorageAuthority({
         lastEvent: "awroadsidedb-config-initialized"
       };
 
-      if (resolvedDbConfig.authority.mode === "file-runtime") {
+      if (resolvedDbConfig.authority.mode === "runtime-storage") {
         status = {
           ...status,
           enabled: false,
-          lastEvent: "storage-authority-file-runtime"
+          lastEvent: "storage-authority-runtime-storage"
         };
-        await record("storage-authority-file-runtime", {
+        await record("storage-authority-runtime-storage", {
           repositories: Object.keys(repositories)
         });
         if (resolvedDbConfig.authority.strict) {
-          throw new Error("AW Roadside storage authority refused file-runtime mode while strict mode is enabled.");
+          throw new Error("AW Roadside storage authority refused runtime-storage mode while strict mode is enabled.");
         }
         return;
       }
 
       if (!resolvedDbConfig.authority.configured) {
+        const error = new Error("AW Roadside storage authority is in internal-db mode but no database connection is configured.");
         await handleFailure(
-          new Error("AW Roadside storage authority is in external-db mode but no database connection is configured."),
+          error,
           "storage-authority-db-not-configured"
         );
+        if (!resolvedDbConfig.authority.strict) {
+          await downgradeToRuntimeStorage(error, "storage-authority-runtime-storage-fallback");
+        }
         return;
       }
 
@@ -479,11 +483,14 @@ export function createAwRoadsideStorageAuthority({
         });
       } catch (error) {
         await handleFailure(error, "storage-authority-sql-unavailable");
+        if (!resolvedDbConfig.authority.strict) {
+          await downgradeToRuntimeStorage(error, "storage-authority-runtime-storage-fallback");
+        }
       }
     },
     async syncUsers(users) {
       if (!enabled || !sql) {
-        if (status.mode === "external-db") {
+        if (status.mode === "internal-db") {
           throw new Error(`Cannot sync users: database is not enabled (status: ${status.lastEvent})`);
         }
         return;
@@ -497,7 +504,7 @@ export function createAwRoadsideStorageAuthority({
     },
     async syncRequests(requests) {
       if (!enabled || !sql) {
-        if (status.mode === "external-db") {
+        if (status.mode === "internal-db") {
           throw new Error(`Cannot sync requests: database is not enabled (status: ${status.lastEvent})`);
         }
         return;
@@ -512,7 +519,7 @@ export function createAwRoadsideStorageAuthority({
     },
     async appendPaymentEvent(entry) {
       if (!enabled || !sql) {
-        if (status.mode === "external-db") {
+        if (status.mode === "internal-db") {
           throw new Error(`Cannot append payment event: database is not enabled (status: ${status.lastEvent})`);
         }
         return;
@@ -549,10 +556,24 @@ export function createAwRoadsideStorageAuthority({
       throw error;
     }
   }
+
+  async function downgradeToRuntimeStorage(error, event) {
+    status = {
+      ...status,
+      enabled: false,
+      mode: "runtime-storage",
+      lastEvent: event,
+      lastError: error instanceof Error ? error.message : String(error)
+    };
+    await record(event, {
+      previousMode: resolvedDbConfig.authority.mode,
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void import("./server.mjs").catch((error) => {
+  void import("./index.mjs").catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

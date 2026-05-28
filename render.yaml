@@ -19,11 +19,11 @@ services:
       - key: AW_DB_ID
         sync: false
       - key: AW_DB_MODE
-        value: external-db
+        value: internal-db
       - key: AW_DB_STRICT
         value: "false"
       - key: RUNTIME_ROOT
-        value: /var/data/runtime
+        value: app/runtime
       - key: PAYPAL_ENV
         value: sandbox
       - key: PAYPAL_CLIENT_ID
@@ -66,7 +66,3 @@ services:
         sync: false
       - key: ADMIN_TRUSTED_ZONES
         sync: false
-    disk:
-      name: awroadside-fire-runtime
-      mountPath: /var/data
-      sizeGB: 1

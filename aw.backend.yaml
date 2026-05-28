@@ -1,19 +1,24 @@
-Services:web
-  - type: server.mjs
+Services:deploy
+  - type: backend/server.mjs
     name: awroadside-fire-backend
     runtime: node
     plan: starter
-    rootDir: server.mjs
-    buildFilter:package.json
+    rootDir: .
+    buildFilter:
       paths:
-        -index.mjs
-        - *.mjs
-        - *.js
-        - *.json
-        - *.jsonl
+        - backend/storage/index.mjs
+        - backend/**/*.mjs
+        - backend/**/*.js
+        - backend/**/*.json
+        - web/**/*
+        - scripts/**/*.mjs
+        - scripts/**/*.js
+        - package.json
+        - src/**
         - aw.backend.yaml
         - render.yaml
         - .node-version
+        - app/runtime/**/*
       ignoredPaths:
         - 
         - dist-app-variant/**
@@ -26,7 +31,7 @@ Services:web
         - "**/*.zip"
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: {"health.json", "healthcheck.mjs"}
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         sync: false
@@ -35,11 +40,11 @@ Services:web
       - key: INTERNAL_DB_URL
         sync: false
       - key: AW_DB_MODE
-        value: file-runtime
+        value: runtime-storage
       - key: AW_DB_STRICT
         value: "false"
       - key: RUNTIME_ROOT
-        value: /var/data/runtime
+        value: app/runtime
       - key: PAYPAL_ENV
         value: sandbox
       - key: PAYPAL_CLIENT_ID
@@ -80,7 +85,3 @@ Services:web
         sync: false
       - key: ADMIN_TRUSTED_ZONES
         sync: false
-    disk:
-      name: awroadside-fire-runtime
-      mountPath: /var/data
-      sizeGB: 1
