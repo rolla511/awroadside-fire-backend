@@ -1,4 +1,5 @@
 import {createReadStream, existsSync, promises as fs, readFileSync} from "fs";
+import crypto from "crypto";
 import http from "http";
 import path from "path";
 import {fileURLToPath} from "url";
@@ -7,12 +8,12 @@ import {createAdminController} from "./admin-controller.mjs";
 import {createAwRoadsideSecurityController} from "./aw-roadside-security.mjs";
 import {createCompatibilityGateway} from "./compatibility-gateway.mjs";
 import {createAwRoadsideDbConfig} from "./awroadsidedb-config.mjs";
-import {createLocalWatchdog} from "./local-watchdog.mjs";
+import {createWatchdog} from "./watchdog.mjs";
 import {createLocationService} from "./location-service.mjs";
 import {createProviderWalletPayload} from "./provider-wallet-controller.mjs";
 import {createRequestServiceController} from "./request-service-controller.mjs";
 import {createRuntimeRepository} from "./runtime-repository.mjs";
-import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from "./storage/index.mjs";
+import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from "./storage-index.mjs";
 import {createSubscriptionController} from "./subscription-controller.mjs";
 import {createSmtpMailer} from "./smtp-mailer.mjs";
 
@@ -21,7 +22,7 @@ const __dirname = path.dirname(__filename);
 
 // Internalize project configuration
 function loadInternalEnv() {
-  const envPath = path.resolve(__dirname, "..", ".env");
+  const envPath = path.resolve(__dirname, ".env");
   if (existsSync(envPath)) {
     console.log(`[DEBUG_LOG] Loading internal relative data from: ${envPath}`);
     const content = readFileSync(envPath, "utf-8");
@@ -41,7 +42,8 @@ function loadInternalEnv() {
 loadInternalEnv();
 
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
-const runtimeFileRoot = path.resolve(__dirname, "..");
+const WEB_ROOT_ENTRY_FILE = "home.html";
+const runtimeFileRoot = path.resolve(__dirname);
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
 console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
 const blueprintNodeContract = readBlueprintNodeContract(blueprintPath);
@@ -67,6 +69,29 @@ const paymentLogPath = path.join(paymentsRoot, "paypal-orders.jsonl");
 const webhookLogPath = path.join(paymentsRoot, "paypal-webhooks.jsonl");
 const requestLogPath = path.join(requestsRoot, "service-requests.jsonl");
 const usersPath = path.join(authRoot, "users.json");
+const PUBLIC_RUNTIME_ENTRYPOINT = (process.env.AW_RUNTIME_ENTRYPOINT || "index.mjs").trim() || "index.mjs";
+const ROOT_RUNTIME_FILES = Object.freeze([
+  "package.json",
+  "index.mjs",
+  "server.mjs",
+  "local.server.mjs",
+  "watchdog.mjs",
+  "admin-controller.mjs",
+  "aw-roadside-security.mjs",
+  "awroadsidedb-config.mjs",
+  "compatibility-gateway.mjs",
+  "location-service.mjs",
+  "paypal-client.mjs",
+  "provider-wallet-controller.mjs",
+  "request-service-controller.mjs",
+  "runtime-repository.mjs",
+  "smtp-mailer.mjs",
+  "storage-index.mjs",
+  "storage-schema.mjs",
+  "subscription-controller.mjs",
+  "render.yaml",
+  "aw.backend.yaml"
+]);
 const PROVIDER_DOCUMENT_TYPES = ["license", "registration", "insurance", "helperId"];
 const PROVIDER_RATING_MIN = 1;
 const PROVIDER_RATING_MAX = 8;
@@ -246,8 +271,9 @@ const AW_ROADSIDE_POLICY = Object.freeze({
   }
 });
 
-const PROTECTED_API_BASE_PATH = "/api/aw-roadside";
+const PROTECTED_API_BASE_PATH = "/aw-roadside-security.mjs";
 const PROTECTED_API_ALIAS_PATHS = Object.freeze([
+  "/api/aw-roadside",
   "/api/awroadside-fire"
 ]);
 const SANDBOX_MANUAL_TEST_SERVICE_TYPES = Object.freeze([
@@ -437,16 +463,22 @@ const SANDBOX_MANUAL_TEST_REQUEST_FIXTURES = Object.freeze([
 const SERVER_AUTHORITY = Object.freeze({
   serviceId: "awroadside-fire-backend",
   runtime: "node",
-  activeEntrypoint: "backend/server.mjs",
+  activeEntrypoint: PUBLIC_RUNTIME_ENTRYPOINT,
   rootShimEntrypoint: null,
-  compatibilityGatewayPath: "/api/compat/status",
-  compatibilityManifestPath: "/api/compat/manifest",
+  compatibilityGatewayPath: "/compatibility-gateway.mjs/status",
+  compatibilityManifestPath: "/compatibility-gateway.mjs/manifest",
   protectedApiBasePath: PROTECTED_API_BASE_PATH,
   protectedApiAliasPaths: PROTECTED_API_ALIAS_PATHS,
-  rawApiBasePath: "/api",
+  rawApiBasePath: "/index.mjs",
   statement:
-    "backend/server.mjs is the active awroadside-fire backend authority. Legacy variants must resolve through the compatibility gateway and use backend pricing."
+    "index.mjs is the public root entry buffer. server.mjs remains the internal runtime implementation. Compatibility and protected API surfaces resolve through root runtime modules."
 });
+const RAW_API_BASE_PATH = SERVER_AUTHORITY.rawApiBasePath;
+const RAW_API_BASE_PATH_ALIASES = Object.freeze([
+  RAW_API_BASE_PATH,
+  "/server.mjs",
+  "/api"
+]);
 
 const host = process.env.HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
@@ -454,7 +486,6 @@ const startedAt = new Date();
 const publicBaseUrl = resolvePublicBaseUrl();
 
 function buildAuthorityDescriptor(req = null) {
-  const baseUrl = resolveRequestBaseUrl(req);
   return {
     serviceId: SERVER_AUTHORITY.serviceId,
     variantId: AW_ROADSIDE_POLICY.variantId,
@@ -462,27 +493,28 @@ function buildAuthorityDescriptor(req = null) {
     runtime: SERVER_AUTHORITY.runtime,
     activeEntrypoint: SERVER_AUTHORITY.activeEntrypoint,
     rootShimEntrypoint: SERVER_AUTHORITY.rootShimEntrypoint,
-    pricingSource: "backend",
-    compatibilityMode: "legacy-variants-via-gateway",
+    pricingSource: "server.mjs",
+    compatibilityMode: "compatibility-gateway.mjs",
     statement: SERVER_AUTHORITY.statement,
-    urls: {
-      ui: `${baseUrl}/`,
-      health: `${baseUrl}/api/health`,
-      authority: `${baseUrl}/api/authority`,
-      runtimeStatus: `${baseUrl}/api/runtime/status`,
-      compatibilityGateway: `${baseUrl}${SERVER_AUTHORITY.compatibilityGatewayPath}`,
-      compatibilityManifest: `${baseUrl}${SERVER_AUTHORITY.compatibilityManifestPath}`,
-      protectedApiBase: `${baseUrl}${resolveProtectedApiBasePath(req)}`,
-      protectedApiAliases: getProtectedApiAliasUrls(req),
-      rawApiBase: `${baseUrl}${SERVER_AUTHORITY.rawApiBasePath}`
-    }
+    rootFiles: {
+      ui: null,
+      health: "index.mjs",
+      authority: "index.mjs",
+      runtimeStatus: "index.mjs",
+      compatibilityGateway: "compatibility-gateway.mjs",
+      compatibilityManifest: "compatibility-gateway.mjs",
+      protectedApiBase: "aw-roadside-security.mjs",
+      protectedApiAliases: ["aw-roadside-security.mjs"],
+      rawApiBase: "index.mjs"
+    },
+    rawApiBasePath: RAW_API_BASE_PATH,
+    rawApiAliasPaths: RAW_API_BASE_PATH_ALIASES.filter((candidatePath) => candidatePath !== RAW_API_BASE_PATH)
   };
 }
 
 function resolveWebRoot() {
   const configuredWebRoot = (process.env.WEB_ROOT || "").trim();
   const cwd = process.cwd();
-  const parentRoot = path.dirname(projectRoot);
   const candidateRoots = [
     configuredWebRoot
       ? path.isAbsolute(configuredWebRoot)
@@ -490,20 +522,15 @@ function resolveWebRoot() {
         : path.resolve(projectRoot, configuredWebRoot)
       : null,
     path.join(projectRoot, "web"),
-    path.join(cwd, "web"),
-    path.join(projectRoot, "dist", "web"),
-    path.join(cwd, "dist", "web"),
-    path.join(projectRoot, "awroadside-fire-work", "web"),
-    path.join(parentRoot, "web"),
-    path.join(parentRoot,  "web")
+    path.join(cwd, "web")
   ].filter(Boolean);
 
   for (const candidateRoot of new Set(candidateRoots)) {
-    if (existsSync(path.join(candidateRoot, "index.mjsl"))) {
+    if (existsSync(path.join(candidateRoot, WEB_ROOT_ENTRY_FILE))) {
       console.log(`[DEBUG_LOG] Web root resolved to: ${candidateRoot}`);
       return candidateRoot;
     } else {
-      console.log(`[DEBUG_LOG] Candidate web root does not contain index.html: ${candidateRoot}`);
+      console.log(`[DEBUG_LOG] Candidate web root does not contain ${WEB_ROOT_ENTRY_FILE}: ${candidateRoot}`);
     }
   }
 
@@ -515,10 +542,7 @@ function resolveWebRoot() {
 function resolveBlueprintPath(runtimeRootCandidate) {
   const candidatePaths = [
     path.join(runtimeRootCandidate, BLUEPRINT_RELATIVE_PATH),
-    path.join(process.cwd(), BLUEPRINT_RELATIVE_PATH),
-    path.join(path.dirname(runtimeRootCandidate), BLUEPRINT_RELATIVE_PATH),
-    path.join(runtimeRootCandidate, "compatibility-repository.json", BLUEPRINT_RELATIVE_PATH),
-    path.join(path.dirname(runtimeRootCandidate), "compatibility-repositiry.json", BLUEPRINT_RELATIVE_PATH)
+    path.join(process.cwd(), BLUEPRINT_RELATIVE_PATH)
   ];
 
   for (const candidatePath of candidatePaths) {
@@ -535,8 +559,6 @@ function resolveProjectRoot(runtimeRootCandidate, resolvedBlueprintPath, bluepri
   const parentOfBlueprint = path.dirname(resolvedBlueprintPath);
   
   if (!configuredRootDir) {
-    // If we found the blueprint in a 'src' folder but we are not in it, or vice versa,
-    // we should align the project root with the blueprint's parent.
     return parentOfBlueprint;
   }
 
@@ -614,7 +636,19 @@ const PAYPAL_WEBHOOK_IDS = Object.freeze({
 });
 const paypalWebhookId =
   (process.env.PAYPAL_WEBHOOK_ID || "").trim() || PAYPAL_WEBHOOK_IDS[paypalMode] || "";
-const paypalWebhookPath = "/api/paypal/webhook";
+const paypalClientModule = "paypal-client.mjs";
+const paypalWebhookModule = "paypal-webhooks.mjs";
+const paypalWebhookPath = `/${paypalWebhookModule}`;
+const paypalWebhookPaths = Object.freeze([
+  paypalWebhookPath,
+  "/paypal-webhook.mjs",
+  "/api/paypal-webhooks",
+  "/api/paypal-webhook",
+  "/api/paypal/webhooks",
+  "/api/paypal/webhook",
+  "/paypal-webhook",
+  "/paypal-webhooks"
+]);
 const mapboxAccessToken = (process.env.mapbox_access_token || process.env.MAPBOX_ACCESS_TOKEN || "").trim();
 const providerServiceRadiusMiles = Number.parseFloat(process.env.PROVIDER_SERVICE_RADIUS_MILES || "20");
 const requestAcceptanceWindowMinutes = Number.parseFloat(process.env.REQUEST_ACCEPTANCE_WINDOW_MINUTES || "5");
@@ -660,18 +694,18 @@ const compatibilityGateway = createCompatibilityGateway();
 const requestServiceController = createRequestServiceController({
   cacheRoot: requestServiceCacheRoot,
   fallbackApiBaseUrl: publicBaseUrl,
-  fallbackApiStyle: "roadside-backend"
+  fallbackApiStyle: PUBLIC_RUNTIME_ENTRYPOINT
 });
 const subscriptionController = createSubscriptionController();
-const localWatchdog = createLocalWatchdog({
+const watchdog = createWatchdog({
   projectRoot,
   runtimeRoot
 });
 const awRoadsideDbConfig = createAwRoadsideDbConfig({
   env: process.env,
-  localWatchdog,
+  localWatchdog: watchdog,
   projectId: "awroadside-fire",
-  backendEntry: "backend/server.mjs"
+  backendEntry: "server.mjs"
 });
 const smtpMailer = createSmtpMailer({
   host: mailHost,
@@ -682,12 +716,12 @@ const smtpMailer = createSmtpMailer({
   password: mailPassword,
   from: mailFrom,
   replyTo: mailReplyTo,
-  localWatchdog
+  localWatchdog: watchdog
 });
 const storageKernel = createAwRoadsideStorageKernel();
 const storageAuthority = createAwRoadsideStorageAuthority({
   awRoadsideDbConfig,
-  localWatchdog,
+  localWatchdog: watchdog,
   storageKernel
 });
 const runtimeRepository = createRuntimeRepository({
@@ -700,13 +734,14 @@ const locationService = createLocationService({
 });
 const awRoadsideSecurityController = createAwRoadsideSecurityController({
   requestServiceController,
-  localWatchdog
+  watchdog
 });
 
 await runtimeRepository.initialize();
-await localWatchdog.initialize();
+watchdog.initialize().catch((error) => {
+  console.warn("[WARN] Watchdog initialization failed:", error.message);
+});
 await auditBlueprintNodeRuntime();
-await localWatchdog.scanAndRecord();
 await storageAuthority.initialize();
 const [initialUsers, initialRequests, initialPayments] = await Promise.all([
   readUsers(),
@@ -719,12 +754,16 @@ for (const payment of initialPayments) {
   await storageAuthority.appendPaymentEvent(payment);
 }
 await ensureSandboxManualTestFixtures();
-localWatchdog.startPeriodicScan(watchdogIntervalMs);
-// auditWebEntrypoint removed as per user request to remove expo related logic
-localWatchdog.record("server-started", {
-  port: port,
+watchdog.startPeriodicScan(watchdogIntervalMs);
+// Web entry audit is intentionally not part of the active boot path.
+watchdog.record("server-started", {
+  runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
+  port,
   nodeVersion: process.version,
-  dbMode: process.env.AW_DB_MODE || "file-runtime"
+  dataAuthority: awRoadsideDbConfig.authority.configured ? "internal_db_url" : "runtime-storage",
+  databaseConfigured: awRoadsideDbConfig.authority.configured,
+  databaseId: awRoadsideDbConfig.authority.databaseId || null,
+  databaseName: awRoadsideDbConfig.authority.database || null
 });
 await writeRuntimeArtifacts();
 
@@ -754,27 +793,44 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "") pathname = "/";
 
     if (pathname === "/provider-info") {
-      const legacyPath = path.join(projectRoot, "awroadside-fire-wp", "web", "legacy-index.html");
-      if (existsSync(legacyPath)) {
+      const providerInfoCompatibilityPaths = [
+        path.join(webRoot, "provider-info.html"),
+        path.join(webRoot, "home.html"),
+        path.join(webRoot, "index.html")
+      ];
+      const providerInfoPath = providerInfoCompatibilityPaths.find((candidatePath) => existsSync(candidatePath));
+      const requestBaseUrl = resolveRequestBaseUrl(req);
+      const providerInfoDescriptor = {
+        route: "/provider-info",
+        source: "server.mjs",
+        requestMethod: req.method,
+        uiVariant: providerInfoPath ? path.basename(providerInfoPath) : null,
+        uiVariants: providerInfoCompatibilityPaths.map((candidatePath) => path.basename(candidatePath)),
+        frontendConfigUrl: `${requestBaseUrl}/aw-roadside-security.mjs/frontend-config`,
+        protectedApiBaseUrl: getProtectedApiBaseUrl(req),
+        protectedApiModule: "aw-roadside-security.mjs",
+        locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
+        compatibilityGatewayUrl: `${requestBaseUrl}/compatibility-gateway.mjs/status`
+      };
+      const acceptsHtml = readHeader(req, "accept").toLowerCase().includes("text/html");
+      const documentRequest = readHeader(req, "sec-fetch-dest").toLowerCase() === "document";
+
+      if (req.method !== "GET" && req.method !== "POST") {
+        sendMethodNotAllowed(res, "GET, POST");
+        return;
+      }
+
+      if (providerInfoPath && req.method === "GET" && (acceptsHtml || documentRequest)) {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(readFileSync(legacyPath));
+        res.end(readFileSync(providerInfoPath));
         return;
       }
+
+      sendJson(res, 200, providerInfoDescriptor);
+      return;
     }
 
-    // Support for .well-known app store directives
-    if (pathname.startsWith("/.well-known/")) {
-      const fileName = pathname.substring(1); // remove leading slash
-      const filePath = path.join(webRoot, fileName);
-      if (existsSync(filePath)) {
-        res.writeHead(200, { "Content-Type": contentType(filePath) });
-        const stream = createReadStream(filePath);
-        stream.pipe(res);
-        return;
-      }
-    }
-
-    if (pathname === "/api/events") {
+    if (pathname === "/events.mjs" || pathname === "/api/events") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -828,8 +884,8 @@ const server = http.createServer(async (req, res) => {
       getRoadsidePolicy: () => AW_ROADSIDE_POLICY,
       presentRequestForSession: (request, session) => presentRequestForSession(request, session),
       presentRequestsForSession: (requests, session) => presentRequestsForSession(requests, session),
-      getWatchdogStatus: () => localWatchdog.getStatus(),
-      recordSecurityEvent: (event, details) => localWatchdog.record(event, details),
+      getWatchdogStatus: () => watchdog.getStatus(),
+      recordSecurityEvent: (event, details) => watchdog.record(event, details),
       saveProviderDocuments: (userId, currentDocuments, documentsPayload) =>
         saveProviderDocuments(userId, currentDocuments, documentsPayload),
       recordCustomerFeedback: (requestId, payload, session) => recordCustomerFeedback(requestId, payload, session),
@@ -877,46 +933,48 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (pathname === "/api/health") {
+    const normalizedRawApiPath = normalizeRawApiPath(pathname);
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/health`) {
       res.setHeader("Content-Type", "application/json");
       sendJson(res, 200, await getHealthPayload(req));
       return;
     }
 
-    if (pathname === "/api/authority") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/authority`) {
       sendJson(res, 200, getAuthorityPayload(req));
       return;
     }
 
-    if (pathname === "/api/frontend-config") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/frontend-config`) {
       sendJson(res, 200, await getFrontendConfigPayload(req));
       return;
     }
 
-    if (pathname === "/api/integration-target") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/integration-target`) {
       sendJson(res, 200, getIntegrationTargetPayload(req));
       return;
     }
 
-    if (pathname === "/api/runtime/status") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/runtime/status`) {
       sendJson(res, 200, await createRuntimeStatus());
       return;
     }
 
-    if (pathname === "/api/runtime/files") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/runtime/files`) {
       sendJson(res, 200, {
-        root: "app",
-        files: await listFiles(appRoot)
+        root: ".",
+        files: listRootRuntimeFiles()
       });
       return;
     }
 
-    if (pathname === "/api/payments/config") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/config`) {
       sendJson(res, 200, await getPaymentConfigPayload());
       return;
     }
 
-    if (pathname === paypalWebhookPath) {
+    if (paypalWebhookPaths.includes(pathname)) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
         return;
@@ -1060,7 +1118,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (pathname === "/api/requests") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/requests`) {
       if (req.method === "POST") {
         try {
           const payload = await readJsonBody(req);
@@ -1096,7 +1154,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (pathname === "/api/payments/create-order") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-order`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
         return;
@@ -1145,7 +1203,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (pathname === "/api/payments/capture-order") {
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/capture-order`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
         return;
@@ -1224,7 +1282,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const relativePath = pathname === "/" ? "index.html" : pathname.slice(1);
+    const relativePath = pathname === "/" ? WEB_ROOT_ENTRY_FILE : pathname.slice(1);
     const candidate = path.normalize(path.join(webRoot, relativePath));
     if (candidate.startsWith(webRoot)) {
       try {
@@ -1255,7 +1313,7 @@ const server = http.createServer(async (req, res) => {
     const fallbackType = path.extname(pathname) ? "missing-static-file" : "blocked-shell-fallback";
     await recordBlockedFallback(pathname, fallbackType);
     
-    // Do NOT fallback to index.html for unknown paths to avoid "stale state" confusion.
+    // Do NOT fallback to a shell html file for unknown paths to avoid stale state confusion.
     // Return a clear 404 for static files and unknown routes.
     sendNotFound(res, pathname);
   } catch (error) {
@@ -1273,8 +1331,8 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, host, () => {
   const isPublic = !!process.env.PUBLIC_BASE_URL;
   console.log(`Local runtime running at http://${host}:${port}`);
-  console.log(`Health endpoint: http://${host}:${port}/api/health`);
-  console.log(`Runtime status: http://${host}:${port}/api/runtime/status`);
+  console.log(`Health endpoint: http://${host}:${port}${RAW_API_BASE_PATH}/health`);
+  console.log(`Runtime status: http://${host}:${port}${RAW_API_BASE_PATH}/runtime/status`);
   console.log(`PayPal Webhook Target: ${publicBaseUrl}${paypalWebhookPath} ${isPublic ? "(Public)" : "(Local/Testing)"}`);
   if (!isPublic) {
     console.log(`[HINT] For live PayPal events, set PUBLIC_BASE_URL to your Render or Tunnel URL.`);
@@ -1308,7 +1366,9 @@ async function writeRuntimeArtifacts() {
   }
 
   const manifest = {
-    app: "local-node-runtime",
+    app: "index-node-runtime",
+    runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
+    runtimeImplementation: "server.mjs",
     host,
     port,
     startedAt: startedAt.toISOString(),
@@ -1317,8 +1377,10 @@ async function writeRuntimeArtifacts() {
     blueprintNodeVersion: blueprintNodeContract.nodeVersion || null,
     runningNodeVersion: process.version,
     uiUrl: `${publicBaseUrl}/`,
-    apiUrl: `${publicBaseUrl}/api/aw-roadside/frontend-config`,
-    protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`
+    frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
+    apiUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
+    protectedApiBaseUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
+    rawApiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`
   };
 
   try {
@@ -1330,15 +1392,19 @@ async function writeRuntimeArtifacts() {
     await fs.writeFile(
       path.join(reportsRoot, "startup-report.txt"),
       [
-        "Local Runtime Startup Report",
+        "Public Runtime Startup Report",
         `Started: ${startedAt.toLocaleString()}`,
+        `Runtime Entry: ${PUBLIC_RUNTIME_ENTRYPOINT}`,
+        `Runtime Implementation: server.mjs`,
         `Blueprint: ${toRelativePath(blueprintNodeContract.blueprintPath)}`,
         `Blueprint Runtime: ${blueprintNodeContract.runtime || "not set"}`,
         `Blueprint Node Version: ${blueprintNodeContract.nodeVersion || "not set"}`,
         `Running Node Version: ${process.version}`,
         `UI: ${publicBaseUrl}/`,
-        `API: ${publicBaseUrl}/api/aw-roadside/frontend-config`,
-        `Protected API: ${publicBaseUrl}/api/aw-roadside`,
+        `Frontend Config: ${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
+        `API: ${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
+        `Raw API: ${publicBaseUrl}${RAW_API_BASE_PATH}`,
+        `Protected API: ${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
         `Runtime Folder: ${toRelativePath(runtimeRoot)}`,
         `Watchdog Status: ${toRelativePath(path.join(runtimeRoot, "security", "latest-status.json"))}`,
         `PayPal Mode: ${paypalMode}`,
@@ -1363,6 +1429,7 @@ async function createRuntimeStatus() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
     authority: buildAuthorityDescriptor(),
     blueprint: {
       path: toRelativePath(blueprintNodeContract.blueprintPath),
@@ -1375,37 +1442,41 @@ async function createRuntimeStatus() {
     },
     runningNodeVersion: process.version,
     uiUrl: `${publicBaseUrl}/`,
-    apiBaseUrl: `${publicBaseUrl}/api`,
-    protectedApiBaseUrl: `${publicBaseUrl}/api/aw-roadside`,
-    projectFolders: [
-      "backend",
-      "web",
-      "app/runtime",
-      "app/runtime/reports",
-      "app/runtime/logs",
-      "app/runtime/payments",
-      "app/runtime/requests",
-      "app/runtime/auth",
-      "app/runtime/request-service-cache",
-      "app/runtime/provider-documents",
-      "dist"
-    ],
+    apiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
+    rawApiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
+    frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
+    protectedApiBaseUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
+    compatibilityRepositoryUrl: `${publicBaseUrl}/compatibility-gateway.mjs/repository`,
+    securityLayer: "aw-roadside-security.mjs",
+    projectFolders: [],
+    projectFiles: listRootRuntimeFiles(),
     payments: {
       provider: "paypal",
       mode: paypalMode,
       configured: Boolean(paypalClientId && paypalClientSecret),
       webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
-      webhookPath: paypalWebhookPath
+      webhookPath: paypalWebhookPath,
+      webhookModule: paypalWebhookModule,
+      clientModule: paypalClientModule
     },
     database: typeof awRoadsideDbConfig.getPublicStatus === "function"
-      ? awRoadsideDbConfig.getPublicStatus()
+      ? {
+          module: "awroadsidedb-config.mjs",
+          ...awRoadsideDbConfig.getPublicStatus()
+        }
       : null,
     watchdog: {
+      module: "watchdog.mjs",
       active: true,
       intervalMs: watchdogIntervalMs,
       latestStatusPath: toRelativePath(path.join(runtimeRoot, "security", "latest-status.json"))
     },
-    storage: typeof storageAuthority.getStatus === "function" ? storageAuthority.getStatus() : null
+    storage: typeof storageAuthority.getStatus === "function"
+      ? {
+          module: "storage-index.mjs",
+          ...storageAuthority.getStatus()
+        }
+      : null
   };
 }
 
@@ -1414,6 +1485,10 @@ async function listFiles(rootDir) {
   await walk(rootDir, rootDir, output);
   output.sort();
   return output;
+}
+
+function listRootRuntimeFiles() {
+  return ROOT_RUNTIME_FILES.filter((fileName) => existsSync(path.join(projectRoot, fileName)));
 }
 
 async function walk(rootDir, currentDir, output) {
@@ -1651,7 +1726,7 @@ async function getHealthPayload(req = null) {
     service: SERVER_AUTHORITY.serviceId,
     timestamp: new Date().toISOString(),
     policyVersion: AW_ROADSIDE_POLICY.termsVersion,
-    pricingSource: "backend",
+    pricingSource: "server.mjs",
     authority: buildAuthorityDescriptor(req),
     locationServicesConfigured: locationService.isConfigured()
   };
@@ -1732,6 +1807,8 @@ async function getPaymentConfigPayload() {
     webhookId: paypalWebhookId || null,
     webhookPath: paypalWebhookPath,
     webhookUrl: `${publicBaseUrl}${paypalWebhookPath}`,
+    webhookModule: paypalWebhookModule,
+    clientModule: paypalClientModule,
     webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
@@ -2196,12 +2273,15 @@ async function getFrontendConfigPayload(req = null) {
   return {
     authority: buildAuthorityDescriptor(req),
     apiBaseUrl: getProtectedApiBaseUrl(req),
-    apiAliasBaseUrls: getProtectedApiAliasUrls(req),
-    rawApiBaseUrl: `${baseUrl}/api`,
+    apiModule: "aw-roadside-security.mjs",
+    rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
+    rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
+    locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
     uiBaseUrl: baseUrl,
-    expectedHtmlIntegrationPath: "web/index.html",
-    syncMode: "local",
-    runtimeFolder: "app/runtime",
+    expectedHtmlIntegrationPath: null,
+    syncMode: "api",
+    runtimeFolder: null,
+    runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
     paypalEnabled: Boolean(paypalClientId && paypalClientSecret),
     priorityServicePrice,
     serviceBasePrice,
@@ -2218,10 +2298,10 @@ async function getFrontendConfigPayload(req = null) {
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
     uiEventMap: AW_ROADSIDE_POLICY.uiEventMap,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion,
-    compatibilityGatewayUrl: `${baseUrl}/api/compat/status`,
-    compatibilityManifestUrl: `${baseUrl}/api/compat/manifest`,
-    compatibilityRepositoryUrl: `${baseUrl}/api/compat/repository`,
-    securityLayer: "aw-roadside-security"
+    compatibilityGatewayUrl: `${baseUrl}/compatibility-gateway.mjs/status`,
+    compatibilityManifestUrl: `${baseUrl}/compatibility-gateway.mjs/manifest`,
+    compatibilityRepositoryUrl: `${baseUrl}/compatibility-gateway.mjs/repository`,
+    securityLayer: "aw-roadside-security.mjs"
   };
 }
 
@@ -2302,18 +2382,19 @@ function getIntegrationTargetPayload(req = null) {
   const baseUrl = resolveRequestBaseUrl(req);
   return {
     status: "ready",
-    message: "Use the integrated AW Roadside runtime frontend and protected API.",
+    message: "Use the AW Roadside runtime API entry and protected API.",
     authority: buildAuthorityDescriptor(req),
     expectedPayload: {
-      htmlFile: "web/index.html",
-      mountSelector: ".page-shell",
-      apiConsumer: `fetch('${getProtectedApiBaseUrl(req)}/health')`
+      runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
+      apiHealthUrl: `${getProtectedApiBaseUrl(req)}/health`
     },
-    expectedHtmlIntegrationPath: "web/index.html",
+    expectedHtmlIntegrationPath: null,
     uiBaseUrl: baseUrl,
     apiBaseUrl: getProtectedApiBaseUrl(req),
-    apiAliasBaseUrls: getProtectedApiAliasUrls(req),
-    rawApiBaseUrl: `${baseUrl}/api`,
+    apiModule: "aw-roadside-security.mjs",
+    rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
+    rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
+    locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
   };
 }
@@ -2335,18 +2416,21 @@ function getProtectedApiBaseUrl(req = null) {
   return `${resolveRequestBaseUrl(req)}${resolveProtectedApiBasePath(req)}`;
 }
 
-function getProtectedApiAliasUrls(req = null) {
-  const baseUrl = resolveRequestBaseUrl(req);
-  return [PROTECTED_API_BASE_PATH, ...PROTECTED_API_ALIAS_PATHS].map((path) => `${baseUrl}${path}`);
+function normalizeRawApiPath(pathname) {
+  if (typeof pathname !== "string" || !pathname) {
+    return null;
+  }
+
+  for (const prefix of RAW_API_BASE_PATH_ALIASES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return `${RAW_API_BASE_PATH}${pathname.slice(prefix.length)}`;
+    }
+  }
+
+  return null;
 }
 
 function resolveProtectedApiBasePath(req = null) {
-  const requestPath = typeof req?.url === "string" ? new URL(req.url, "http://localhost").pathname : "";
-  for (const candidate of [PROTECTED_API_BASE_PATH, ...PROTECTED_API_ALIAS_PATHS]) {
-    if (requestPath === candidate || requestPath.startsWith(`${candidate}/`)) {
-      return candidate;
-    }
-  }
   return PROTECTED_API_BASE_PATH;
 }
 
@@ -2404,7 +2488,7 @@ async function auditBlueprintNodeRuntime() {
   }
 
   try {
-    await localWatchdog.record("blueprint-node-mismatch", {
+    await watchdog.record("blueprint-node-mismatch", {
       runtime: process.release?.name || "node",
       runningNodeVersion: process.version,
       expectedRuntime: expectedRuntime || null,
@@ -4414,7 +4498,7 @@ function buildSandboxSubscriberUser(existingUser, descriptor) {
       key: descriptor.key,
       city: descriptor.city,
       role: descriptor.role,
-      seededBy: "backend/server.mjs",
+      seededBy: "server.mjs",
       seededAt
     }
   };
@@ -4527,7 +4611,7 @@ function buildSandboxProviderUser(existingUser, descriptor) {
       key: descriptor.key,
       city: descriptor.city,
       role: descriptor.role,
-      seededBy: "backend/server.mjs",
+      seededBy: "server.mjs",
       seededAt
     }
   };
@@ -5357,7 +5441,7 @@ function contentType(filePath) {
 
 async function recordBlockedFallback(pathname, reason) {
   try {
-    await localWatchdog.record("blocked-web-fallback", {
+    await watchdog.record("blocked-web-fallback", {
       pathname,
       reason
     });
