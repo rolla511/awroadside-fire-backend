@@ -534,9 +534,8 @@ function resolveWebRoot() {
     }
   }
 
-  throw new Error(
-    `Unable to resolve web root. Checked: ${candidateRoots.join(", ")}`
-  );
+  console.warn(`[WARN] No static web root resolved. Checked: ${candidateRoots.join(", ")}`);
+  return null;
 }
 
 function resolveBlueprintPath(runtimeRootCandidate) {
@@ -793,11 +792,13 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "") pathname = "/";
 
     if (pathname === "/provider-info") {
-      const providerInfoCompatibilityPaths = [
-        path.join(webRoot, "provider-info.html"),
-        path.join(webRoot, "home.html"),
-        path.join(webRoot, "index.html")
-      ];
+      const providerInfoCompatibilityPaths = webRoot
+        ? [
+            path.join(webRoot, "provider-info.html"),
+            path.join(webRoot, "home.html"),
+            path.join(webRoot, "index.html")
+          ]
+        : [];
       const providerInfoPath = providerInfoCompatibilityPaths.find((candidatePath) => existsSync(candidatePath));
       const requestBaseUrl = resolveRequestBaseUrl(req);
       const providerInfoDescriptor = {
@@ -1282,22 +1283,24 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const relativePath = pathname === "/" ? WEB_ROOT_ENTRY_FILE : pathname.slice(1);
-    const candidate = path.normalize(path.join(webRoot, relativePath));
-    if (candidate.startsWith(webRoot)) {
-      try {
-        const stat = await fs.stat(candidate);
-        if (stat.isFile()) {
-          const body = await fs.readFile(candidate);
-          res.writeHead(200, { 
-            "Content-Type": contentType(candidate),
-            "Cache-Control": "public, max-age=3600"
-          });
-          res.end(body);
-          return;
+    if (webRoot) {
+      const relativePath = pathname === "/" ? WEB_ROOT_ENTRY_FILE : pathname.slice(1);
+      const candidate = path.normalize(path.join(webRoot, relativePath));
+      if (candidate.startsWith(webRoot)) {
+        try {
+          const stat = await fs.stat(candidate);
+          if (stat.isFile()) {
+            const body = await fs.readFile(candidate);
+            res.writeHead(200, { 
+              "Content-Type": contentType(candidate),
+              "Cache-Control": "public, max-age=3600"
+            });
+            res.end(body);
+            return;
+          }
+        } catch {
+          // Fall through to explicit not-found handling below.
         }
-      } catch {
-        // Fall through to explicit not-found handling below.
       }
     }
 
@@ -1310,7 +1313,11 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const fallbackType = path.extname(pathname) ? "missing-static-file" : "blocked-shell-fallback";
+    const fallbackType = path.extname(pathname)
+      ? "missing-static-file"
+      : webRoot
+        ? "blocked-shell-fallback"
+        : "ui-not-configured";
     await recordBlockedFallback(pathname, fallbackType);
     
     // Do NOT fallback to a shell html file for unknown paths to avoid stale state confusion.
@@ -1337,7 +1344,7 @@ server.listen(port, host, () => {
   if (!isPublic) {
     console.log(`[HINT] For live PayPal events, set PUBLIC_BASE_URL to your Render or Tunnel URL.`);
   }
-  console.log(`Serving static files from ${webRoot}`);
+  console.log(webRoot ? `Serving static files from ${webRoot}` : "Static UI root not configured.");
   console.log(`Runtime artifacts in ${runtimeRoot}`);
   console.log(`Blueprint node contract: ${blueprintNodeContract.blueprintPath}`);
   console.log(`Running Node: ${process.version}`);
@@ -1353,6 +1360,7 @@ function toRelativePath(absolutePath) {
 }
 
 async function writeRuntimeArtifacts() {
+  const uiUrl = webRoot ? `${publicBaseUrl}/` : null;
   try {
     await fs.mkdir(reportsRoot, { recursive: true });
     await fs.mkdir(logsRoot, { recursive: true });
@@ -1376,7 +1384,7 @@ async function writeRuntimeArtifacts() {
     blueprintRuntime: blueprintNodeContract.runtime || null,
     blueprintNodeVersion: blueprintNodeContract.nodeVersion || null,
     runningNodeVersion: process.version,
-    uiUrl: `${publicBaseUrl}/`,
+    uiUrl,
     frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
     apiUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
     protectedApiBaseUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
@@ -1400,7 +1408,7 @@ async function writeRuntimeArtifacts() {
         `Blueprint Runtime: ${blueprintNodeContract.runtime || "not set"}`,
         `Blueprint Node Version: ${blueprintNodeContract.nodeVersion || "not set"}`,
         `Running Node Version: ${process.version}`,
-        `UI: ${publicBaseUrl}/`,
+        `UI: ${uiUrl || "not configured"}`,
         `Frontend Config: ${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
         `API: ${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
         `Raw API: ${publicBaseUrl}${RAW_API_BASE_PATH}`,
@@ -1424,6 +1432,7 @@ async function writeRuntimeArtifacts() {
 }
 
 async function createRuntimeStatus() {
+  const uiUrl = webRoot ? `${publicBaseUrl}/` : null;
   return {
     status: "running",
     host,
@@ -1441,7 +1450,7 @@ async function createRuntimeStatus() {
       healthCheckPath: blueprintNodeContract.healthCheckPath || null
     },
     runningNodeVersion: process.version,
-    uiUrl: `${publicBaseUrl}/`,
+    uiUrl,
     apiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
     rawApiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
     frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
@@ -2270,6 +2279,7 @@ function isProviderWithinCoverage(request, provider) {
 
 async function getFrontendConfigPayload(req = null) {
   const baseUrl = resolveRequestBaseUrl(req);
+  const uiBaseUrl = webRoot ? baseUrl : null;
   return {
     authority: buildAuthorityDescriptor(req),
     apiBaseUrl: getProtectedApiBaseUrl(req),
@@ -2277,7 +2287,7 @@ async function getFrontendConfigPayload(req = null) {
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
-    uiBaseUrl: baseUrl,
+    uiBaseUrl,
     expectedHtmlIntegrationPath: null,
     syncMode: "api",
     runtimeFolder: null,
