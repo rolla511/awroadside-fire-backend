@@ -6,6 +6,11 @@ const DEFAULT_ADMIN_PASSWORD = "change-me";
 const DEFAULT_ADMIN_ROLES = ["ADMIN"];
 const DEFAULT_2FA_CODE = "246810";
 const ACCOUNT_STATES = new Set(["ACTIVE", "INACTIVE", "SUSPENDED"]);
+const CANONICAL_ADMIN_API_PREFIX = "/admin-controller.mjs";
+const ADMIN_API_PREFIX_ALIASES = Object.freeze([
+  CANONICAL_ADMIN_API_PREFIX,
+  "/api/admin"
+]);
 
 export function createAdminController() {
   const sessions = new Map();
@@ -13,7 +18,12 @@ export function createAdminController() {
 
   return {
     async handle(req, res, pathname, helpers) {
-      if (pathname === "/api/admin/login") {
+      pathname = normalizeAdminApiPath(pathname);
+      if (!pathname) {
+        return false;
+      }
+
+      if (pathname === "/admin-controller.mjs/login") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -25,7 +35,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/dashboard") {
+      if (pathname === "/admin-controller.mjs/dashboard") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -41,7 +51,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/payments/config") {
+      if (pathname === "/admin-controller.mjs/payments/config") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -55,7 +65,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/requests") {
+      if (pathname === "/admin-controller.mjs/requests") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -77,7 +87,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/subscribers") {
+      if (pathname === "/admin-controller.mjs/subscribers") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -98,7 +108,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/search") {
+      if (pathname === "/admin-controller.mjs/search") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -116,7 +126,7 @@ export function createAdminController() {
         return true;
       }
 
-      const userProfileMatch = pathname.match(/^\/api\/admin\/users\/(\d+)\/profile$/);
+      const userProfileMatch = pathname.match(/^\/admin-controller\.mjs\/users\/(\d+)\/profile$/);
       if (userProfileMatch) {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
@@ -133,7 +143,7 @@ export function createAdminController() {
         return true;
       }
 
-      const accountStateMatch = pathname.match(/^\/api\/admin\/users\/(\d+)\/account-state$/);
+      const accountStateMatch = pathname.match(/^\/admin-controller\.mjs\/users\/(\d+)\/account-state$/);
       if (accountStateMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -155,7 +165,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/provider/approve") {
+      if (pathname === "/admin-controller.mjs/provider/approve") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -176,7 +186,7 @@ export function createAdminController() {
         return true;
       }
 
-      const providerApproveMatch = pathname.match(/^\/api\/admin\/providers\/(\d+)\/approve$/);
+      const providerApproveMatch = pathname.match(/^\/admin-controller\.mjs\/providers\/(\d+)\/approve$/);
       if (providerApproveMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -197,7 +207,7 @@ export function createAdminController() {
         return true;
       }
 
-      const providerTrainingMatch = pathname.match(/^\/api\/admin\/providers\/(\d+)\/training$/);
+      const providerTrainingMatch = pathname.match(/^\/admin-controller\.mjs\/providers\/(\d+)\/training$/);
       if (providerTrainingMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -219,7 +229,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/refund") {
+      if (pathname === "/admin-controller.mjs/refund") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -240,7 +250,7 @@ export function createAdminController() {
         return true;
       }
 
-      const requestResetMatch = pathname.match(/^\/api\/admin\/requests\/([^/]+)\/reset$/);
+      const requestResetMatch = pathname.match(/^\/admin-controller\.mjs\/requests\/([^/]+)\/reset$/);
       if (requestResetMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -261,7 +271,7 @@ export function createAdminController() {
         return true;
       }
 
-      if (pathname === "/api/admin/payout") {
+      if (pathname === "/admin-controller.mjs/payout") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -282,7 +292,7 @@ export function createAdminController() {
         return true;
       }
 
-      const requestRefundMatch = pathname.match(/^\/api\/admin\/requests\/([^/]+)\/refund$/);
+      const requestRefundMatch = pathname.match(/^\/admin-controller\.mjs\/requests\/([^/]+)\/refund$/);
       if (requestRefundMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -303,7 +313,7 @@ export function createAdminController() {
         return true;
       }
 
-      const payoutCompleteMatch = pathname.match(/^\/api\/admin\/payouts\/([^/]+)\/complete$/);
+      const payoutCompleteMatch = pathname.match(/^\/admin-controller\.mjs\/payouts\/([^/]+)\/complete$/);
       if (payoutCompleteMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -324,7 +334,7 @@ export function createAdminController() {
         return true;
       }
 
-      const forceActionMatch = pathname.match(/^\/api\/admin\/requests\/([^/]+)\/force-action$/);
+      const forceActionMatch = pathname.match(/^\/admin-controller\.mjs\/requests\/([^/]+)\/force-action$/);
       if (forceActionMatch) {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
@@ -757,7 +767,7 @@ function requireAdminSession(req, sessions, trustedZones) {
       statusCode: 401,
       body: {
         error: "admin-auth-required",
-        message: "Send a Bearer token from /api/admin/login."
+        message: "Send a Bearer token from /admin-controller.mjs/login."
       }
     };
   }
@@ -793,6 +803,20 @@ function requireAdminSession(req, sessions, trustedZones) {
     session,
     locationZone
   };
+}
+
+function normalizeAdminApiPath(pathname) {
+  if (typeof pathname !== "string" || !pathname) {
+    return null;
+  }
+
+  for (const prefix of ADMIN_API_PREFIX_ALIASES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return `${CANONICAL_ADMIN_API_PREFIX}${pathname.slice(prefix.length)}`;
+    }
+  }
+
+  return null;
 }
 
 function mapSubscriber(user, requests) {
