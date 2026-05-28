@@ -7,10 +7,11 @@ import {
 } from "./subscription-controller.mjs";
 
 const DEFAULT_ROUTE_CACHE_TTL_MS = 5 * 60 * 1000;
-const CANONICAL_PROTECTED_API_PREFIX = "/.aw-roadside-security.mjs";
+const CANONICAL_PROTECTED_API_PREFIX = "/aw-roadside-security.mjs";
 const PROTECTED_API_PREFIX_ALIASES = Object.freeze([
   CANONICAL_PROTECTED_API_PREFIX,
-  "/.api.js"
+  "/api/aw-roadside",
+  "/api/awroadside-fire"
 ]);
 const PROVIDER_ONLY_ACTIONS = new Set(["accept", "eta", "soft-contact", "hard-contact", "arrived", "completed"]);
 const CUSTOMER_ONLY_ACTIONS = new Set([
@@ -23,7 +24,8 @@ const CUSTOMER_ONLY_ACTIONS = new Set([
 ]);
 const SHARED_NOTE_ACTIONS = new Set(["note"]);
 
-export function createAwRoadsideSecurityController({ requestServiceController, localWatchdog }) {
+export function createAwRoadsideSecurityController({ requestServiceController, watchdog, localWatchdog }) {
+  const securityWatchdog = watchdog || localWatchdog;
   const routeCache = new Map();
   const auditLog = [];
   const routeCacheTtlMs = Number.parseInt(process.env.AW_SECURITY_ROUTE_CACHE_TTL_MS || `${DEFAULT_ROUTE_CACHE_TTL_MS}`, 10);
@@ -35,8 +37,8 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return false;
       }
 
-      if (pathname === "/api/aw-roadside/security/status") {
-        const watchdogStatus = await localWatchdog.getStatus();
+      if (pathname === "/aw-roadside-security.mjs/security/status") {
+        const watchdogStatus = await securityWatchdog.getStatus();
         helpers.sendJson(res, 200, {
           layer: "aw-roadside-security",
           active: true,
@@ -48,17 +50,17 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/security/watchdog") {
+      if (pathname === "/aw-roadside-security.mjs/security/watchdog") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
         }
         requireSession(req, helpers);
-        helpers.sendJson(res, 200, await localWatchdog.scanAndRecord());
+        helpers.sendJson(res, 200, await securityWatchdog.getStatus());
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/health") {
+      if (pathname === "/aw-roadside-security.mjs/health") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -75,7 +77,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/frontend-config") {
+      if (pathname === "/aw-roadside-security.mjs/frontend-config") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -84,7 +86,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/location/config") {
+      if (pathname === "/aw-roadside-security.mjs/location/config") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -93,7 +95,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/location/geocode") {
+      if (pathname === "/aw-roadside-security.mjs/location/geocode") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -104,7 +106,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/location/isochrone") {
+      if (pathname === "/aw-roadside-security.mjs/location/isochrone") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -125,7 +127,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/payments/config") {
+      if (pathname === "/aw-roadside-security.mjs/payments/config") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -134,7 +136,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/signup") {
+      if (pathname === "/aw-roadside-security.mjs/auth/signup") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -147,7 +149,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/login") {
+      if (pathname === "/aw-roadside-security.mjs/auth/login") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -160,7 +162,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/reset-password") {
+      if (pathname === "/aw-roadside-security.mjs/auth/reset-password") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -182,7 +184,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/profile") {
+      if (pathname === "/aw-roadside-security.mjs/auth/profile") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -193,7 +195,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/provider/wallet") {
+      if (pathname === "/aw-roadside-security.mjs/provider/wallet") {
         if (req.method !== "GET") {
           helpers.sendMethodNotAllowed(res, "GET");
           return true;
@@ -217,7 +219,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/subscriber/setup") {
+      if (pathname === "/aw-roadside-security.mjs/auth/subscriber/setup") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -235,7 +237,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/provider/apply") {
+      if (pathname === "/aw-roadside-security.mjs/auth/provider/apply") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -253,7 +255,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/auth/provider/documents") {
+      if (pathname === "/aw-roadside-security.mjs/auth/provider/documents") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -271,7 +273,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/requests") {
+      if (pathname === "/aw-roadside-security.mjs/requests") {
         if (req.method === "POST") {
           const session = helpers.resolveUserSession(req);
           const payload = await helpers.readJsonBody(req);
@@ -405,7 +407,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/payments/create-order") {
+      if (pathname === "/aw-roadside-security.mjs/payments/create-order") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -459,7 +461,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/payments/service-quote") {
+      if (pathname === "/aw-roadside-security.mjs/payments/service-quote") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
@@ -471,7 +473,7 @@ export function createAwRoadsideSecurityController({ requestServiceController, l
         return true;
       }
 
-      if (pathname === "/api/aw-roadside/payments/capture-order") {
+      if (pathname === "/aw-roadside-security.mjs/payments/capture-order") {
         if (req.method !== "POST") {
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
