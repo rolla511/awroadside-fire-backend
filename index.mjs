@@ -15,26 +15,6 @@ function toJson(value) {
   return JSON.stringify(value ?? null);
 }
 
-function parseStoredPayload(value) {
-  if (!value) {
-    return null;
-  }
-  if (typeof value === "string") {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return null;
-    }
-  }
-  return typeof value === "object" ? value : null;
-}
-
-function mapPayloadRows(rows) {
-  return (Array.isArray(rows) ? rows : [])
-    .map((row) => parseStoredPayload(row?.payload))
-    .filter((entry) => entry && typeof entry === "object");
-}
-
 async function upsertUserRow(sql, user) {
   await sql.query(
     `INSERT INTO aw_users (
@@ -304,7 +284,7 @@ async function upsertWalletRow(sql, row) {
 function createUsersRepository() {
   return {
     name: "users",
-    syncCoordinator: "server.mjs",
+    syncCoordinator: "backend/server.mjs",
     targetTables: ["aw_users", "aw_subscriber_profiles", "aw_provider_profiles"],
     async sync(sql, users) {
       for (const user of users) {
@@ -319,7 +299,7 @@ function createUsersRepository() {
 function createRequestsRepository() {
   return {
     name: "requests",
-    syncCoordinator: "server.mjs",
+    syncCoordinator: "backend/server.mjs",
     targetTables: ["aw_service_requests"],
     async sync(sql, requests) {
       for (const request of requests) {
@@ -332,7 +312,7 @@ function createRequestsRepository() {
 function createPaymentsRepository() {
   return {
     name: "payments",
-    syncCoordinator: "server.mjs",
+    syncCoordinator: "backend/server.mjs",
     targetTables: ["aw_payment_events"],
     async insert(sql, entry) {
       await insertPaymentEventRow(sql, entry);
@@ -343,7 +323,7 @@ function createPaymentsRepository() {
 function createProviderWalletRepository() {
   return {
     name: "providerWallet",
-    syncCoordinator: "server.mjs",
+    syncCoordinator: "backend/server.mjs",
     targetTables: ["aw_provider_wallet_history"],
     async syncFromRequests(sql, requests) {
       for (const request of requests) {
@@ -371,7 +351,7 @@ function createProviderWalletRepository() {
 function createProviderHistoryRepository() {
   return {
     name: "providerHistory",
-    syncCoordinator: "server.mjs",
+    syncCoordinator: "backend/server.mjs",
     targetTables: ["aw_provider_performance_history"],
     async syncFromUsers(sql, users) {
       for (const user of users) {
@@ -443,30 +423,26 @@ export function createAwRoadsideStorageAuthority({
         lastEvent: "awroadsidedb-config-initialized"
       };
 
-      if (resolvedDbConfig.authority.mode === "runtime-storage") {
+      if (resolvedDbConfig.authority.mode === "file-runtime") {
         status = {
           ...status,
           enabled: false,
-          lastEvent: "storage-authority-runtime-storage"
+          lastEvent: "storage-authority-file-runtime"
         };
-        await record("storage-authority-runtime-storage", {
+        await record("storage-authority-file-runtime", {
           repositories: Object.keys(repositories)
         });
         if (resolvedDbConfig.authority.strict) {
-          throw new Error("AW Roadside storage authority refused runtime-storage mode while strict mode is enabled.");
+          throw new Error("AW Roadside storage authority refused file-runtime mode while strict mode is enabled.");
         }
         return;
       }
 
       if (!resolvedDbConfig.authority.configured) {
-        const error = new Error("AW Roadside storage authority is in internal-db mode but the database target or access configuration is incomplete.");
         await handleFailure(
-          error,
+          new Error("AW Roadside storage authority is in external-db mode but no database connection is configured."),
           "storage-authority-db-not-configured"
         );
-        if (!resolvedDbConfig.authority.strict) {
-          await downgradeToRuntimeStorage(error, "storage-authority-runtime-storage-fallback");
-        }
         return;
       }
 
@@ -503,14 +479,11 @@ export function createAwRoadsideStorageAuthority({
         });
       } catch (error) {
         await handleFailure(error, "storage-authority-sql-unavailable");
-        if (!resolvedDbConfig.authority.strict) {
-          await downgradeToRuntimeStorage(error, "storage-authority-runtime-storage-fallback");
-        }
       }
     },
     async syncUsers(users) {
       if (!enabled || !sql) {
-        if (status.mode === "internal-db") {
+        if (status.mode === "external-db") {
           throw new Error(`Cannot sync users: database is not enabled (status: ${status.lastEvent})`);
         }
         return;
@@ -524,7 +497,7 @@ export function createAwRoadsideStorageAuthority({
     },
     async syncRequests(requests) {
       if (!enabled || !sql) {
-        if (status.mode === "internal-db") {
+        if (status.mode === "external-db") {
           throw new Error(`Cannot sync requests: database is not enabled (status: ${status.lastEvent})`);
         }
         return;
@@ -539,7 +512,7 @@ export function createAwRoadsideStorageAuthority({
     },
     async appendPaymentEvent(entry) {
       if (!enabled || !sql) {
-        if (status.mode === "internal-db") {
+        if (status.mode === "external-db") {
           throw new Error(`Cannot append payment event: database is not enabled (status: ${status.lastEvent})`);
         }
         return;
@@ -549,27 +522,6 @@ export function createAwRoadsideStorageAuthority({
       } catch (error) {
         await handleFailure(error, "storage-sync-payment-failed");
       }
-    },
-    async readUsers() {
-      return readPayloadCollection({
-        tableName: "aw_users",
-        orderBy: "user_id ASC",
-        label: "users"
-      });
-    },
-    async readRequests() {
-      return readPayloadCollection({
-        tableName: "aw_service_requests",
-        orderBy: "submitted_at DESC NULLS LAST, updated_at DESC, request_id DESC",
-        label: "requests"
-      });
-    },
-    async readPaymentEvents() {
-      return readPayloadCollection({
-        tableName: "aw_payment_events",
-        orderBy: "created_at DESC, event_id DESC",
-        label: "payments"
-      });
     }
   };
 
@@ -597,43 +549,10 @@ export function createAwRoadsideStorageAuthority({
       throw error;
     }
   }
-
-  async function downgradeToRuntimeStorage(error, event) {
-    status = {
-      ...status,
-      enabled: false,
-      mode: "runtime-storage",
-      lastEvent: event,
-      lastError: error instanceof Error ? error.message : String(error)
-    };
-    await record(event, {
-      previousMode: resolvedDbConfig.authority.mode,
-      message: error instanceof Error ? error.message : String(error)
-    });
-  }
-
-  async function readPayloadCollection({ tableName, orderBy, label }) {
-    if (!enabled || !sql) {
-      if (status.mode === "internal-db") {
-        throw new Error(`Cannot read ${label}: database is not enabled (status: ${status.lastEvent})`);
-      }
-      return [];
-    }
-    try {
-      const result = await sql.query(`SELECT payload FROM ${tableName} ORDER BY ${orderBy}`);
-      return mapPayloadRows(result.rows);
-    } catch (error) {
-      await handleFailure(error, `storage-read-${label}-failed`);
-      if (status.mode === "internal-db") {
-        throw error;
-      }
-      return [];
-    }
-  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  void import("../../index.mjs").catch((error) => {
+  void import("../server.mjs").catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });
