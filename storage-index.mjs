@@ -15,6 +15,26 @@ function toJson(value) {
   return JSON.stringify(value ?? null);
 }
 
+function parseStoredPayload(value) {
+  if (!value) {
+    return null;
+  }
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  return typeof value === "object" ? value : null;
+}
+
+function mapPayloadRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row) => parseStoredPayload(row?.payload))
+    .filter((entry) => entry && typeof entry === "object");
+}
+
 async function upsertUserRow(sql, user) {
   await sql.query(
     `INSERT INTO aw_users (
@@ -439,7 +459,7 @@ export function createAwRoadsideStorageAuthority({
       }
 
       if (!resolvedDbConfig.authority.configured) {
-        const error = new Error("AW Roadside storage authority is in internal-db mode but no database connection is configured.");
+        const error = new Error("AW Roadside storage authority is in internal-db mode but the database target or access configuration is incomplete.");
         await handleFailure(
           error,
           "storage-authority-db-not-configured"
@@ -529,6 +549,27 @@ export function createAwRoadsideStorageAuthority({
       } catch (error) {
         await handleFailure(error, "storage-sync-payment-failed");
       }
+    },
+    async readUsers() {
+      return readPayloadCollection({
+        tableName: "aw_users",
+        orderBy: "user_id ASC",
+        label: "users"
+      });
+    },
+    async readRequests() {
+      return readPayloadCollection({
+        tableName: "aw_service_requests",
+        orderBy: "submitted_at DESC NULLS LAST, updated_at DESC, request_id DESC",
+        label: "requests"
+      });
+    },
+    async readPaymentEvents() {
+      return readPayloadCollection({
+        tableName: "aw_payment_events",
+        orderBy: "created_at DESC, event_id DESC",
+        label: "payments"
+      });
     }
   };
 
@@ -569,6 +610,25 @@ export function createAwRoadsideStorageAuthority({
       previousMode: resolvedDbConfig.authority.mode,
       message: error instanceof Error ? error.message : String(error)
     });
+  }
+
+  async function readPayloadCollection({ tableName, orderBy, label }) {
+    if (!enabled || !sql) {
+      if (status.mode === "internal-db") {
+        throw new Error(`Cannot read ${label}: database is not enabled (status: ${status.lastEvent})`);
+      }
+      return [];
+    }
+    try {
+      const result = await sql.query(`SELECT payload FROM ${tableName} ORDER BY ${orderBy}`);
+      return mapPayloadRows(result.rows);
+    } catch (error) {
+      await handleFailure(error, `storage-read-${label}-failed`);
+      if (status.mode === "internal-db") {
+        throw error;
+      }
+      return [];
+    }
   }
 }
 

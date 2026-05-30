@@ -471,7 +471,7 @@ const SERVER_AUTHORITY = Object.freeze({
   protectedApiAliasPaths: PROTECTED_API_ALIAS_PATHS,
   rawApiBasePath: "/index.mjs",
   statement:
-    "index.mjs is the public root entry buffer. server.mjs remains the internal runtime implementation. Compatibility and protected API surfaces resolve through root runtime modules."
+    "index.mjs is the public runtime buffer. server.mjs remains the processing authority behind that entry. Compatibility and protected API surfaces resolve through root runtime modules."
 });
 const RAW_API_BASE_PATH = SERVER_AUTHORITY.rawApiBasePath;
 const RAW_API_BASE_PATH_ALIASES = Object.freeze([
@@ -479,6 +479,7 @@ const RAW_API_BASE_PATH_ALIASES = Object.freeze([
   "/server.mjs",
   "/api"
 ]);
+const ADMIN_API_BASE_PATH = "/admin-controller.mjs";
 
 const host = process.env.HOST || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
@@ -515,7 +516,7 @@ function buildAuthorityDescriptor(req = null) {
 function resolveWebRoot() {
   const configuredWebRoot = (process.env.WEB_ROOT || "").trim();
   const cwd = process.cwd();
-  const candidateRoots = [
+  const candidateRoots = [...new Set([
     configuredWebRoot
       ? path.isAbsolute(configuredWebRoot)
         ? configuredWebRoot
@@ -523,9 +524,9 @@ function resolveWebRoot() {
       : null,
     path.join(projectRoot, "web"),
     path.join(cwd, "web")
-  ].filter(Boolean);
+  ].filter(Boolean))];
 
-  for (const candidateRoot of new Set(candidateRoots)) {
+  for (const candidateRoot of candidateRoots) {
     if (existsSync(path.join(candidateRoot, WEB_ROOT_ENTRY_FILE))) {
       console.log(`[DEBUG_LOG] Web root resolved to: ${candidateRoot}`);
       return candidateRoot;
@@ -534,7 +535,7 @@ function resolveWebRoot() {
     }
   }
 
-  console.warn(`[WARN] No static web root resolved. Checked: ${candidateRoots.join(", ")}`);
+  console.log(`[DEBUG_LOG] Static UI root not configured. Checked: ${candidateRoots.join(", ") || "none"}`);
   return null;
 }
 
@@ -743,9 +744,9 @@ watchdog.initialize().catch((error) => {
 await auditBlueprintNodeRuntime();
 await storageAuthority.initialize();
 const [initialUsers, initialRequests, initialPayments] = await Promise.all([
-  readUsers(),
-  readRequestLog(),
-  readPaymentLog()
+  readUsersFromRuntimeStorage(),
+  readRequestLogFromRuntimeStorage(),
+  readPaymentLogFromRuntimeStorage()
 ]);
 await storageAuthority.syncUsers(initialUsers);
 await storageAuthority.syncRequests(initialRequests);
@@ -896,6 +897,9 @@ const server = http.createServer(async (req, res) => {
       getCompatibilityRepository: () => runtimeRepository.getSnapshot(),
       getCompatibilityManifest: () => runtimeRepository.getManifest(),
       acknowledgeCompatibilityVariant: (payload) => runtimeRepository.acknowledgeVariant(payload),
+      retainInboundPayload: (request, payload, details = {}) => retainInboundPayload(request, payload, details),
+      markInboundPayloadProcessed: (request, details = {}) => markInboundPayloadProcessed(request, details),
+      markInboundPayloadRejected: (request, error, details = {}) => markInboundPayloadRejected(request, error, details),
       getProtectedApiBaseUrl: (request) => getProtectedApiBaseUrl(request),
       getRequestBaseUrl: (request) => resolveRequestBaseUrl(request),
       broadcastEvent: (event, data) => broadcastSseEvent(event, data)
@@ -1125,6 +1129,11 @@ const server = http.createServer(async (req, res) => {
           const payload = await readJsonBody(req);
           const normalizedRequest = normalizeServiceRequest(payload);
           const savedRequest = await createServiceRequest(normalizedRequest);
+          await markInboundPayloadProcessed(req, {
+            route: `${RAW_API_BASE_PATH}/requests`,
+            requestId: savedRequest.id,
+            outcome: "created"
+          });
           sendJson(res, 201, {
             requestId: savedRequest.id,
             status: savedRequest.status,
@@ -1132,6 +1141,9 @@ const server = http.createServer(async (req, res) => {
             request: savedRequest
           });
         } catch (error) {
+          await markInboundPayloadRejected(req, error, {
+            route: `${RAW_API_BASE_PATH}/requests`
+          });
           if (error.statusCode === 400 || error.code === "validation-failed") {
             sendJson(res, 400, {
               error: error.code || "validation-failed",
@@ -1336,8 +1348,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  const isPublic = !!process.env.PUBLIC_BASE_URL;
-  console.log(`Local runtime running at http://${host}:${port}`);
+  const isPublic = isPublicBaseUrl(publicBaseUrl);
+  console.log(`Runtime listening at http://${host}:${port}`);
   console.log(`Health endpoint: http://${host}:${port}${RAW_API_BASE_PATH}/health`);
   console.log(`Runtime status: http://${host}:${port}${RAW_API_BASE_PATH}/runtime/status`);
   console.log(`PayPal Webhook Target: ${publicBaseUrl}${paypalWebhookPath} ${isPublic ? "(Public)" : "(Local/Testing)"}`);
@@ -1452,6 +1464,7 @@ async function createRuntimeStatus() {
     runningNodeVersion: process.version,
     uiUrl,
     apiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
+    adminApiBaseUrl: `${publicBaseUrl}${ADMIN_API_BASE_PATH}`,
     rawApiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
     frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
     protectedApiBaseUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
@@ -1547,6 +1560,89 @@ function sendNotFound(res, pathname) {
   res.end(body);
 }
 
+function resolveRuntimeEntryBuffer() {
+  const candidate = globalThis.__AW_INDEX_RUNTIME_BUFFER__;
+  if (
+    candidate &&
+    typeof candidate.retain === "function" &&
+    typeof candidate.markProcessed === "function" &&
+    typeof candidate.markRejected === "function"
+  ) {
+    return candidate;
+  }
+  return null;
+}
+
+function getRequestPathname(req) {
+  try {
+    return new URL(req?.url || "/", `http://${req?.headers?.host || "127.0.0.1"}`).pathname;
+  } catch {
+    return typeof req?.url === "string" ? req.url : "/";
+  }
+}
+
+async function retainInboundPayload(req, payload, details = {}) {
+  const method = typeof req?.method === "string" ? req.method.toUpperCase() : "";
+  if (!["POST", "PUT", "PATCH"].includes(method)) {
+    return null;
+  }
+  if (req.__awIndexReceipt) {
+    return req.__awIndexReceipt;
+  }
+  const buffer = resolveRuntimeEntryBuffer();
+  if (!buffer) {
+    return null;
+  }
+  try {
+    const receipt = await buffer.retain({
+      pathname: getRequestPathname(req),
+      method,
+      payload,
+      remoteAddress: typeof req?.socket?.remoteAddress === "string" ? req.socket.remoteAddress : null,
+      userAgent: readHeader(req, "user-agent"),
+      contentType: readHeader(req, "content-type"),
+      details
+    });
+    req.__awIndexReceipt = receipt;
+    return receipt;
+  } catch (error) {
+    console.warn(`[WARN] Failed to retain inbound payload in index buffer: ${error.message}`);
+    return null;
+  }
+}
+
+async function markInboundPayloadProcessed(req, details = {}) {
+  const receipt = req?.__awIndexReceipt;
+  const buffer = resolveRuntimeEntryBuffer();
+  if (!receipt || !buffer) {
+    return;
+  }
+  try {
+    await buffer.markProcessed(receipt, {
+      sink: "server.mjs",
+      ...details
+    });
+  } catch (error) {
+    console.warn(`[WARN] Failed to mark inbound payload processed: ${error.message}`);
+  }
+}
+
+async function markInboundPayloadRejected(req, error, details = {}) {
+  const receipt = req?.__awIndexReceipt;
+  const buffer = resolveRuntimeEntryBuffer();
+  if (!receipt || !buffer) {
+    return;
+  }
+  try {
+    await buffer.markRejected(receipt, error, {
+      sink: "server.mjs",
+      ...details
+    });
+  } catch (recordError) {
+    console.warn(`[WARN] Failed to mark inbound payload rejected: ${recordError.message}`);
+  }
+}
+
 async function readJsonBody(req) {
   const rawBody = await readRawBody(req);
   if (!rawBody) {
@@ -1554,11 +1650,28 @@ async function readJsonBody(req) {
   }
 
   try {
-    return JSON.parse(rawBody);
+    const parsed = JSON.parse(rawBody);
+    await retainInboundPayload(req, parsed, {
+      source: "readJsonBody",
+      runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT
+    });
+    return parsed;
   } catch {
+    await retainInboundPayload(req, {
+      invalidJson: true,
+      rawBody
+    }, {
+      source: "readJsonBody",
+      runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
+      invalidJson: true
+    });
     const error = new Error("Request body must be valid JSON.");
     error.statusCode = 400;
     error.code = "invalid-json";
+    await markInboundPayloadRejected(req, error, {
+      route: getRequestPathname(req),
+      invalidJson: true
+    });
     throw error;
   }
 }
@@ -2284,6 +2397,8 @@ async function getFrontendConfigPayload(req = null) {
     authority: buildAuthorityDescriptor(req),
     apiBaseUrl: getProtectedApiBaseUrl(req),
     apiModule: "aw-roadside-security.mjs",
+    adminApiBaseUrl: `${baseUrl}${ADMIN_API_BASE_PATH}`,
+    adminApiModule: "admin-controller.mjs",
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
@@ -2402,6 +2517,8 @@ function getIntegrationTargetPayload(req = null) {
     uiBaseUrl: baseUrl,
     apiBaseUrl: getProtectedApiBaseUrl(req),
     apiModule: "aw-roadside-security.mjs",
+    adminApiBaseUrl: `${baseUrl}${ADMIN_API_BASE_PATH}`,
+    adminApiModule: "admin-controller.mjs",
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
@@ -2461,6 +2578,18 @@ function resolvePublicBaseUrl() {
 
   const fallbackHost = host === "0.0.0.0" ? "127.0.0.1" : host;
   return `http://${fallbackHost}:${port}`;
+}
+
+function isPublicBaseUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return false;
+    }
+    return !["0.0.0.0", "127.0.0.1", "localhost"].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
 }
 
 function resolveRuntimeRoot() {
@@ -3793,7 +3922,15 @@ async function hasProcessedPaypalWebhook({ deliveryId, eventId }) {
   }
 }
 
-async function readPaymentLog() {
+function preferSqlStorageReads() {
+  if (typeof storageAuthority?.getStatus !== "function") {
+    return false;
+  }
+  const status = storageAuthority.getStatus();
+  return status.enabled === true && status.mode === "internal-db";
+}
+
+async function readPaymentLogFromRuntimeStorage() {
   try {
     const raw = await fs.readFile(paymentLogPath, "utf8");
     return raw
@@ -3807,6 +3944,13 @@ async function readPaymentLog() {
     }
     throw error;
   }
+}
+
+async function readPaymentLog() {
+  if (preferSqlStorageReads() && typeof storageAuthority.readPaymentEvents === "function") {
+    return storageAuthority.readPaymentEvents();
+  }
+  return readPaymentLogFromRuntimeStorage();
 }
 
 function issueUserSession({ userId, email, roles }) {
@@ -4882,7 +5026,7 @@ function shiftIso(baseIso, minutes) {
   return new Date(base.getTime() + Number(minutes || 0) * 60 * 1000).toISOString();
 }
 
-async function readUsers() {
+async function readUsersFromRuntimeStorage() {
   try {
     const raw = await fs.readFile(usersPath, "utf8");
     const users = JSON.parse(raw);
@@ -4893,6 +5037,14 @@ async function readUsers() {
     }
     throw error;
   }
+}
+
+async function readUsers() {
+  if (preferSqlStorageReads() && typeof storageAuthority.readUsers === "function") {
+    const users = await storageAuthority.readUsers();
+    return Array.isArray(users) ? users.map((user) => reconcileProviderDiscipline(user)) : [];
+  }
+  return readUsersFromRuntimeStorage();
 }
 
 async function writeUsers(users) {
@@ -5098,7 +5250,7 @@ function addMinutes(value, minutes) {
   return new Date(base.getTime() + Number(minutes || 0) * 60 * 1000).toISOString();
 }
 
-async function readRequestLog() {
+async function readRequestLogFromRuntimeStorage() {
   try {
     const raw = await fs.readFile(requestLogPath, "utf8");
     return raw
@@ -5112,6 +5264,13 @@ async function readRequestLog() {
     }
     throw error;
   }
+}
+
+async function readRequestLog() {
+  if (preferSqlStorageReads() && typeof storageAuthority.readRequests === "function") {
+    return storageAuthority.readRequests();
+  }
+  return readRequestLogFromRuntimeStorage();
 }
 
 async function readDispatchRequestLog() {
