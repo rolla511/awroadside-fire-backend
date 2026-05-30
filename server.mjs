@@ -19,7 +19,7 @@ import {createSmtpMailer} from "./smtp-mailer.mjs";
 
 
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
-const WEB_ROOT_ENTRY_FILE = "home.html";
+const WEB_ROOT_ENTRY_FILE = "false";
 const runtimeFileRoot = path.resolve(__dirname);
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
 console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
