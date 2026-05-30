@@ -1,9 +1,14 @@
 import path from "path";
 
-const ACCEPTED_STATUSES = new Set(["ACCEPTED", "ASSIGNED", "EN_ROUTE", "ARRIVED", "COMPLETED"]);
+const ACCEPTED_STATUSES = new Set(["ACCEPTED", "ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED", "COMPLETED"]);
 const PROVIDER_ACTIONS = new Set([
   "accept",
   "eta",
+  "soft-eta",
+  "hard-eta",
+  "extend-eta",
+  "enroute",
+  "paused",
   "soft-contact",
   "hard-contact",
   "arrived",
@@ -22,13 +27,14 @@ const PROVIDER_ACTIONS = new Set([
   "mark-complete"
 ]);
 const DEFAULT_API_STYLE = "adapter";
+const LOCAL_RUNTIME_API_STYLE = "index.mjs";
 
-export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl = "", fallbackApiStyle = "roadside-backend" }) {
+export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl = "", fallbackApiStyle = LOCAL_RUNTIME_API_STYLE }) {
   const cacheTtlMs = Number.parseInt(process.env.REQUEST_SERVICE_CACHE_TTL_MS || "30000", 10);
   const configuredApiBaseUrl = (process.env.REQUEST_SERVICE_API_BASE_URL || "").trim().replace(/\/$/, "");
   const resolvedFallbackApiBaseUrl = fallbackApiBaseUrl.trim().replace(/\/$/, "");
   const configuredApiStyle = (process.env.REQUEST_SERVICE_API_STYLE || "").trim().toLowerCase();
-  const resolvedFallbackApiStyle = fallbackApiStyle.trim().toLowerCase() || "roadside-backend";
+  const resolvedFallbackApiStyle = fallbackApiStyle.trim().toLowerCase() || LOCAL_RUNTIME_API_STYLE;
 
   return {
     async handle(req, res, pathname, helpers) {
@@ -130,7 +136,7 @@ export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl =
   }
 
   function useLocalRoadsideBackend() {
-    return !configuredApiBaseUrl && getApiStyle() === "roadside-backend";
+    return !configuredApiBaseUrl && getApiStyle() === LOCAL_RUNTIME_API_STYLE;
   }
 
   async function getHealth(helpers) {
@@ -146,7 +152,7 @@ export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl =
   }
 
   async function getStatus(helpers) {
-    if (getApiStyle() === "roadside-backend") {
+    if (getApiStyle() === LOCAL_RUNTIME_API_STYLE) {
       const [health, requestsPayload] = await Promise.all([
         getHealth(helpers),
         listRequests(helpers)
@@ -154,9 +160,9 @@ export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl =
 
       return {
         status: health.status || "ok",
-        service: "roadside-backend",
+        service: "server.mjs",
         requestCount: Array.isArray(requestsPayload.requests) ? requestsPayload.requests.length : 0,
-        source: "roadside-backend"
+        source: "server.mjs"
       };
     }
 
@@ -256,7 +262,7 @@ export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl =
       return normalizeRoadsideRequest(request);
     }
 
-    if (getApiStyle() === "roadside-backend") {
+    if (getApiStyle() === LOCAL_RUNTIME_API_STYLE) {
       const list = await listRequests(helpers);
       const request = list.requests.find((entry) => String(entry.id || entry.requestId) === String(requestId));
       if (!request) {
@@ -334,15 +340,15 @@ export function createRequestServiceController({ cacheRoot, fallbackApiBaseUrl =
 }
 
 function getRemotePath(apiStyle, resource) {
-  if (apiStyle === "roadside-backend") {
+  if (apiStyle === LOCAL_RUNTIME_API_STYLE) {
     if (resource === "health") {
-      return "/api/health";
+      return "/index.mjs/health";
     }
     if (resource === "status") {
-      return "/api/health";
+      return "/index.mjs/health";
     }
     if (resource === "requests") {
-      return "/api/requests";
+      return "/index.mjs/requests";
     }
   }
 
@@ -404,10 +410,10 @@ function normalizeRequestList(payload) {
 }
 
 function normalizeHealthPayload(apiStyle, payload) {
-  if (apiStyle === "roadside-backend") {
+  if (apiStyle === LOCAL_RUNTIME_API_STYLE) {
     return {
       status: payload?.status === "ok" || payload?.ok ? "ok" : "error",
-      service: payload?.service || "roadside-backend",
+      service: payload?.service || "server.mjs",
       storage: payload?.storage || null
     };
   }
@@ -415,7 +421,7 @@ function normalizeHealthPayload(apiStyle, payload) {
 }
 
 function normalizeListPayload(apiStyle, payload) {
-  if (apiStyle === "roadside-backend") {
+  if (apiStyle === LOCAL_RUNTIME_API_STYLE) {
     const requests = Array.isArray(payload)
       ? payload
       : Array.isArray(payload?.requests)
@@ -429,14 +435,14 @@ function normalizeListPayload(apiStyle, payload) {
 }
 
 function normalizeCreatedPayload(apiStyle, payload) {
-  if (apiStyle === "roadside-backend") {
+  if (apiStyle === LOCAL_RUNTIME_API_STYLE) {
     return normalizeRoadsideRequest(payload?.request || payload);
   }
   return payload;
 }
 
 function normalizeActionPayload(apiStyle, payload, requestId, action) {
-  if (apiStyle === "roadside-backend") {
+  if (apiStyle === LOCAL_RUNTIME_API_STYLE) {
     const request = normalizeRoadsideRequest(payload?.request || payload);
     return {
       requestId: request?.requestId || request?.id || requestId,
@@ -514,7 +520,7 @@ function normalizeRoadsideRequest(payload) {
 }
 
 function mapCreatePayload(apiStyle, payload) {
-  if (apiStyle !== "roadside-backend") {
+  if (apiStyle !== LOCAL_RUNTIME_API_STYLE) {
     return payload;
   }
 
@@ -633,7 +639,7 @@ function sanitizeProviderAction(action, payload) {
 }
 
 function mapProviderActionPayload(apiStyle, payload) {
-  if (apiStyle !== "roadside-backend") {
+  if (apiStyle !== LOCAL_RUNTIME_API_STYLE) {
     return payload;
   }
   return {

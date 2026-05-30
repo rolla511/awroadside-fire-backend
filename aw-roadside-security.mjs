@@ -13,7 +13,19 @@ const PROTECTED_API_PREFIX_ALIASES = Object.freeze([
   "/api/aw-roadside",
   "/api/awroadside-fire"
 ]);
-const PROVIDER_ONLY_ACTIONS = new Set(["accept", "eta", "soft-contact", "hard-contact", "arrived", "completed"]);
+const PROVIDER_ONLY_ACTIONS = new Set([
+  "accept",
+  "eta",
+  "soft-eta",
+  "hard-eta",
+  "extend-eta",
+  "enroute",
+  "paused",
+  "soft-contact",
+  "hard-contact",
+  "arrived",
+  "completed"
+]);
 const CUSTOMER_ONLY_ACTIONS = new Set([
   "subscriber-accept-eta",
   "customer-accept-eta",
@@ -227,7 +239,31 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           });
           return true;
         }
-        helpers.sendJson(res, 200, await helpers.getProviderWalletPayload(session.userId));
+        helpers.sendJson(res, 200, maskProviderWalletPayload(await helpers.getProviderWalletPayload(session.userId)));
+        return true;
+      }
+
+      if (pathname === "/aw-roadside-security.mjs/provider/workflow") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const session = helpers.resolveUserSession(req);
+        if (!session) {
+          helpers.sendJson(res, 401, {
+            error: "session-required",
+            message: "A valid session token is required."
+          });
+          return true;
+        }
+        if (!session.roles.includes("PROVIDER")) {
+          helpers.sendJson(res, 403, {
+            error: "provider-session-required",
+            message: "A provider session is required to view workflow records."
+          });
+          return true;
+        }
+        helpers.sendJson(res, 200, await buildProviderWorkflowPayload(session, helpers));
         return true;
       }
 
@@ -300,8 +336,9 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
       if (pathname === "/aw-roadside-security.mjs/requests") {
         if (req.method === "POST") {
           const session = helpers.resolveUserSession(req);
+          const sessionProfile = session?.userId ? await helpers.getUserProfile(session.userId) : null;
           const payload = await helpers.readJsonBody(req);
-          const securePayload = sanitizeProtectedRequestPayload(payload, session);
+          const securePayload = sanitizeProtectedRequestPayload(payload, session, sessionProfile);
           const created = await requestServiceController.createRequest(securePayload, helpers);
           routeCache.delete("request-list");
           helpers.sendJson(
@@ -633,25 +670,187 @@ function requireSession(req, helpers) {
   return session;
 }
 
-function sanitizeProtectedRequestPayload(payload, session) {
+function sanitizeProtectedRequestPayload(payload, session, sessionProfile = null) {
   const fullName = requireString(payload.fullName, "fullName");
   const phoneNumber = requireString(payload.phoneNumber, "phoneNumber");
   const serviceType = requireString(payload.serviceType, "serviceType");
   const location = requireString(payload.location, "location");
   const notes = optionalString(payload.notes);
   const assignedProviderId = optionalString(payload.assignedProviderId);
+  const addressLine = optionalString(payload.addressLine);
+  const city = optionalString(payload.city);
+  const stateRegion = optionalString(payload.stateRegion);
+  const crossStreet = optionalString(payload.crossStreet);
+  const vehicleSummary = optionalString(payload.vehicleSummary);
+  const locationCoordinates = sanitizeCoordinatePayload(payload.locationCoordinates);
+  const vehicleInfo = sanitizeVehicleInfo(payload.vehicleInfo);
 
   return {
     userId: session?.userId || null,
     roles: session?.roles || [],
-    subscriberActive: Boolean(payload.subscriberActive),
+    subscriberActive: Boolean(sessionProfile?.subscriberActive),
     fullName,
     phoneNumber,
     serviceType,
     location,
     notes,
+    addressLine,
+    city,
+    stateRegion,
+    crossStreet,
+    guestTermsAccepted: payload.guestTermsAccepted === true,
+    termsAccepted: payload.termsAccepted === true || payload.guestTermsAccepted === true,
+    noRefundPolicyAccepted: payload.noRefundPolicyAccepted === true,
+    dispatchOnlyLiabilityAccepted: payload.dispatchOnlyLiabilityAccepted === true,
+    ...(vehicleInfo ? { vehicleInfo } : {}),
+    ...(vehicleSummary ? { vehicleSummary } : {}),
+    ...(locationCoordinates ? { locationCoordinates } : {}),
     ...(assignedProviderId ? { assignedProviderId } : {})
   };
+}
+
+async function buildProviderWorkflowPayload(session, helpers) {
+  const [profile, requests] = await Promise.all([
+    helpers.getUserProfile(session.userId),
+    helpers.readRequestLog()
+  ]);
+  const visibleQueue = await helpers.filterRequestsForSession(requests, session);
+  const assignedHistory = (Array.isArray(requests) ? requests : []).filter((request) => {
+    const status = normalizeStatus(request?.status);
+    return Number(request?.assignedProviderId) === Number(session.userId) &&
+      ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED", "COMPLETED"].includes(status);
+  });
+  const merged = dedupeRequestsById([...visibleQueue, ...assignedHistory]).sort(sortRequestsByRecent);
+  const presented = await helpers.presentRequestsForSession(merged, session);
+  const queued = presented.filter((request) => normalizeStatus(request?.status) === "SUBMITTED");
+  const inProgress = presented.filter((request) => ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(normalizeStatus(request?.status)));
+  const completed = presented.filter((request) => normalizeStatus(request?.status) === "COMPLETED");
+
+  return {
+    provider: maskProviderWorkflowProfile(profile),
+    queue: {
+      queued,
+      inProgress,
+      completed,
+      all: [...queued, ...inProgress, ...completed]
+    }
+  };
+}
+
+function maskProviderWorkflowProfile(profile) {
+  const providerProfile = profile?.providerProfile && typeof profile.providerProfile === "object"
+    ? profile.providerProfile
+    : {};
+  return {
+    userId: profile?.userId || null,
+    fullName: profile?.fullName || "",
+    providerStatus: profile?.providerStatus || null,
+    services: Array.isArray(profile?.services) ? profile.services : [],
+    vehicleInfo: providerProfile.vehicleInfo || null,
+    hoursOfService: providerProfile.hoursOfService || null,
+    currentLocation: providerProfile.currentLocation || null,
+    currentLocationCoordinates: sanitizeCoordinatePayload(providerProfile.currentLocationCoordinates),
+    serviceArea: providerProfile.serviceArea || null,
+    serviceAreaCoordinates: sanitizeCoordinatePayload(providerProfile.serviceAreaCoordinates)
+  };
+}
+
+function maskProviderWalletPayload(payload) {
+  if (!payload || typeof payload !== "object") {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    provider: {
+      ...(payload.provider || {}),
+      email: maskEmail(payload.provider?.email),
+      paypalEmail: maskEmail(payload.provider?.paypalEmail)
+    },
+    paypalState: {
+      ...(payload.paypalState || {}),
+      providerAccountId: maskReference(payload.paypalState?.providerAccountId),
+      accountId: maskReference(payload.paypalState?.accountId),
+      email: maskEmail(payload.paypalState?.email)
+    }
+  };
+}
+
+function sanitizeVehicleInfo(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const year = optionalString(value.year);
+  const make = optionalString(value.make);
+  const model = optionalString(value.model);
+  const color = optionalString(value.color);
+  if (!year && !make && !model && !color) {
+    return null;
+  }
+  return { year, make, model, color };
+}
+
+function sanitizeCoordinatePayload(value) {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const longitude = Number(value.longitude);
+  const latitude = Number(value.latitude);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) {
+    return null;
+  }
+  return {
+    longitude,
+    latitude
+  };
+}
+
+function dedupeRequestsById(requests) {
+  const seen = new Set();
+  const results = [];
+  for (const request of Array.isArray(requests) ? requests : []) {
+    const key = String(request?.requestId || request?.id || "");
+    if (!key || seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    results.push(request);
+  }
+  return results;
+}
+
+function sortRequestsByRecent(left, right) {
+  const leftTime = new Date(left?.updatedAt || left?.completedAt || left?.submittedAt || left?.createdAt || 0).getTime();
+  const rightTime = new Date(right?.updatedAt || right?.completedAt || right?.submittedAt || right?.createdAt || 0).getTime();
+  return rightTime - leftTime;
+}
+
+function normalizeStatus(value) {
+  return optionalString(value).toUpperCase();
+}
+
+function maskEmail(value) {
+  const email = optionalString(value);
+  if (!email || !email.includes("@")) {
+    return email || null;
+  }
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) {
+    return email;
+  }
+  const visible = localPart.slice(0, 2);
+  return `${visible}${"*".repeat(Math.max(localPart.length - visible.length, 1))}@${domain}`;
+}
+
+function maskReference(value) {
+  const reference = optionalString(value);
+  if (!reference) {
+    return null;
+  }
+  if (reference.length <= 6) {
+    return "*".repeat(reference.length);
+  }
+  return `${reference.slice(0, 2)}${"*".repeat(reference.length - 4)}${reference.slice(-2)}`;
 }
 
 function requireString(value, fieldName) {

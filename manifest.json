@@ -1,13 +1,17 @@
 {
-  "app": "local-node-runtime",
+  "app": "index-node-runtime",
+  "runtimeEntry": "index.mjs",
+  "runtimeImplementation": "server.mjs",
   "host": "0.0.0.0",
   "port": 3001,
-  "startedAt": "2026-05-13T21:55:06.197Z",
-  "blueprintPath": "render.yaml",
+  "startedAt": "2026-05-30T22:10:18.674Z",
+  "blueprintPath": "aw.backend.yaml",
   "blueprintRuntime": "node",
-  "blueprintNodeVersion": "20",
+  "blueprintNodeVersion": null,
   "runningNodeVersion": "v20.20.2",
   "uiUrl": "https://awroadside-fire-backend.onrender.com/",
-  "apiUrl": "https://awroadside-fire-backend.onrender.com/api/aw-roadside/frontend-config",
-  "protectedApiBaseUrl": "https://awroadside-fire-backend.onrender.com/api/aw-roadside"
+  "frontendConfigUrl": "https://awroadside-fire-backend.onrender.com/aw-roadside-security.mjs/frontend-config",
+  "apiUrl": "https://awroadside-fire-backend.onrender.com/aw-roadside-security.mjs",
+  "protectedApiBaseUrl": "https://awroadside-fire-backend.onrender.com/aw-roadside-security.mjs",
+  "rawApiBaseUrl": "https://awroadside-fire-backend.onrender.com/index.mjs"
 }

@@ -264,6 +264,11 @@ const AW_ROADSIDE_POLICY = Object.freeze({
     providerActions: {
       accept: "Accept request",
       eta: "Share ETA",
+      "soft-eta": "Soft ETA",
+      "hard-eta": "Hard ETA",
+      "extend-eta": "Extended ETA",
+      enroute: "Mark en route",
+      paused: "Pause dispatch",
       "soft-contact": "Soft contact",
       "hard-contact": "Direct contact",
       arrived: "Mark arrived",
@@ -2214,6 +2219,10 @@ async function presentRequestForSession(request, session = null) {
     ...resolvedRequest,
     location: visibleLocationLevel === "EXACT" ? resolvedRequest.location || "" : resolvedRequest.locationSummary || "Exact location unlocks after payment.",
     exactLocation: visibleLocationLevel === "EXACT" ? resolvedRequest.location || "" : null,
+    locationCoordinates: visibleLocationLevel === "EXACT" ? normalizeCoordinateRecord(resolvedRequest.locationCoordinates) : null,
+    locationMapboxId: visibleLocationLevel === "EXACT" ? resolvedRequest.locationMapboxId || null : null,
+    locationFullAddress: visibleLocationLevel === "EXACT" ? resolvedRequest.locationFullAddress || resolvedRequest.location || "" : null,
+    locationAccuracy: visibleLocationLevel === "EXACT" ? resolvedRequest.locationAccuracy || null : null,
     notes:
       visibleLocationLevel === "EXACT"
         ? resolvedRequest.notes || ""
@@ -2258,7 +2267,7 @@ async function filterRequestsForSession(requests, session = null) {
 
 function isRequestEligibleForProvider(request, provider) {
   const status = readOptionalString(request?.status).toUpperCase();
-  if (!["SUBMITTED", "ASSIGNED", "EN_ROUTE", "ARRIVED"].includes(status)) {
+  if (!["SUBMITTED", "ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(status)) {
     return false;
   }
 
@@ -5395,6 +5404,11 @@ async function applyLocalRequestAction(requestId, action, payload) {
     const isProviderOnlyAction =
       normalizedAction === "accept" ||
       normalizedAction === "eta" ||
+      normalizedAction === "soft-eta" ||
+      normalizedAction === "hard-eta" ||
+      normalizedAction === "extend-eta" ||
+      normalizedAction === "enroute" ||
+      normalizedAction === "paused" ||
       normalizedAction === "soft-contact" ||
       normalizedAction === "hard-contact" ||
       normalizedAction === "arrived" ||
@@ -5493,18 +5507,54 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.assignedProviderId = payload.providerUserId ?? request.assignedProviderId ?? null;
       next.acceptedAt = now;
       next.providerPayoutStatus = request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus;
-    } else if (normalizedAction === "eta") {
+    } else if (
+      normalizedAction === "eta" ||
+      normalizedAction === "soft-eta" ||
+      normalizedAction === "hard-eta" ||
+      normalizedAction === "extend-eta" ||
+      normalizedAction === "enroute"
+    ) {
       const nextEta = Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : request.etaMinutes ?? null;
+      if (
+        normalizedAction !== "enroute" &&
+        !Number.isFinite(Number(nextEta))
+      ) {
+        const error = new Error("ETA minutes are required for this dispatch ETA action.");
+        error.statusCode = 400;
+        error.code = "eta-minutes-required";
+        throw error;
+      }
       next.status = "EN_ROUTE";
+      next.enRouteAt = request.enRouteAt || now;
       next.etaMinutes = nextEta;
-      next.etaUpdatedAt = now;
-      if (isDirectCommunicationUnlocked(request)) {
+      if (Number.isFinite(Number(nextEta))) {
+        next.etaUpdatedAt = now;
+      }
+      const wantsHardEta =
+        normalizedAction === "hard-eta" ||
+        (normalizedAction === "extend-eta" && readOptionalString(request?.etaStage).toUpperCase() === "HARD") ||
+        (normalizedAction === "eta" && isDirectCommunicationUnlocked(request));
+      if (wantsHardEta) {
+        next.providerActivatedAt = request.providerActivatedAt || now;
+        next.exactLocationUnlockedAt = request.exactLocationUnlockedAt || now;
+        next.contactUnlockedAt = request.contactUnlockedAt || now;
+        next.locationDisclosureLevel = "EXACT";
+        next.contactDisclosureLevel = "UNLOCKED";
+      }
+      if (wantsHardEta) {
         next.hardEtaMinutes = nextEta;
         next.etaStage = "HARD";
       } else {
         next.softEtaMinutes = nextEta;
         next.etaStage = "SOFT";
       }
+      if (normalizedAction === "extend-eta") {
+        next.etaExtendedAt = now;
+      }
+    } else if (normalizedAction === "paused") {
+      next.status = "PAUSED";
+      next.pausedAt = now;
+      next.pauseReason = readOptionalString(payload.pauseReason || payload.note) || request.pauseReason || null;
     } else if (normalizedAction === "soft-contact") {
       next.softContactedAt = now;
       next.status = request.status === "SUBMITTED" ? "ASSIGNED" : request.status;
