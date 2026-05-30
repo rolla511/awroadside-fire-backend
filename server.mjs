@@ -18,10 +18,6 @@ import {createSubscriptionController} from "./subscription-controller.mjs";
 import {createSmtpMailer} from "./smtp-mailer.mjs";
 
 
-
-
-loadInternalEnv();
-
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
 const WEB_ROOT_ENTRY_FILE = "home.html";
 const runtimeFileRoot = path.resolve(__dirname);
