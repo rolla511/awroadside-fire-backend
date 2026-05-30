@@ -42,13 +42,14 @@ function loadInternalEnv() {
 loadInternalEnv();
 
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
-const WEB_ROOT_ENTRY_FILE = "home.html";
+const WEB_ROOT_ENTRY_FILES = Object.freeze(["home.html", "index.html"]);
 const runtimeFileRoot = path.resolve(__dirname);
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
 console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
 const blueprintNodeContract = readBlueprintNodeContract(blueprintPath);
 const projectRoot = resolveProjectRoot(runtimeFileRoot, blueprintPath, blueprintNodeContract);
 const webRoot = resolveWebRoot();
+const webRootEntryFile = resolveWebRootEntryFile(webRoot);
 const appRoot = path.join(projectRoot, "app");
 const runtimeRoot = resolveRuntimeRoot();
 const reportsRoot = path.join(runtimeRoot, "reports");
@@ -528,15 +529,32 @@ function resolveWebRoot() {
   ].filter(Boolean))];
 
   for (const candidateRoot of candidateRoots) {
-    if (existsSync(path.join(candidateRoot, WEB_ROOT_ENTRY_FILE))) {
-      console.log(`[DEBUG_LOG] Web root resolved to: ${candidateRoot}`);
+    const entryFile = resolveWebRootEntryFile(candidateRoot);
+    if (entryFile) {
+      console.log(`[DEBUG_LOG] Web root resolved to: ${candidateRoot} (${entryFile})`);
       return candidateRoot;
     } else {
-      console.log(`[DEBUG_LOG] Candidate web root does not contain ${WEB_ROOT_ENTRY_FILE}: ${candidateRoot}`);
+      console.log(
+        `[DEBUG_LOG] Candidate web root does not contain any supported entry file (${WEB_ROOT_ENTRY_FILES.join(", ")}): ${candidateRoot}`
+      );
     }
   }
 
   console.log(`[DEBUG_LOG] Static UI root not configured. Checked: ${candidateRoots.join(", ") || "none"}`);
+  return null;
+}
+
+function resolveWebRootEntryFile(candidateRoot) {
+  if (!candidateRoot) {
+    return null;
+  }
+
+  for (const entryFile of WEB_ROOT_ENTRY_FILES) {
+    if (existsSync(path.join(candidateRoot, entryFile))) {
+      return entryFile;
+    }
+  }
+
   return null;
 }
 
@@ -1101,6 +1119,17 @@ const server = http.createServer(async (req, res) => {
           targetId: processing.targetId || null,
           note: processing.note || null
         });
+        await appendPaymentLog({
+          event: "paypal-webhook",
+          eventType,
+          paypalEventId: eventId,
+          resourceId: readOptionalString(webhookEvent?.resource?.id),
+          requestId: processing.targetType === "request" ? processing.targetId || null : null,
+          targetType: processing.targetType || null,
+          targetId: processing.targetId || null,
+          status: processing.note || verificationStatus || "processed",
+          createdAt: new Date().toISOString()
+        });
 
         sendJson(res, 200, {
           ok: true,
@@ -1297,7 +1326,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (webRoot) {
-      const relativePath = pathname === "/" ? WEB_ROOT_ENTRY_FILE : pathname.slice(1);
+      const relativePath = pathname === "/" ? (webRootEntryFile || WEB_ROOT_ENTRY_FILES[0]) : pathname.slice(1);
       const candidate = path.normalize(path.join(webRoot, relativePath));
       if (candidate.startsWith(webRoot)) {
         try {
@@ -1467,6 +1496,7 @@ async function createRuntimeStatus() {
     apiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
     adminApiBaseUrl: `${publicBaseUrl}${ADMIN_API_BASE_PATH}`,
     rawApiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
+    eventStreamUrl: `${publicBaseUrl}/events.mjs`,
     frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
     protectedApiBaseUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
     compatibilityRepositoryUrl: `${publicBaseUrl}/compatibility-gateway.mjs/repository`,
@@ -2402,6 +2432,7 @@ async function getFrontendConfigPayload(req = null) {
     adminApiModule: "admin-controller.mjs",
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
+    eventStreamUrl: `${baseUrl}/events.mjs`,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
     uiBaseUrl,
     expectedHtmlIntegrationPath: null,
@@ -2522,6 +2553,7 @@ function getIntegrationTargetPayload(req = null) {
     adminApiModule: "admin-controller.mjs",
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
+    eventStreamUrl: `${baseUrl}/events.mjs`,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
   };
@@ -3895,6 +3927,11 @@ async function appendPaymentLog(entry) {
   await fs.mkdir(paymentsRoot, { recursive: true });
   await fs.appendFile(paymentLogPath, `${JSON.stringify(entry)}\n`);
   await storageAuthority.appendPaymentEvent(entry);
+  broadcastSseEvent("payments-updated", {
+    timestamp: new Date().toISOString(),
+    event: entry?.event || entry?.eventType || "payment-updated",
+    requestId: entry?.request?.requestId || entry?.requestId || entry?.targetId || null
+  });
 }
 
 async function appendPaypalWebhookLog(entry) {
