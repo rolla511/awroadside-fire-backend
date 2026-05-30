@@ -19,7 +19,7 @@ import {createSmtpMailer} from "./smtp-mailer.mjs";
 
 
 
-}
+
 loadInternalEnv();
 
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
