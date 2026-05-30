@@ -17,8 +17,27 @@ import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from ".
 import {createSubscriptionController} from "./subscription-controller.mjs";
 import {createSmtpMailer} from "./smtp-mailer.mjs";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-
+// Internalize project configuration
+function loadInternalEnv() {
+  const envPath = path.resolve(__dirname, ".env");
+  if (existsSync(envPath)) {
+    console.log(`[DEBUG_LOG] Loading internal relative data from: ${envPath}`);
+    const content = readFileSync(envPath, "utf-8");
+    for (const line of content.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const firstEqual = trimmed.indexOf("=");
+      if (firstEqual === -1) continue;
+      const key = trimmed.substring(0, firstEqual).trim();
+      const value = trimmed.substring(firstEqual + 1).trim();
+      if (key && !process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  }
 }
 loadInternalEnv();
 
