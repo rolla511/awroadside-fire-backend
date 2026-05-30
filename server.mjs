@@ -13,31 +13,12 @@ import {createLocationService} from "./location-service.mjs";
 import {createProviderWalletPayload} from "./provider-wallet-controller.mjs";
 import {createRequestServiceController} from "./request-service-controller.mjs";
 import {createRuntimeRepository} from "./runtime-repository.mjs";
-import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from "./storage-index.mjs";
+import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from "./db-index.mjs";
 import {createSubscriptionController} from "./subscription-controller.mjs";
 import {createSmtpMailer} from "./smtp-mailer.mjs";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
-// Internalize project configuration
-function loadInternalEnv() {
-  const envPath = path.resolve(__dirname, ".env");
-  if (existsSync(envPath)) {
-    console.log(`[DEBUG_LOG] Loading internal relative data from: ${envPath}`);
-    const content = readFileSync(envPath, "utf-8");
-    for (const line of content.split(/\r?\n/)) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const firstEqual = trimmed.indexOf("=");
-      if (firstEqual === -1) continue;
-      const key = trimmed.substring(0, firstEqual).trim();
-      const value = trimmed.substring(firstEqual + 1).trim();
-      if (key && !process.env[key]) {
-        process.env[key] = value;
-      }
-    }
-  }
+
 }
 loadInternalEnv();
 
@@ -86,6 +67,7 @@ const ROOT_RUNTIME_FILES = Object.freeze([
   "request-service-controller.mjs",
   "runtime-repository.mjs",
   "smtp-mailer.mjs",
+  "db-index.mjs",
   "storage-index.mjs",
   "storage-schema.mjs",
   "subscription-controller.mjs",
@@ -1495,7 +1477,7 @@ async function createRuntimeStatus() {
     },
     storage: typeof storageAuthority.getStatus === "function"
       ? {
-          module: "storage-index.mjs",
+          module: "db-index.mjs",
           ...storageAuthority.getStatus()
         }
       : null
