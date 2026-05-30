@@ -6,7 +6,12 @@ Services:deploy
     rootDir: .
     buildFilter:
       paths:
-        - backend/storage/index.mjs
+        - index.mjs
+        - server.mjs
+        - db-index.mjs
+        - storage-index.mjs
+        - storage-schema.mjs
+        - awroadsidedb-config.mjs
         - backend/**/*.mjs
         - backend/**/*.js
         - backend/**/*.json
@@ -40,6 +45,10 @@ Services:deploy
       - key: internal_db_url
         sync: false
       - key: AW_DB_NAME
+        sync: false
+      - key: USDB_ENTRY
+        sync: false
+      - key: USDB_CONFIG_HANDLE
         sync: false
       - key: AW_DB_MODE
         value: runtime-storage
