@@ -2,6 +2,7 @@ import crypto from "crypto";
 
 const PASSWORD_HASH_ALGORITHM = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
+const PASSWORD_RESET_TTL_MS = Number.parseInt(process.env.AW_PASSWORD_RESET_TTL_MS || `${60 * 60 * 1000}`, 10);
 const DEFAULT_SUBSCRIBER_MONTHLY = 7.99;
 const DEFAULT_PROVIDER_MONTHLY = 6;
 const CANONICAL_SUBSCRIPTION_API_PREFIX = "/server.mjs";
@@ -77,6 +78,47 @@ export function createSubscriptionController() {
         } catch (error) {
           helpers.sendJson(res, 401, {
             error: "login-failed",
+            message: error.message
+          });
+        }
+        return true;
+      }
+
+      if (pathname === "/server.mjs/auth/password/forgot") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const reset = await requestPasswordReset(payload, helpers, req);
+          helpers.sendJson(res, 200, reset);
+        } catch (error) {
+          helpers.sendJson(res, 400, {
+            error: "password-reset-request-failed",
+            message: error.message
+          });
+        }
+        return true;
+      }
+
+      if (pathname === "/server.mjs/auth/password/reset") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const updatedUser = await resetAccountPassword(payload, helpers);
+          helpers.sendJson(res, 200, {
+            userId: updatedUser.id,
+            message: "Password reset complete."
+          });
+        } catch (error) {
+          helpers.sendJson(res, 400, {
+            error: "password-reset-failed",
             message: error.message
           });
         }
@@ -304,6 +346,174 @@ export async function loginUser(payload, helpers) {
   return buildLoginPayload(user);
 }
 
+export async function requestPasswordReset(payload, helpers, req = null) {
+  const rawIdentifier = requireString(payload.identifier || payload.email, "identifier");
+  const identifier = rawIdentifier.toLowerCase();
+  const genericMessage = "If an account matched that identifier, a password reset link has been sent.";
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => {
+    const email = typeof entry.email === "string" ? entry.email.toLowerCase() : "";
+    const username = resolveUsername(entry);
+    return email === identifier || username === identifier;
+  });
+
+  if (!user || !optionalString(user.email)) {
+    await helpers.recordSecurityEvent?.("password-reset-requested", {
+      matchedAccount: false,
+      identifierType: identifier.includes("@") ? "email" : "username"
+    });
+    return {
+      message: genericMessage,
+      deliveryStatus: "accepted"
+    };
+  }
+
+  const token = crypto.randomBytes(24).toString("hex");
+  const requestedAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + PASSWORD_RESET_TTL_MS).toISOString();
+  const tokenHash = hashPasswordResetToken(token);
+  const applyResetRecord = (mutableUser) => {
+    mutableUser.passwordReset = {
+      tokenHash,
+      requestedAt,
+      expiresAt,
+      deliveryStatus: "pending",
+      deliveryMessage: ""
+    };
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    await helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => Number(entry.id) === Number(user.id));
+      if (!mutableUser) {
+        return null;
+      }
+      return applyResetRecord(mutableUser);
+    });
+  } else {
+    applyResetRecord(user);
+    await helpers.writeUsers(users);
+  }
+
+  const resetLink = buildPasswordResetLink({
+    token,
+    email: user.email,
+    helpers,
+    req
+  });
+  const emailRecord = buildPasswordResetEmailRecord({
+    user,
+    resetLink,
+    requestedAt,
+    expiresAt
+  });
+  const delivery = typeof helpers.sendAccountEmail === "function"
+    ? await helpers.sendAccountEmail(emailRecord)
+    : {
+        deliveryStatus: "stored-no-transport",
+        deliveredAt: null,
+        transport: "smtp-not-configured",
+        message: "Password reset stored. Outbound email transport is not configured."
+      };
+
+  if (typeof helpers.mutateUsers === "function") {
+    await helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => Number(entry.id) === Number(user.id));
+      if (!mutableUser || !mutableUser.passwordReset) {
+        return mutableUser || null;
+      }
+      mutableUser.passwordReset.deliveryStatus = delivery.deliveryStatus || "stored";
+      mutableUser.passwordReset.deliveryMessage = optionalString(delivery.message);
+      mutableUser.passwordReset.deliveredAt = delivery.deliveredAt || null;
+      return mutableUser;
+    });
+  } else {
+    user.passwordReset = {
+      ...(user.passwordReset || {}),
+      deliveryStatus: delivery.deliveryStatus || "stored",
+      deliveryMessage: optionalString(delivery.message),
+      deliveredAt: delivery.deliveredAt || null
+    };
+    await helpers.writeUsers(users);
+  }
+
+  await helpers.recordSecurityEvent?.("password-reset-requested", {
+    matchedAccount: true,
+    userId: user.id,
+    deliveryStatus: delivery.deliveryStatus || "stored"
+  });
+
+  return {
+    message: genericMessage,
+    deliveryStatus: delivery.deliveryStatus || "stored"
+  };
+}
+
+export async function resetAccountPassword(payload, helpers) {
+  const token = requireString(payload.token, "token");
+  const nextPassword = requireString(payload.newPassword, "newPassword");
+  const confirmPassword = requireString(payload.confirmPassword, "confirmPassword");
+  if (nextPassword !== confirmPassword) {
+    throw new Error("Passwords do not match.");
+  }
+  if (nextPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
+  const tokenHash = hashPasswordResetToken(token);
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry?.passwordReset?.tokenHash === tokenHash);
+  if (!user) {
+    throw new Error("Password reset link is invalid or expired.");
+  }
+
+  const expiresAt = Date.parse(user.passwordReset?.expiresAt || "");
+  if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) {
+    throw new Error("Password reset link is invalid or expired.");
+  }
+
+  const completedAt = new Date().toISOString();
+  const applyPasswordReset = async (mutableUser) => {
+    if (mutableUser?.passwordReset?.tokenHash !== tokenHash) {
+      throw new Error("Password reset link is invalid or expired.");
+    }
+    mutableUser.passwordHash = await hashPassword(nextPassword);
+    delete mutableUser.password;
+    mutableUser.passwordChangedAt = completedAt;
+    mutableUser.passwordReset = {
+      requestedAt: mutableUser.passwordReset?.requestedAt || null,
+      deliveredAt: mutableUser.passwordReset?.deliveredAt || null,
+      deliveryStatus: mutableUser.passwordReset?.deliveryStatus || null,
+      completedAt,
+      tokenHash: null,
+      expiresAt: null
+    };
+    return mutableUser;
+  };
+
+  let updatedUser = null;
+  if (typeof helpers.mutateUsers === "function") {
+    updatedUser = await helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => Number(entry.id) === Number(user.id));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      return applyPasswordReset(mutableUser);
+    });
+  } else {
+    updatedUser = await applyPasswordReset(user);
+    await helpers.writeUsers(users);
+  }
+
+  helpers.revokeUserSessionsByUserId?.(updatedUser.id);
+  await helpers.recordSecurityEvent?.("password-reset-completed", {
+    userId: updatedUser.id,
+    completedAt
+  });
+  return updatedUser;
+}
+
 export async function setupSubscriber(payload, helpers, session = null) {
   const policy = getRoadsidePolicy(helpers);
   const termsBypass = testingTermsBypassEnabled();
@@ -422,9 +632,6 @@ export async function applyProvider(payload, helpers, session = null) {
     ? await helpers.saveProviderDocuments(user.id, existingDocuments, documents)
     : normalizeProviderDocuments(documents, existingDocuments);
   const documentStatus = summarizeProviderDocuments(storedDocuments);
-  if (!documentStatus.meetsMinimumRequirements) {
-    throw new Error(`Provider documents missing: ${documentStatus.missing.join(", ")}.`);
-  }
   if (!termsBypass && payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
     throw new Error("Provider terms must be accepted before profile submission.");
   }
@@ -437,18 +644,6 @@ export async function applyProvider(payload, helpers, session = null) {
   const serviceArea = normalizeString(payload.serviceArea || payload.coverageArea || "");
   const equipment = normalizeStringArray(payload.equipment);
   const assessment = evaluateProviderAssessment(payload.assessmentAnswers || {}, policy);
-  if (!assessment.complete) {
-    throw new Error(`Provider assessment incomplete: ${assessment.missing.join(", ")}.`);
-  }
-  if (!assessment.passed) {
-    throw new Error("Provider assessment did not meet safety requirements.");
-  }
-  if (!serviceArea) {
-    throw new Error("Provider service area is required.");
-  }
-  if (!hoursOfService.hasHours) {
-    throw new Error("Provider hours of service are required.");
-  }
 
   const currentLocation = normalizeString(payload.currentLocation || payload.location);
   const locationMetadata = typeof helpers.resolveProviderLocationMetadata === "function"
@@ -457,19 +652,31 @@ export async function applyProvider(payload, helpers, session = null) {
         serviceArea
       })
     : {};
+  const normalizedVehicleInfo = {
+    make: requireString(vehicleInfo.make, "vehicleInfo.make"),
+    model: requireString(vehicleInfo.model, "vehicleInfo.model"),
+    year: requireString(vehicleInfo.year, "vehicleInfo.year"),
+    color: requireString(vehicleInfo.color, "vehicleInfo.color")
+  };
+  const approvalEligibility = buildProviderApprovalEligibility({
+    providerInfo,
+    vehicleInfo: normalizedVehicleInfo,
+    documentStatus,
+    assessment,
+    hoursOfService,
+    serviceArea,
+    currentLocation,
+    ...locationMetadata
+  });
 
   const providerPatch = (mutableUser) => {
+    const submittedAt = new Date().toISOString();
     mutableUser.providerStatus = "PENDING_APPROVAL";
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
-    mutableUser.available = Boolean(payload.available ?? true);
+    mutableUser.available = false;
     mutableUser.providerProfile = {
       providerInfo,
-      vehicleInfo: {
-        make: requireString(vehicleInfo.make, "vehicleInfo.make"),
-        model: requireString(vehicleInfo.model, "vehicleInfo.model"),
-        year: requireString(vehicleInfo.year, "vehicleInfo.year"),
-        color: requireString(vehicleInfo.color, "vehicleInfo.color")
-      },
+      vehicleInfo: normalizedVehicleInfo,
       documents: storedDocuments,
       documentStatus,
       experience: optionalString(payload.experience),
@@ -479,10 +686,22 @@ export async function applyProvider(payload, helpers, session = null) {
       currentLocation,
       ...locationMetadata,
       equipment,
-      profileSubmittedAt: new Date().toISOString(),
-      profileSubmissionStatus: "SUBMITTED",
+      profileSubmittedAt: submittedAt,
+      pendingReceivedAt: submittedAt,
+      profileSubmissionStatus: approvalEligibility.assessmentPassed ? "PASSED_PENDING_PROVIDER" : "FAILED_PENDING_PROVIDER",
+      approvalEligibility,
+      subscriptionStartsOnApproval: true,
+      approvalReviewWindowEndsAt: addBusinessDays(submittedAt, 3),
       rates: normalizeProviderRates(payload.rates),
-      noteExchangeEnabled: true
+      noteExchangeEnabled: true,
+      payoutTerms: {
+        accepted: false,
+        acceptedAt: null,
+        termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
+        disputeWindowAccepted: false,
+        noPostReceiptDisputeAccepted: false,
+        safeModeActive: true
+      }
     };
     mutableUser.services = Array.isArray(payload.services) && payload.services.length > 0 ? payload.services : ["LOCKOUT"];
     mutableUser.providerMonthly = policy.provider.monthlyFee;
@@ -495,6 +714,14 @@ export async function applyProvider(payload, helpers, session = null) {
         liabilityAccepted: true,
         liabilityStatement: policy.provider.liabilityStatement,
         holdHarmlessAccepted: true
+      },
+      providerPayout: {
+        accepted: false,
+        acceptedAt: null,
+        termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
+        disputeWindowAccepted: false,
+        noPostReceiptDisputeAccepted: false,
+        safeModeActive: true
       }
     };
     return mutableUser;
@@ -535,12 +762,93 @@ export async function uploadProviderDocuments(payload, helpers, session = null) 
     : normalizeProviderDocuments(documents, existingDocuments);
 
   const patchUser = (mutableUser) => {
+    const providerProfile = mutableUser.providerProfile && typeof mutableUser.providerProfile === "object"
+      ? mutableUser.providerProfile
+      : {};
+    const documentStatus = summarizeProviderDocuments(storedDocuments);
+    const approvalEligibility = buildProviderApprovalEligibility({
+      providerInfo: providerProfile.providerInfo || {},
+      vehicleInfo: providerProfile.vehicleInfo || {},
+      documentStatus,
+      assessment: providerProfile.assessment || {},
+      hoursOfService: providerProfile.hoursOfService || {},
+      serviceArea: providerProfile.serviceArea || "",
+      currentLocation: providerProfile.currentLocation || "",
+      currentLocationCoordinates: providerProfile.currentLocationCoordinates || null,
+      serviceAreaCoordinates: providerProfile.serviceAreaCoordinates || null
+    });
     mutableUser.providerProfile = {
-      ...(mutableUser.providerProfile || {}),
+      ...providerProfile,
       documents: storedDocuments,
-      documentStatus: summarizeProviderDocuments(storedDocuments)
+      documentStatus,
+      approvalEligibility,
+      profileSubmissionStatus: mutableUser.providerStatus === "APPROVED"
+        ? "APPROVED"
+        : approvalEligibility.assessmentPassed
+          ? "PASSED_PENDING_PROVIDER"
+          : "FAILED_PENDING_PROVIDER"
     };
     mutableUser.providerStatus = mutableUser.providerStatus || "DRAFT";
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      if (!mutableUser.roles.includes("PROVIDER")) {
+        throw new Error("Not a provider.");
+      }
+      return patchUser(mutableUser);
+    });
+  }
+
+  const result = patchUser(user);
+  await helpers.writeUsers(users);
+  return result;
+}
+
+export async function acceptProviderPayoutTerms(payload, helpers, session = null) {
+  const policy = getRoadsidePolicy(helpers);
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!Array.isArray(user.roles) || !user.roles.includes("PROVIDER")) {
+    throw new Error("Not a provider.");
+  }
+  if (payload.providerPayoutTermsAccepted !== true) {
+    throw new Error("Provider payout terms must be accepted before payout can be released.");
+  }
+  if (payload.providerPayoutDisputeWindowAccepted !== true) {
+    throw new Error("Provider payout dispute timing must be accepted before payout can be released.");
+  }
+  if (payload.providerPayoutNoPostReceiptDisputeAccepted !== true) {
+    throw new Error("Provider payout post-receipt dispute limits must be accepted before payout can be released.");
+  }
+
+  const acceptedAt = new Date().toISOString();
+  const payoutTermsRecord = {
+    accepted: true,
+    acceptedAt,
+    termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
+    disputeWindowAccepted: true,
+    noPostReceiptDisputeAccepted: true,
+    safeModeActive: false
+  };
+
+  const patchUser = (mutableUser) => {
+    mutableUser.providerProfile = {
+      ...(mutableUser.providerProfile || {}),
+      payoutTerms: payoutTermsRecord
+    };
+    mutableUser.terms = {
+      ...(mutableUser.terms || {}),
+      providerPayout: payoutTermsRecord
+    };
     return mutableUser;
   };
 
@@ -635,12 +943,52 @@ function buildSubscriberConfirmationRecord({ user, vehicle, membershipPrice, con
   };
 }
 
+function buildPasswordResetEmailRecord({ user, resetLink, requestedAt, expiresAt }) {
+  const subject = "AW Roadside password reset";
+  const body = [
+    `Hello ${user.fullName || user.username || "user"},`,
+    "",
+    "A password reset was requested for your AW Roadside account.",
+    `Requested at: ${requestedAt}`,
+    `Expires at: ${expiresAt}`,
+    "",
+    "Open the link below to choose a new password:",
+    resetLink,
+    "",
+    "If you did not request this reset, you can ignore this email."
+  ].join("\n");
+
+  return {
+    recipientEmail: user.email || null,
+    subject,
+    body
+  };
+}
+
+function buildPasswordResetLink({ token, email, helpers, req }) {
+  const configuredUrl = optionalString(process.env.PUBLIC_RESET_PASSWORD_URL || process.env.RESET_PASSWORD_URL);
+  const fallbackBase = `${resolveRequestBaseUrl(helpers, req)}/reset-password.html`;
+  const url = new URL(configuredUrl || fallbackBase);
+  url.searchParams.set("token", token);
+  if (email) {
+    url.searchParams.set("email", email);
+  }
+  return url.toString();
+}
+
+function resolveRequestBaseUrl(helpers, req) {
+  const value = typeof helpers.getRequestBaseUrl === "function"
+    ? optionalString(helpers.getRequestBaseUrl(req))
+    : "";
+  return value.replace(/\/$/, "") || "https://awroadside-fire-backend.onrender.com";
+}
+
 function normalizeString(value) {
   return optionalString(value);
 }
 
 function normalizeProviderDocuments(incomingDocuments = {}, existingDocuments = {}) {
-  const supported = ["license", "registration", "insurance", "helperId"];
+  const supported = ["license", "registration", "insurance", "profilePhoto", "proofOfAddress", "helperId"];
   const normalized = {};
   for (const docType of supported) {
     normalized[docType] = normalizeProviderDocumentEntry(
@@ -734,7 +1082,7 @@ function normalizeExistingProviderDocument(value) {
 }
 
 function summarizeProviderDocuments(documents = {}) {
-  const required = ["license", "registration", "insurance"];
+  const required = ["license", "registration", "insurance", "profilePhoto", "proofOfAddress"];
   const missing = required.filter((docType) => !Boolean(documents?.[docType]?.submitted));
   const submittedCount = Object.values(documents).filter((entry) => entry?.submitted).length;
   return {
@@ -742,6 +1090,86 @@ function summarizeProviderDocuments(documents = {}) {
     submittedCount,
     missing,
     meetsMinimumRequirements: missing.length === 0
+  };
+}
+
+function buildProviderApprovalEligibility({
+  providerInfo = {},
+  vehicleInfo = {},
+  documentStatus = {},
+  assessment = {},
+  hoursOfService = {},
+  serviceArea = "",
+  currentLocation = "",
+  currentLocationCoordinates = null,
+  serviceAreaCoordinates = null
+} = {}) {
+  const vehicleReady = Boolean(
+    optionalString(vehicleInfo.year) &&
+    optionalString(vehicleInfo.make) &&
+    optionalString(vehicleInfo.model) &&
+    optionalString(vehicleInfo.color)
+  );
+  const assessmentPassed = assessment?.passed === true;
+  const assessmentComplete = assessment?.complete === true;
+  const documentsReady = documentStatus?.meetsMinimumRequirements === true;
+  const hoursReady = hoursOfService?.hasHours === true;
+  const serviceAreaReady = Boolean(optionalString(serviceArea));
+  const currentLocationReady = Boolean(optionalString(currentLocation));
+  const locationResolved = Boolean(
+    (currentLocationCoordinates && Number.isFinite(Number(currentLocationCoordinates.longitude)) && Number.isFinite(Number(currentLocationCoordinates.latitude))) ||
+    (serviceAreaCoordinates && Number.isFinite(Number(serviceAreaCoordinates.longitude)) && Number.isFinite(Number(serviceAreaCoordinates.latitude)))
+  );
+  const payoutMethodReady = Boolean(optionalString(providerInfo.payoutProvider) && optionalString(providerInfo.payoutMethodMasked));
+  const identityReady = Array.isArray(documentStatus?.missing)
+    ? !documentStatus.missing.some((entry) => entry === "license" || entry === "profilePhoto" || entry === "proofOfAddress")
+    : false;
+
+  const missingRequirements = [];
+  if (!assessmentComplete) {
+    missingRequirements.push("assessment_incomplete");
+  } else if (!assessmentPassed) {
+    missingRequirements.push("assessment_failed");
+  }
+  if (!documentsReady) {
+    missingRequirements.push("documents_incomplete");
+  }
+  if (!hoursReady) {
+    missingRequirements.push("hours_of_service_missing");
+  }
+  if (!serviceAreaReady) {
+    missingRequirements.push("service_area_missing");
+  }
+  if (!currentLocationReady) {
+    missingRequirements.push("current_location_missing");
+  }
+  if (!locationResolved) {
+    missingRequirements.push("location_unverified");
+  }
+  if (!vehicleReady) {
+    missingRequirements.push("vehicle_incomplete");
+  }
+  if (!payoutMethodReady) {
+    missingRequirements.push("payout_method_missing");
+  }
+  if (!identityReady) {
+    missingRequirements.push("identity_documents_missing");
+  }
+
+  return {
+    assessmentComplete,
+    assessmentPassed,
+    documentsReady,
+    hoursReady,
+    serviceAreaReady,
+    currentLocationReady,
+    locationResolved,
+    vehicleReady,
+    payoutMethodReady,
+    identityReady,
+    canApprove: missingRequirements.length === 0,
+    pendingDisposition: assessmentPassed ? "PASSED_PENDING_PROVIDER" : "FAILED_PENDING_PROVIDER",
+    missingRequirements
   };
 }
 
@@ -764,7 +1192,8 @@ function getRoadsidePolicy(helpers) {
         : []
     },
     financial: {
-      noRefundsAfterPayment: Boolean(policy?.financial?.noRefundsAfterPayment)
+      noRefundsAfterPayment: Boolean(policy?.financial?.noRefundsAfterPayment),
+      walletDisplayTerms: policy?.financial?.walletDisplayTerms || null
     }
   };
 }
@@ -804,7 +1233,9 @@ function normalizeProviderInfo(value) {
     email: requireString(providerInfo.email || value.email, "providerInfo.email"),
     companyName: optionalString(providerInfo.companyName),
     w9Name: optionalString(providerInfo.w9Name),
-    taxIdLast4: optionalString(providerInfo.taxIdLast4)
+    taxIdLast4: optionalString(providerInfo.taxIdLast4),
+    payoutProvider: optionalString(providerInfo.payoutProvider),
+    payoutMethodMasked: optionalString(providerInfo.payoutMethodMasked)
   };
 }
 
@@ -887,6 +1318,22 @@ function addDays(value, days) {
   return date.toISOString();
 }
 
+function addBusinessDays(value, days) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  let remaining = Number(days || 0);
+  while (remaining > 0) {
+    date.setDate(date.getDate() + 1);
+    const day = date.getDay();
+    if (day !== 0 && day !== 6) {
+      remaining -= 1;
+    }
+  }
+  return date.toISOString();
+}
+
 function withSession(payload, helpers) {
   if (!helpers.issueUserSession) {
     return payload;
@@ -933,6 +1380,10 @@ async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const derivedKey = await derivePasswordKey(password, salt);
   return `${PASSWORD_HASH_ALGORITHM}$${salt}$${derivedKey}`;
+}
+
+function hashPasswordResetToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 async function verifyStoredPassword(user, password) {

@@ -4,6 +4,7 @@ import http from "http";
 import path from "path";
 import {fileURLToPath} from "url";
 import * as paypal from "./paypal-client.mjs";
+import { createPaypalWebhookRouteHandler } from "./paypal-webhooks.mjs";
 import {createAdminController} from "./admin-controller.mjs";
 import {createAwRoadsideSecurityController} from "./aw-roadside-security.mjs";
 import {createCompatibilityGateway} from "./compatibility-gateway.mjs";
@@ -94,7 +95,7 @@ const ROOT_RUNTIME_FILES = Object.freeze([
   "render.yaml",
   "aw.backend.yaml"
 ]);
-const PROVIDER_DOCUMENT_TYPES = ["license", "registration", "insurance", "helperId"];
+const PROVIDER_DOCUMENT_TYPES = ["license", "registration", "insurance", "profilePhoto", "proofOfAddress", "helperId"];
 const PROVIDER_RATING_MIN = 1;
 const PROVIDER_RATING_MAX = 8;
 const PROVIDER_LOW_RATING_THRESHOLD = 3;
@@ -105,8 +106,15 @@ const PROVIDER_REINSTATEMENT_PROBATION_YEARS = 1;
 const PROVIDER_DISCIPLINE_POLICY_VERSION = "2026-04-27";
 const ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES = new Map([
   ["text/plain", ".txt"],
-  ["image/jpeg", ".jpeg"]
+  ["image/jpeg", ".jpeg"],
+  ["image/png", ".png"],
+  ["image/webp", ".webp"],
+  ["image/heic", ".heic"],
+  ["image/heif", ".heif"],
+  ["application/pdf", ".pdf"]
 ]);
+const ALLOWED_PROVIDER_DOCUMENT_EXTENSIONS = new Set([".txt", ".jpeg", ".jpg", ".png", ".webp", ".heic", ".heif", ".pdf"]);
+const ALLOWED_PROVIDER_IMAGE_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 
 function readBooleanEnv(value, fallback = false) {
   if (typeof value !== "string") {
@@ -189,6 +197,7 @@ const AW_ROADSIDE_POLICY = Object.freeze({
     payoutLedgerEnabled: true,
     platformServiceChargeRate: 0.02,
     walletDisplayTerms: {
+      payoutTermsVersion: "provider-payout-2026-05-30",
       title: "Wallet display and financial record",
       summary:
         "The site wallet displays provider earnings from completed work logs and payout states as a financial record, not as a separate money-holding account.",
@@ -197,7 +206,13 @@ const AW_ROADSIDE_POLICY = Object.freeze({
       expectedParity:
         "Displayed wallet totals should match the third-party payout balance for the same completed work and payout events.",
       discrepancyProcess:
-        "If the third-party balance does not match the site wallet, the user may dispute the discrepancy with the third-party company and use the site wallet record to validate the claim."
+        "If the third-party balance does not match the site wallet, the user may dispute the discrepancy with the third-party company and use the site wallet record to validate the claim.",
+      safeModeStatement:
+        "Provider payouts remain in safe mode until payout terms are accepted on the provider account.",
+      payoutAcceptanceStatement:
+        "Provider payout terms must be accepted before any payout can be released or marked complete.",
+      payoutDisputeWindow:
+        "Payout disputes must be filed before payout is received. Completed payouts cannot be disputed through the platform record."
     }
   },
   requestLifecycle: [
@@ -512,7 +527,7 @@ function buildAuthorityDescriptor(req = null) {
       compatibilityGateway: "compatibility-gateway.mjs",
       compatibilityManifest: "compatibility-gateway.mjs",
       protectedApiBase: "aw-roadside-security.mjs",
-      protectedApiAliases: ["aw-roadside-security.mjs"],
+      protectedApiAliases: PROTECTED_API_ALIAS_PATHS.map((entry) => entry.replace(/^\//, "")),
       rawApiBase: "index.mjs"
     },
     rawApiBasePath: RAW_API_BASE_PATH,
@@ -520,8 +535,22 @@ function buildAuthorityDescriptor(req = null) {
   };
 }
 
+function normalizeProtectedApiPath(pathname) {
+  for (const aliasPath of PROTECTED_API_ALIAS_PATHS) {
+    if (pathname === aliasPath || pathname.startsWith(`${aliasPath}/`)) {
+      const suffix = pathname.slice(aliasPath.length);
+      return `${PROTECTED_API_BASE_PATH}${suffix}`;
+    }
+  }
+  return pathname;
+}
+
 function resolveWebRoot() {
   const configuredWebRoot = (process.env.WEB_ROOT || "").trim();
+  if (["false", "off", "none", "disabled", "no"].includes(configuredWebRoot.toLowerCase())) {
+    console.log("[DEBUG_LOG] Static UI root disabled by WEB_ROOT configuration.");
+    return null;
+  }
   const cwd = process.cwd();
   const candidateRoots = [...new Set([
     configuredWebRoot
@@ -673,6 +702,22 @@ const paypalWebhookPaths = Object.freeze([
   "/paypal-webhook",
   "/paypal-webhooks"
 ]);
+const handlePaypalWebhookRoute = createPaypalWebhookRouteHandler({
+  paypal,
+  paypalClientId,
+  paypalClientSecret,
+  paypalWebhookId,
+  paypalWebhookPaths,
+  sendJson,
+  sendMethodNotAllowed,
+  readRawBody,
+  readHeader,
+  readOptionalString,
+  appendPaypalWebhookLog,
+  appendPaymentLog,
+  hasProcessedPaypalWebhook,
+  applyPaypalWebhookEvent
+});
 const mapboxAccessToken = (process.env.mapbox_access_token || process.env.MAPBOX_ACCESS_TOKEN || "").trim();
 const providerServiceRadiusMiles = Number.parseFloat(process.env.PROVIDER_SERVICE_RADIUS_MILES || "20");
 const requestAcceptanceWindowMinutes = Number.parseFloat(process.env.REQUEST_ACCEPTANCE_WINDOW_MINUTES || "5");
@@ -780,12 +825,21 @@ for (const payment of initialPayments) {
 await ensureSandboxManualTestFixtures();
 watchdog.startPeriodicScan(watchdogIntervalMs);
 // Web entry audit is intentionally not part of the active boot path.
+const activeStorageStatus = typeof storageAuthority.getStatus === "function"
+  ? storageAuthority.getStatus()
+  : null;
 watchdog.record("server-started", {
   runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
   port,
   nodeVersion: process.version,
-  dataAuthority: awRoadsideDbConfig.authority.configured ? "internal_db_url" : "runtime-storage",
-  databaseConfigured: awRoadsideDbConfig.authority.configured,
+  dataAuthority: activeStorageStatus?.enabled
+    ? "internal-db"
+    : activeStorageStatus?.lastEvent === "storage-authority-runtime-storage-fallback"
+      ? "runtime-storage-fallback"
+      : (activeStorageStatus?.mode || awRoadsideDbConfig.authority.mode || "runtime-storage"),
+  databaseConfigured: activeStorageStatus?.configured ?? awRoadsideDbConfig.authority.configured,
+  storageEnabled: activeStorageStatus?.enabled ?? false,
+  storageEvent: activeStorageStatus?.lastEvent || null,
   databaseId: awRoadsideDbConfig.authority.databaseId || null,
   databaseName: awRoadsideDbConfig.authority.database || null
 });
@@ -815,6 +869,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || host}`);
     let pathname = url.pathname.replace(/\/+$/, "");
     if (pathname === "") pathname = "/";
+    pathname = normalizeProtectedApiPath(pathname);
 
     if (pathname === "/provider-info") {
       const providerInfoCompatibilityPaths = webRoot
@@ -915,7 +970,10 @@ const server = http.createServer(async (req, res) => {
       saveProviderDocuments: (userId, currentDocuments, documentsPayload) =>
         saveProviderDocuments(userId, currentDocuments, documentsPayload),
       recordCustomerFeedback: (requestId, payload, session) => recordCustomerFeedback(requestId, payload, session),
+      sendAccountEmail: (payload) => sendAccountEmail(payload),
       sendSubscriberConfirmationEmail: (payload) => sendSubscriberConfirmationEmail(payload),
+      sendPaymentReceiptEmailForRequest: (request, context = {}) => sendPaymentReceiptEmailForRequest(request, context),
+      revokeUserSessionsByUserId: (userId) => revokeUserSessionsByUserId(userId),
       recordCompatibilityAccess: (capability, descriptor, details) =>
         runtimeRepository.recordCapabilityAccess(capability, descriptor, details),
       getCompatibilityRepository: () => runtimeRepository.getSnapshot(),
@@ -1003,158 +1061,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (paypalWebhookPaths.includes(pathname)) {
-      if (req.method !== "POST") {
-        sendMethodNotAllowed(res, "POST");
-        return;
-      }
-
-      if (!paypalClientId || !paypalClientSecret || !paypalWebhookId) {
-        sendJson(res, 503, {
-          error: "paypal-webhook-not-configured",
-          message: "Set PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, and PAYPAL_WEBHOOK_ID before accepting webhooks."
-        });
-        return;
-      }
-
-      try {
-        const rawBody = await readRawBody(req);
-        if (!rawBody.trim()) {
-          sendJson(res, 400, {
-            error: "invalid-webhook-payload",
-            message: "Webhook payload must be valid JSON."
-          });
-          return;
-        }
-
-        let webhookEvent;
-        try {
-          webhookEvent = JSON.parse(rawBody);
-        } catch {
-          sendJson(res, 400, {
-            error: "invalid-webhook-payload",
-            message: "Webhook payload must be valid JSON."
-          });
-          return;
-        }
-
-        const transmissionId = readHeader(req, "paypal-transmission-id");
-        const transmissionTime = readHeader(req, "paypal-transmission-time");
-        const transmissionSig = readHeader(req, "paypal-transmission-sig");
-        const certUrl = readHeader(req, "paypal-cert-url");
-        const authAlgo = readHeader(req, "paypal-auth-algo");
-        const missingHeaders = [
-          ["paypal-transmission-id", transmissionId],
-          ["paypal-transmission-time", transmissionTime],
-          ["paypal-transmission-sig", transmissionSig],
-          ["paypal-cert-url", certUrl],
-          ["paypal-auth-algo", authAlgo]
-        ]
-          .filter(([, value]) => !value)
-          .map(([name]) => name);
-
-        if (missingHeaders.length > 0) {
-          sendJson(res, 400, {
-            error: "missing-webhook-headers",
-            message: `Missing PayPal webhook headers: ${missingHeaders.join(", ")}.`
-          });
-          return;
-        }
-
-        const verification = await paypal.validateWebhook(
-          transmissionId,
-          transmissionTime,
-          certUrl,
-          paypalWebhookId,
-          webhookEvent,
-          authAlgo,
-          transmissionSig
-        );
-        const verificationStatus = readOptionalString(
-          verification.verification_status || verification.status
-        ).toUpperCase();
-        const eventId = readOptionalString(webhookEvent.id) || transmissionId;
-        const eventType = readOptionalString(webhookEvent.event_type).toUpperCase() || "UNKNOWN";
-
-        if (verificationStatus !== "SUCCESS") {
-          await appendPaypalWebhookLog({
-            receivedAt: new Date().toISOString(),
-            deliveryId: transmissionId,
-            eventId,
-            eventType,
-            verificationStatus: verificationStatus || "FAILED",
-            matched: false,
-            applied: false,
-            note: "verification-failed"
-          });
-          sendJson(res, 400, {
-            error: "paypal-webhook-verification-failed",
-            eventId,
-            eventType,
-            verificationStatus: verificationStatus || "FAILED"
-          });
-          return;
-        }
-
-        const duplicate = await hasProcessedPaypalWebhook({
-          deliveryId: transmissionId,
-          eventId
-        });
-        if (duplicate) {
-          sendJson(res, 200, {
-            ok: true,
-            duplicate: true,
-            eventId,
-            eventType
-          });
-          return;
-        }
-
-        const processing = await applyPaypalWebhookEvent(webhookEvent);
-        await appendPaypalWebhookLog({
-          receivedAt: new Date().toISOString(),
-          deliveryId: transmissionId,
-          eventId,
-          eventType,
-          resourceId: readOptionalString(webhookEvent?.resource?.id),
-          verificationStatus,
-          matched: processing.matched,
-          applied: processing.applied,
-          targetType: processing.targetType || null,
-          targetId: processing.targetId || null,
-          note: processing.note || null
-        });
-        await appendPaymentLog({
-          event: "paypal-webhook",
-          eventType,
-          paypalEventId: eventId,
-          resourceId: readOptionalString(webhookEvent?.resource?.id),
-          requestId: processing.targetType === "request" ? processing.targetId || null : null,
-          targetType: processing.targetType || null,
-          targetId: processing.targetId || null,
-          status: processing.note || verificationStatus || "processed",
-          createdAt: new Date().toISOString()
-        });
-
-        sendJson(res, 200, {
-          ok: true,
-          duplicate: false,
-          eventId,
-          eventType,
-          verificationStatus,
-          matched: processing.matched,
-          applied: processing.applied,
-          targetType: processing.targetType || null,
-          targetId: processing.targetId || null,
-          note: processing.note || null
-        });
-      } catch (error) {
-        console.error("[ERROR] PayPal Webhook Route Failed:", error);
-        sendJson(res, 500, {
-          error: "paypal-webhook-failed",
-          message: error instanceof Error ? error.message : String(error)
-        });
-      }
+    if (await handlePaypalWebhookRoute(req, res, pathname)) {
       return;
     }
 
@@ -1284,19 +1191,28 @@ const server = http.createServer(async (req, res) => {
           capturedAt: new Date().toISOString(),
           capture
         });
+        let updatedRequest = null;
         if (typeof payload.requestId === "string" && payload.requestId.trim()) {
-          await updateRequestRecord(payload.requestId, (request) => ({
+          updatedRequest = await updateRequestRecord(payload.requestId, (request) => ({
             ...request,
             paymentStatus: "CAPTURED",
             amountCollected: Number(request.amountCharged || request.amountCollected || 0),
             lastPaymentOrderId: orderId
           }));
         }
+        const paymentReceipt = updatedRequest
+          ? await sendPaymentReceiptEmailForRequest(updatedRequest, {
+              orderId,
+              captureStatus: capture.status
+            })
+          : null;
 
         sendJson(res, 200, {
           status: capture.status,
           orderId,
-          capture
+          capture,
+          request: updatedRequest,
+          paymentReceipt
         });
       } catch (error) {
         console.error('[ERROR] Capture Order Route Failed:', error);
@@ -1464,8 +1380,7 @@ async function writeRuntimeArtifacts() {
         `Watchdog Status: ${toRelativePath(path.join(runtimeRoot, "security", "latest-status.json"))}`,
         `PayPal Mode: ${paypalMode}`,
         `PayPal Configured: ${paypalClientId && paypalClientSecret ? "yes" : "no"}`,
-        `PayPal Webhook: ${publicBaseUrl}${paypalWebhookPath}`,
-        `PayPal Webhook ID: ${paypalWebhookId || "not set"}`
+        `PayPal Webhook: ${publicBaseUrl}${paypalWebhookPath}`
       ].join("\n")
     );
 
@@ -1485,6 +1400,7 @@ async function createRuntimeStatus() {
     host,
     port,
     startedAt: startedAt.toISOString(),
+    ...getServerClockPayload(),
     runtimeEntry: PUBLIC_RUNTIME_ENTRYPOINT,
     authority: buildAuthorityDescriptor(),
     blueprint: {
@@ -1512,10 +1428,7 @@ async function createRuntimeStatus() {
       provider: "paypal",
       mode: paypalMode,
       configured: Boolean(paypalClientId && paypalClientSecret),
-      webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
-      webhookPath: paypalWebhookPath,
-      webhookModule: paypalWebhookModule,
-      clientModule: paypalClientModule
+      webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId)
     },
     database: typeof awRoadsideDbConfig.getPublicStatus === "function"
       ? {
@@ -1878,11 +1791,21 @@ function getAuthorityPayload(req = null) {
   };
 }
 
+function getServerClockPayload() {
+  const now = new Date();
+  return {
+    serverTime: now.toISOString(),
+    serverDate: now.toISOString().slice(0, 10),
+    serverTimezone: process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  };
+}
+
 async function getHealthPayload(req = null) {
   return {
     status: "ok",
     service: SERVER_AUTHORITY.serviceId,
     timestamp: new Date().toISOString(),
+    ...getServerClockPayload(),
     policyVersion: AW_ROADSIDE_POLICY.termsVersion,
     pricingSource: "server.mjs",
     authority: buildAuthorityDescriptor(req),
@@ -1962,11 +1885,6 @@ async function getPaymentConfigPayload() {
     provider: "paypal",
     enabled: Boolean(paypalClientId && paypalClientSecret),
     clientId: paypalClientId || null,
-    webhookId: paypalWebhookId || null,
-    webhookPath: paypalWebhookPath,
-    webhookUrl: `${publicBaseUrl}${paypalWebhookPath}`,
-    webhookModule: paypalWebhookModule,
-    clientModule: paypalClientModule,
     webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
@@ -1986,7 +1904,7 @@ async function getPaymentConfigPayload() {
   };
 }
 
-async function sendSubscriberConfirmationEmail(payload) {
+async function sendAccountEmail(payload) {
   const recipientEmail = readOptionalString(payload?.recipientEmail);
   const subject = readOptionalString(payload?.subject);
   const body = readOptionalString(payload?.body);
@@ -2003,6 +1921,112 @@ async function sendSubscriberConfirmationEmail(payload) {
     subject,
     text: body
   });
+}
+
+async function sendSubscriberConfirmationEmail(payload) {
+  return sendAccountEmail(payload);
+}
+
+async function resolvePaymentReceiptRecipientEmail(request) {
+  const requestEmail =
+    readOptionalString(request?.email) ||
+    readOptionalString(request?.customerEmail) ||
+    readOptionalString(request?.receiptEmail);
+  if (requestEmail) {
+    return requestEmail;
+  }
+
+  const userId = Number(request?.userId);
+  if (!Number.isInteger(userId)) {
+    return "";
+  }
+
+  const users = await readUsers();
+  const user = users.find((entry) => Number(entry.id) === userId) || null;
+  return readOptionalString(user?.email);
+}
+
+async function sendPaymentReceiptEmailForRequest(request, context = {}) {
+  if (!request) {
+    return {
+      deliveryStatus: "skipped-no-request",
+      deliveredAt: null,
+      transport: "smtp",
+      message: "Payment receipt email skipped because no request record was available."
+    };
+  }
+
+  if (request.paymentReceiptSentAt) {
+    return {
+      deliveryStatus: "already-sent",
+      deliveredAt: request.paymentReceiptSentAt,
+      transport: "smtp",
+      message: "Payment receipt email was already sent."
+    };
+  }
+
+  const recipientEmail = await resolvePaymentReceiptRecipientEmail(request);
+  const requestId = readOptionalString(request.requestId || request.id);
+  const attemptAt = new Date().toISOString();
+  if (!recipientEmail) {
+    const skipped = {
+      deliveryStatus: "skipped-no-recipient",
+      deliveredAt: null,
+      transport: "smtp",
+      message: "Payment receipt email skipped because no customer email is available."
+    };
+    if (requestId) {
+      await updateRequestRecord(requestId, () => ({
+        paymentReceiptLastAttemptAt: attemptAt,
+        paymentReceiptDeliveryStatus: skipped.deliveryStatus,
+        paymentReceiptLastMessage: skipped.message
+      }));
+    }
+    return skipped;
+  }
+
+  const amountValue = Number.parseFloat(
+    String(
+      context.amountValue ??
+        request.amountCollected ??
+        request.amountCharged ??
+        0
+    )
+  );
+  const amountDisplay = Number.isFinite(amountValue) ? amountValue.toFixed(2) : "0.00";
+  const subject = `Payment received for request ${requestId || "AW Roadside"}`;
+  const body = [
+    `Hello ${readOptionalString(request.fullName) || "Customer"},`,
+    "",
+    "We received your PayPal payment for roadside service.",
+    `Request reference: ${requestId || "pending"}`,
+    `Service type: ${readOptionalString(request.serviceType) || "Roadside Service"}`,
+    `Amount received: $${amountDisplay} USD`,
+    `Payment status: ${readOptionalString(request.paymentStatus) || readOptionalString(context.captureStatus) || "CAPTURED"}`,
+    context.orderId ? `PayPal order: ${context.orderId}` : null,
+    "",
+    "This email confirms payment receipt only. Dispatch timing, ETA updates, and provider workflow continue through the app.",
+    "",
+    "AW Roadside"
+  ].filter(Boolean).join("\n");
+
+  const delivery = await sendAccountEmail({
+    recipientEmail,
+    subject,
+    body
+  });
+
+  if (requestId) {
+    await updateRequestRecord(requestId, () => ({
+      paymentReceiptRecipientEmail: recipientEmail,
+      paymentReceiptLastAttemptAt: attemptAt,
+      paymentReceiptDeliveryStatus: delivery.deliveryStatus || null,
+      paymentReceiptLastMessage: delivery.message || null,
+      paymentReceiptSentAt: delivery.deliveryStatus === "sent" ? delivery.deliveredAt || attemptAt : null
+    }));
+  }
+
+  return delivery;
 }
 
 async function getUserProfile(userId) {
@@ -2186,6 +2210,90 @@ function resolveAssignedProviderPhoneNumber(request, users = [], session = {}) {
   return readOptionalString(provider?.phoneNumber);
 }
 
+function canCustomerSeeAssignedProviderIdentity(request, session = {}) {
+  const actorRole = readOptionalString(session.actorRole).toUpperCase();
+  if (!isDirectCommunicationUnlocked(request) || !Number.isInteger(Number(request?.assignedProviderId))) {
+    return false;
+  }
+  if (actorRole === "SUBSCRIBER" && canCustomerSeeExactLocation(request, session.userId)) {
+    return true;
+  }
+  if (isGuestOwnerSession(request, session)) {
+    return true;
+  }
+  return false;
+}
+
+function inferProviderDocumentContentType(document = {}) {
+  const declared = readOptionalString(document.contentType);
+  if (declared) {
+    return declared;
+  }
+  const fileName = readOptionalString(document.fileName).toLowerCase();
+  if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+    return "image/jpeg";
+  }
+  if (fileName.endsWith(".png")) {
+    return "image/png";
+  }
+  if (fileName.endsWith(".webp")) {
+    return "image/webp";
+  }
+  if (fileName.endsWith(".heic")) {
+    return "image/heic";
+  }
+  if (fileName.endsWith(".heif")) {
+    return "image/heif";
+  }
+  if (fileName.endsWith(".pdf")) {
+    return "application/pdf";
+  }
+  if (fileName.endsWith(".txt")) {
+    return "text/plain";
+  }
+  return "application/octet-stream";
+}
+
+function readProviderDocumentDataUrl(document = {}) {
+  const sourceUrl = readOptionalString(document.sourceUrl);
+  if (sourceUrl) {
+    return sourceUrl;
+  }
+  const storagePath = readOptionalString(document.storagePath);
+  if (!storagePath) {
+    return null;
+  }
+  const absolutePath = path.resolve(runtimeRoot, storagePath);
+  if (!absolutePath.startsWith(runtimeRoot)) {
+    return null;
+  }
+  if (!existsSync(absolutePath)) {
+    return null;
+  }
+  try {
+    const buffer = readFileSync(absolutePath);
+    return `data:${inferProviderDocumentContentType(document)};base64,${buffer.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveAssignedProviderCustomerDisplay(request, session = {}) {
+  if (!canCustomerSeeAssignedProviderIdentity(request, session)) {
+    return null;
+  }
+  const users = await readUsers();
+  const provider = users.find((entry) => Number(entry.id) === Number(request?.assignedProviderId));
+  if (!provider) {
+    return null;
+  }
+  return {
+    providerUserId: Number(provider.id),
+    fullName: readOptionalString(provider.fullName) || readOptionalString(provider.username) || "Assigned provider",
+    profilePhotoDataUrl: readProviderDocumentDataUrl(provider?.providerProfile?.documents?.profilePhoto)
+  };
+}
+
 async function presentRequestForSession(request, session = null) {
   const resolvedRequest = derivePresentedRequestState(request);
   const declaredActorRole = readOptionalString(session?.actorRole).toUpperCase();
@@ -2214,6 +2322,11 @@ async function presentRequestForSession(request, session = null) {
     userId: session?.userId || null,
     ownsRequest: session?.ownsRequest === true
   });
+  const assignedProviderDisplay = await resolveAssignedProviderCustomerDisplay(resolvedRequest, {
+    actorRole,
+    userId: session?.userId || null,
+    ownsRequest: session?.ownsRequest === true
+  });
 
   return {
     ...resolvedRequest,
@@ -2236,6 +2349,7 @@ async function presentRequestForSession(request, session = null) {
         ? resolvedRequest.phoneNumber || ""
         : "",
     providerCallbackNumber,
+    assignedProviderDisplay,
     directCommunicationEnabled: isDirectCommunicationUnlocked(resolvedRequest),
     locationDisclosureLevel: visibleLocationLevel,
     contactDisclosureLevel: visibleContactLevel,
@@ -2434,6 +2548,7 @@ async function getFrontendConfigPayload(req = null) {
   const baseUrl = resolveRequestBaseUrl(req);
   const uiBaseUrl = webRoot ? baseUrl : null;
   return {
+    ...getServerClockPayload(),
     authority: buildAuthorityDescriptor(req),
     apiBaseUrl: getProtectedApiBaseUrl(req),
     apiModule: "aw-roadside-security.mjs",
@@ -2839,6 +2954,7 @@ async function storeSingleProviderDocument(userDocumentsRoot, docType, value, pr
 
   const binaryPayload = readDocumentBinaryPayload(value);
   validateProviderDocumentFormat(nextDocument.fileName, nextDocument.contentType, binaryPayload?.contentType || null);
+  validateProviderDocumentByType(docType, nextDocument.fileName, nextDocument.contentType, binaryPayload?.contentType || null);
   if (binaryPayload) {
     const extension = resolveProviderDocumentExtension(nextDocument.fileName, nextDocument.contentType, binaryPayload.contentType);
     const storedFileName = `${docType}${extension}`;
@@ -2878,17 +2994,17 @@ function resolveProviderDocumentExtension(fileName, contentType, fallbackContent
   const explicitExtension = path.extname(optionalString(fileName)).trim();
   if (explicitExtension) {
     const normalizedExtension = explicitExtension.toLowerCase();
-    if (normalizedExtension === ".txt" || normalizedExtension === ".jpeg") {
+    if (ALLOWED_PROVIDER_DOCUMENT_EXTENSIONS.has(normalizedExtension)) {
       return normalizedExtension;
     }
-    throw new Error("Provider documents must use .txt or .jpeg files only.");
+    throw new Error("Provider documents must use approved text, image, or PDF files only.");
   }
 
   const resolvedContentType = optionalString(contentType) || optionalString(fallbackContentType);
   if (ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES.has(resolvedContentType)) {
     return ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES.get(resolvedContentType);
   }
-  throw new Error("Provider documents must use text/plain or image/jpeg content only.");
+  throw new Error("Provider documents must use approved text, image, or PDF content only.");
 }
 
 function optionalIsoString(value) {
@@ -2910,17 +3026,41 @@ function validateProviderDocumentFormat(fileName, contentType, fallbackContentTy
   const explicitExtension = path.extname(normalizedFileName).trim().toLowerCase();
 
   if (normalizedContentType && !ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES.has(normalizedContentType)) {
-    throw new Error("Provider documents must be uploaded as text/plain or image/jpeg only.");
+    throw new Error("Provider documents must be uploaded as approved text, image, or PDF content only.");
   }
 
-  if (explicitExtension && explicitExtension !== ".txt" && explicitExtension !== ".jpeg") {
-    throw new Error("Provider documents must use .txt or .jpeg files only.");
+  if (explicitExtension && !ALLOWED_PROVIDER_DOCUMENT_EXTENSIONS.has(explicitExtension)) {
+    throw new Error("Provider documents must use approved text, image, or PDF files only.");
   }
 
   if (explicitExtension && normalizedContentType) {
     const expectedExtension = ALLOWED_PROVIDER_DOCUMENT_CONTENT_TYPES.get(normalizedContentType);
-    if (expectedExtension && explicitExtension !== expectedExtension) {
+    if (expectedExtension && !(normalizedContentType === "image/jpeg" && [".jpg", ".jpeg"].includes(explicitExtension)) && explicitExtension !== expectedExtension) {
       throw new Error("Provider document file extension does not match the uploaded content type.");
+    }
+  }
+}
+
+function validateProviderDocumentByType(docType, fileName, contentType, fallbackContentType) {
+  const normalizedType = optionalString(docType);
+  const normalizedContentType = optionalString(contentType) || optionalString(fallbackContentType);
+  const explicitExtension = path.extname(optionalString(fileName)).trim().toLowerCase();
+
+  if (normalizedType === "profilePhoto") {
+    if (normalizedContentType && !ALLOWED_PROVIDER_IMAGE_CONTENT_TYPES.has(normalizedContentType)) {
+      throw new Error("Provider profile photo must be uploaded as an image file.");
+    }
+    if (explicitExtension && ![".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"].includes(explicitExtension)) {
+      throw new Error("Provider profile photo must use an approved image file type.");
+    }
+  }
+
+  if (normalizedType === "proofOfAddress") {
+    if (normalizedContentType && normalizedContentType !== "image/jpeg") {
+      throw new Error("Proof of address must be uploaded as a JPEG image.");
+    }
+    if (explicitExtension && ![".jpg", ".jpeg"].includes(explicitExtension)) {
+      throw new Error("Proof of address must use a .jpg or .jpeg file.");
     }
   }
 }
@@ -3753,12 +3893,23 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
     return next;
   });
 
+  const paymentReceipt =
+    updatedRequest.paymentStatus === "CAPTURED"
+      ? await sendPaymentReceiptEmailForRequest(updatedRequest, {
+          orderId,
+          captureId,
+          amountValue,
+          captureStatus: updatedRequest.paymentStatus
+        })
+      : null;
+
   return {
     matched: true,
     applied: true,
     targetType: "request",
     targetId: String(updatedRequest.requestId || updatedRequest.id),
-    note: updatedRequest.paymentStatus || "updated"
+    note: updatedRequest.paymentStatus || "updated",
+    paymentReceiptDeliveryStatus: paymentReceipt?.deliveryStatus || null
   };
 }
 
@@ -4060,6 +4211,17 @@ function revokeUserSession(sessionId) {
     return false;
   }
   return userSessions.delete(sessionId);
+}
+
+function revokeUserSessionsByUserId(userId) {
+  let revoked = 0;
+  for (const [sessionId, session] of userSessions.entries()) {
+    if (Number(session?.userId) === Number(userId)) {
+      userSessions.delete(sessionId);
+      revoked += 1;
+    }
+  }
+  return revoked;
 }
 
 function signSessionBody(body) {

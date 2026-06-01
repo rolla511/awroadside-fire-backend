@@ -1,4 +1,5 @@
 import {
+  acceptProviderPayoutTerms,
   applyProvider,
   createSignup,
   loginUser,
@@ -333,6 +334,57 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
         return true;
       }
 
+      if (pathname === "/aw-roadside-security.mjs/auth/provider/payout-terms") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+        const session = requireSession(req, helpers);
+        const payload = await helpers.readJsonBody(req);
+        const updatedUser = await acceptProviderPayoutTerms(payload, helpers, session);
+        helpers.sendJson(res, 200, {
+          userId: updatedUser.id,
+          payoutTermsAccepted: updatedUser.terms?.providerPayout?.accepted === true,
+          payoutTermsAcceptedAt: updatedUser.terms?.providerPayout?.acceptedAt || null,
+          payoutSafeModeActive: updatedUser.terms?.providerPayout?.safeModeActive !== false
+        });
+        recordAudit("provider-payout-terms-accepted", { userId: updatedUser.id });
+        await helpers.recordSecurityEvent("provider-payout-terms-accepted", { userId: updatedUser.id });
+        return true;
+      }
+
+      if (pathname === "/aw-roadside-security.mjs/provider/payout-dispute") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+        const session = requireSession(req, helpers);
+        if (!session.roles.includes("PROVIDER")) {
+          helpers.sendJson(res, 403, {
+            error: "provider-session-required",
+            message: "A provider session is required to dispute payout records."
+          });
+          return true;
+        }
+        const payload = await helpers.readJsonBody(req);
+        const updatedRequest = await submitProviderPayoutDispute(payload, helpers, session);
+        helpers.sendJson(res, 200, {
+          requestId: updatedRequest.requestId || updatedRequest.id || null,
+          providerPayoutStatus: updatedRequest.providerPayoutStatus || null,
+          disputeFlag: Boolean(updatedRequest.disputeFlag),
+          disputeRaisedAt: updatedRequest.disputeRaisedAt || null
+        });
+        recordAudit("provider-payout-dispute", {
+          userId: session.userId,
+          requestId: updatedRequest.requestId || updatedRequest.id || null
+        });
+        await helpers.recordSecurityEvent("provider-payout-dispute", {
+          userId: session.userId,
+          requestId: updatedRequest.requestId || updatedRequest.id || null
+        });
+        return true;
+      }
+
       if (pathname === "/aw-roadside-security.mjs/requests") {
         if (req.method === "POST") {
           const session = helpers.resolveUserSession(req);
@@ -381,6 +433,30 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
         }
 
         helpers.sendMethodNotAllowed(res, "GET, POST");
+        return true;
+      }
+
+      if (pathname === "/aw-roadside-security.mjs/request-status") {
+        if (req.method !== "GET") {
+          helpers.sendMethodNotAllowed(res, "GET");
+          return true;
+        }
+        const url = new URL(req.url, "http://127.0.0.1");
+        const requestId = requireString(url.searchParams.get("requestId"), "requestId");
+        const phoneNumber = optionalString(url.searchParams.get("phoneNumber"));
+        const session = helpers.resolveUserSession(req);
+        const request = await requestServiceController.getRequest(requestId, helpers);
+        const customerSession = buildCustomerRequestStatusSession(request, session, phoneNumber);
+        if (!customerSession) {
+          helpers.sendJson(res, 403, {
+            error: "request-status-denied",
+            message: "Customer request status requires the matching subscriber session or request phone number."
+          });
+          return true;
+        }
+        helpers.sendJson(res, 200, {
+          request: await helpers.presentRequestForSession(request, customerSession)
+        });
         return true;
       }
 
@@ -571,10 +647,18 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
             lastPaymentOrderId: orderId
           }));
         }
+        const paymentReceipt =
+          updatedRequest && typeof helpers.sendPaymentReceiptEmailForRequest === "function"
+            ? await helpers.sendPaymentReceiptEmailForRequest(updatedRequest, {
+                orderId,
+                captureStatus: capture.status
+              })
+            : null;
         helpers.sendJson(res, 200, {
           status: capture.status,
           orderId,
           capture,
+          paymentReceipt,
           request: updatedRequest
             ? await helpers.presentRequestForSession(
                 updatedRequest,
@@ -853,6 +937,40 @@ function maskReference(value) {
   return `${reference.slice(0, 2)}${"*".repeat(reference.length - 4)}${reference.slice(-2)}`;
 }
 
+async function submitProviderPayoutDispute(payload, helpers, session) {
+  const requestId = requireString(payload.requestId, "requestId");
+  const disputeReason = requireString(payload.reason, "reason");
+  const requests = await helpers.readRequestLog();
+  const index = requests.findIndex((entry) => String(entry.id || entry.requestId) === String(requestId));
+  if (index === -1) {
+    throw new Error(`Request ${requestId} was not found.`);
+  }
+
+  const current = requests[index];
+  if (Number(current.assignedProviderId) !== Number(session.userId)) {
+    const error = new Error("Providers may dispute only their own payout records.");
+    error.statusCode = 403;
+    throw error;
+  }
+  if (normalizeStatus(current.providerPayoutStatus) === "COMPLETED" || current.payoutCompletedAt) {
+    const error = new Error("Payout disputes must be filed before payout is received.");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const now = new Date().toISOString();
+  requests[index] = {
+    ...current,
+    disputeFlag: true,
+    disputeReason,
+    disputeRaisedAt: now,
+    providerPayoutStatus: "ON_HOLD",
+    updatedAt: now
+  };
+  await helpers.writeRequestLog(requests);
+  return requests[index];
+}
+
 function requireString(value, fieldName) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error(`Field "${fieldName}" is required.`);
@@ -862,4 +980,31 @@ function requireString(value, fieldName) {
 
 function optionalString(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizePhoneLookup(value) {
+  return optionalString(value).replace(/\D+/g, "");
+}
+
+function buildCustomerRequestStatusSession(request, session = null, phoneNumber = "") {
+  if (session?.roles?.includes("ADMIN")) {
+    return {
+      ...session,
+      actorRole: "ADMIN"
+    };
+  }
+  if (session?.roles?.includes("SUBSCRIBER") && Number(request?.userId) === Number(session.userId)) {
+    return {
+      ...session,
+      actorRole: "SUBSCRIBER"
+    };
+  }
+  if (normalizePhoneLookup(phoneNumber) && normalizePhoneLookup(request?.phoneNumber) === normalizePhoneLookup(phoneNumber)) {
+    return {
+      roles: ["GUEST"],
+      actorRole: "GUEST",
+      ownsRequest: true
+    };
+  }
+  return null;
 }

@@ -373,6 +373,28 @@ export function createAdminController() {
         return true;
       }
 
+      const requestReassignMatch = pathname.match(/^\/admin-controller\.mjs\/requests\/([^/]+)\/reassign$/);
+      if (requestReassignMatch) {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+        const adminSession = requireAdminSession(req, sessions, trustedZones);
+        if (!adminSession.ok) {
+          helpers.sendJson(res, adminSession.statusCode, adminSession.body);
+          return true;
+        }
+        const payload = await helpers.readJsonBody(req);
+        const result = await reassignRequest(decodeURIComponent(requestReassignMatch[1]), payload, helpers, adminSession.session.email);
+        await recordAdminEvent(helpers, "admin-request-reassign", {
+          adminEmail: adminSession.session.email,
+          requestId: result.request.id || result.request.requestId || null,
+          reassignment: result.request.lastReassignment || null
+        });
+        helpers.sendJson(res, 200, result);
+        return true;
+      }
+
       return false;
     }
   };
@@ -444,6 +466,7 @@ function loginAdmin(payload, trustedZoneList, sessions) {
 }
 
 async function buildDashboardPayload(adminSession, helpers) {
+  const now = new Date().toISOString();
   const [users, requests, payments, paymentConfig] = await Promise.all([
     helpers.readUsers(),
     helpers.readRequestLog(),
@@ -458,6 +481,9 @@ async function buildDashboardPayload(adminSession, helpers) {
   const providers = users
     .filter((user) => Array.isArray(user.roles) && user.roles.includes("PROVIDER"))
     .map((user) => mapProvider(user));
+  const providerApprovalAlerts = providers
+    .map((provider) => buildProviderApprovalAlert(provider, now))
+    .filter((entry) => entry?.redFlag);
   const serviceHistory = requests.map((request) => mapServiceHistory(request, userById));
   const financials = requests.map((request) => mapFinancialRecord(request, userById));
   const overdueSubscribers = subscribers.filter((entry) => entry.subscriptionStatus === "OVERDUE");
@@ -487,6 +513,7 @@ async function buildDashboardPayload(adminSession, helpers) {
       activeSubscribers: subscribers.filter((entry) => entry.accountState === "ACTIVE").length,
       suspendedUsers: users.filter((user) => normalizeAccountState(user.accountState) === "SUSPENDED").length,
       pendingProviders: providers.filter((entry) => entry.providerStatus === "PENDING_APPROVAL").length,
+      providerApprovalAlerts: providerApprovalAlerts.length,
       overdueSubscriptions: overdueSubscribers.length,
       payoutsPending: financials.filter((entry) => entry.providerPayoutStatus === "PENDING").length,
       refundsFlagged: financials.filter((entry) => entry.refundIssued || entry.refundFlag || entry.disputeFlag).length,
@@ -495,6 +522,7 @@ async function buildDashboardPayload(adminSession, helpers) {
     policy,
     subscribers,
     providers,
+    providerApprovalAlerts,
     overdueSubscribers,
     queue,
     inService,
@@ -578,28 +606,31 @@ async function approveProvider(userId, payload, helpers) {
   if (!Array.isArray(provider.roles) || !provider.roles.includes("PROVIDER")) {
     throw new Error("Selected user is not a provider.");
   }
-  const documentStatus = provider.providerProfile?.documentStatus || summarizeProviderDocuments(provider.providerProfile?.documents);
-  if (!documentStatus.meetsMinimumRequirements) {
-    throw new Error(`Provider documents missing: ${documentStatus.missing.join(", ")}.`);
-  }
   if (provider.terms?.provider?.accepted !== true) {
     throw new Error("Provider terms have not been accepted.");
   }
-  if (provider.providerProfile?.assessment?.passed !== true) {
-    throw new Error("Provider safety assessment has not passed.");
-  }
-  if (!provider.providerProfile?.hoursOfService?.hasHours) {
-    throw new Error("Provider hours of service are required before approval.");
-  }
-  if (!normalizeString(provider.providerProfile?.serviceArea)) {
-    throw new Error("Provider service area is required before approval.");
+  const documentStatus = provider.providerProfile?.documentStatus || summarizeProviderDocuments(provider.providerProfile?.documents);
+  const approvalEligibility = buildProviderApprovalEligibility(provider, documentStatus);
+  if (!approvalEligibility.canApprove) {
+    throw new Error(`Provider is not approval-ready: ${approvalEligibility.missingRequirements.join(", ")}.`);
   }
 
+  const approvedAt = new Date().toISOString();
   provider.providerStatus = "APPROVED";
   provider.accountState = "ACTIVE";
   provider.available = true;
-  provider.approvedAt = new Date().toISOString();
+  provider.approvedAt = approvedAt;
   provider.approvalNote = normalizeString(payload.note) || null;
+  provider.providerSubscriptionStartedAt = approvedAt;
+  provider.nextBillingDate = addCalendarDays(approvedAt, 30);
+  provider.providerProfile = {
+    ...(provider.providerProfile && typeof provider.providerProfile === "object" ? provider.providerProfile : {}),
+    documentStatus,
+    approvalEligibility,
+    profileSubmissionStatus: "APPROVED",
+    subscriptionStartsOnApproval: false,
+    approvalReviewWindowEndsAt: provider.providerProfile?.approvalReviewWindowEndsAt || null
+  };
 
   await helpers.writeUsers(users);
   return {
@@ -692,6 +723,165 @@ async function resetRequest(requestId, payload, helpers) {
   };
 }
 
+async function reassignRequest(requestId, payload, helpers, adminEmail = null) {
+  const [requests, users] = await Promise.all([helpers.readRequestLog(), helpers.readUsers()]);
+  const index = requests.findIndex((entry) => String(entry.id || entry.requestId) === String(requestId));
+  if (index === -1) {
+    throw new Error(`Request ${requestId} was not found.`);
+  }
+
+  const current = requests[index];
+  const currentStatus = normalizeString(current.status).toUpperCase();
+  if (["COMPLETED", "EXPIRED"].includes(currentStatus)) {
+    throw new Error("Completed or expired requests cannot be reassigned.");
+  }
+
+  const replacementProviderId = Number(payload.providerUserId ?? payload.reassignedProviderId ?? payload.assignedProviderId);
+  if (!Number.isInteger(replacementProviderId)) {
+    throw new Error("A replacement provider id is required for reassignment.");
+  }
+
+  const replacementProvider = users.find((entry) => Number(entry.id) === replacementProviderId);
+  if (!replacementProvider || !Array.isArray(replacementProvider.roles) || !replacementProvider.roles.includes("PROVIDER")) {
+    throw new Error("Replacement provider was not found.");
+  }
+  if (normalizeAccountState(replacementProvider.accountState) !== "ACTIVE") {
+    throw new Error("Replacement provider must be ACTIVE.");
+  }
+  if (!["APPROVED", "ACTIVE"].includes(normalizeString(replacementProvider.providerStatus).toUpperCase())) {
+    throw new Error("Replacement provider must be approved before reassignment.");
+  }
+  if (replacementProvider.available !== true) {
+    throw new Error("Replacement provider must be available for reassignment.");
+  }
+
+  const requestServiceType = normalizeString(current.serviceType).toUpperCase();
+  const replacementServices = Array.isArray(replacementProvider.services)
+    ? replacementProvider.services.map((value) => normalizeString(value).toUpperCase()).filter(Boolean)
+    : [];
+  if (requestServiceType && replacementServices.length && !replacementServices.includes(requestServiceType)) {
+    throw new Error("Replacement provider is not enabled for this service type.");
+  }
+
+  const originalProviderId = Number.isInteger(Number(current.assignedProviderId)) ? Number(current.assignedProviderId) : null;
+  if (originalProviderId !== null && originalProviderId === replacementProviderId) {
+    throw new Error("Replacement provider must differ from the current provider.");
+  }
+
+  const originalProvider = originalProviderId === null
+    ? null
+    : users.find((entry) => Number(entry.id) === originalProviderId) || null;
+  const customerFault = payload.customerFault === true;
+  const secondChargeRequired = payload.secondChargeRequired === true;
+  const newRequestRequired = payload.newRequestRequired === true;
+  const transferPayoutInternally = payload.transferPayoutInternally === true;
+  const reversePaymentInternally = payload.reversePaymentInternally === true || transferPayoutInternally;
+  const payOrderRequired = payload.payOrderRequired === true || transferPayoutInternally;
+  if (transferPayoutInternally && (current.providerPayoutStatus === "COMPLETED" || current.payoutCompletedAt)) {
+    throw new Error("Internal payout transfer is not available after payout is already completed.");
+  }
+
+  const now = new Date().toISOString();
+  const reassignment = {
+    reassignedAt: now,
+    reassignedBy: adminEmail,
+    reason: normalizeString(payload.reason) || "Admin reassignment",
+    note: normalizeString(payload.note) || null,
+    customerFault,
+    secondChargeRequired,
+    newRequestRequired,
+    transferPayoutInternally,
+    reversePaymentInternally,
+    payOrderRequired,
+    payoutTransferredFromProviderId: transferPayoutInternally ? originalProviderId : null,
+    payoutTransferredFromProviderName: transferPayoutInternally ? (originalProvider?.fullName || originalProvider?.email || null) : null,
+    payoutTransferredToProviderId: transferPayoutInternally ? replacementProviderId : null,
+    payoutTransferredToProviderName: transferPayoutInternally ? (replacementProvider.fullName || replacementProvider.email || null) : null,
+    originalProviderId,
+    originalProviderName: originalProvider?.fullName || originalProvider?.email || null,
+    replacementProviderId,
+    replacementProviderName: replacementProvider.fullName || replacementProvider.email || null
+  };
+
+  const nextNoteExchange = [
+    ...(Array.isArray(current.noteExchange) ? current.noteExchange : []),
+    {
+      id: `admin-reassign-${Date.now()}`,
+      type: "ADMIN_REASSIGNMENT",
+      authorRole: "ADMIN",
+      authorUserId: adminEmail || null,
+      note: [
+        `Provider reassigned from ${reassignment.originalProviderName || "unassigned"} to ${reassignment.replacementProviderName}.`,
+        `Reason: ${reassignment.reason}.`,
+        `Customer fault: ${customerFault ? "yes" : "no"}.`,
+        `Second charge required: ${secondChargeRequired ? "yes" : "no"}.`,
+        `New request required: ${newRequestRequired ? "yes" : "no"}.`,
+        `Internal payout transfer: ${transferPayoutInternally ? "yes" : "no"}.`
+      ].join(" "),
+      createdAt: now
+    }
+  ];
+
+  const nextProviderActions = [
+    ...(Array.isArray(current.providerActions) ? current.providerActions : []),
+    {
+      providerUserId: replacementProviderId,
+      action: "ADMIN_REASSIGN",
+      note: reassignment.note || reassignment.reason,
+      createdAt: now,
+      actorRole: "ADMIN",
+      actorUserId: adminEmail || null
+    }
+  ];
+
+  requests[index] = {
+    ...current,
+    status: "SUBMITTED",
+    completionStatus: "OPEN",
+    assignedProviderId: replacementProviderId,
+    acceptedAt: null,
+    etaMinutes: null,
+    etaUpdatedAt: null,
+    softEtaMinutes: null,
+    hardEtaMinutes: null,
+    etaStage: "PENDING",
+    locationDisclosureLevel: "MASKED",
+    contactDisclosureLevel: "LOCKED",
+    directCommunicationEnabled: false,
+    softContactedAt: null,
+    hardContactedAt: null,
+    arrivedAt: null,
+    arrivalConfirmedAt: null,
+    completedAt: null,
+    completionConfirmedAt: null,
+    requestAcceptanceExpiresAt: addMinutes(now, Number(current.requestAcceptanceWindowMinutes || 5)),
+    dispatchRequeueCount: Number.parseInt(current.dispatchRequeueCount || 0, 10) + 1,
+    lastRequeuedAt: now,
+    reassignedAt: now,
+    reassignedBy: adminEmail,
+    reassignmentReason: reassignment.reason,
+    customerFault,
+    secondChargeRequired,
+    newRequestRequired,
+    transferPayoutInternally,
+    reversePaymentInternally,
+    payOrderRequired,
+    providerPayoutTransferredFromProviderId: reassignment.payoutTransferredFromProviderId,
+    providerPayoutTransferredToProviderId: reassignment.payoutTransferredToProviderId,
+    reassignmentHistory: [...(Array.isArray(current.reassignmentHistory) ? current.reassignmentHistory : []), reassignment],
+    lastReassignment: reassignment,
+    providerActions: nextProviderActions,
+    noteExchange: nextNoteExchange,
+    updatedAt: now
+  };
+  await helpers.writeRequestLog(requests);
+
+  return {
+    message: `Request ${requestId} reassigned to ${replacementProvider.fullName || replacementProvider.email}.`,
+    request: requests[index]
+  };
+}
+
 async function refundRequest(requestId, payload, helpers) {
   const policy = helpers.getRoadsidePolicy?.();
   if (policy?.financial?.noRefundsAfterPayment) {
@@ -735,6 +925,25 @@ async function completePayout(requestId, payload, helpers) {
   }
 
   const current = requests[index];
+  if (normalizeString(current.paymentStatus).toUpperCase() !== "CAPTURED") {
+    const error = new Error("Provider payout cannot be completed before customer payment is captured.");
+    error.statusCode = 409;
+    throw error;
+  }
+  if (Boolean(current.disputeFlag)) {
+    const error = new Error("Resolve the provider payout dispute before completing payout.");
+    error.statusCode = 409;
+    throw error;
+  }
+  const users = await helpers.readUsers();
+  const provider = users.find((entry) => Number(entry.id) === Number(current.assignedProviderId));
+  const payoutTermsAccepted = provider?.terms?.providerPayout?.accepted === true ||
+    provider?.providerProfile?.payoutTerms?.accepted === true;
+  if (!payoutTermsAccepted) {
+    const error = new Error("Provider payout terms must be accepted before payout can be released from safe mode.");
+    error.statusCode = 409;
+    throw error;
+  }
   const now = new Date().toISOString();
   requests[index] = {
     ...current,
@@ -846,6 +1055,15 @@ function mapSubscriber(user, requests) {
 
 function mapProvider(user) {
   const documentStatus = user.providerProfile?.documentStatus || summarizeProviderDocuments(user.providerProfile?.documents);
+  const approvalEligibility = user.providerProfile?.approvalEligibility || buildProviderApprovalEligibility(user, documentStatus);
+  const approvalAlert = buildProviderApprovalAlert({
+    providerStatus: user.providerStatus || "DRAFT",
+    profileSubmissionStatus: user.providerProfile?.profileSubmissionStatus || null,
+    fullName: user.fullName || "",
+    email: user.email || "",
+    pendingReceivedAt: user.providerProfile?.pendingReceivedAt || user.providerProfile?.profileSubmittedAt || null,
+    approvalReviewWindowEndsAt: user.providerProfile?.approvalReviewWindowEndsAt || null
+  });
   const rating = mapProviderRating(user);
   const discipline = mapProviderDiscipline(user);
   return {
@@ -866,6 +1084,9 @@ function mapProvider(user) {
     assessment: user.providerProfile?.assessment || null,
     rating,
     discipline,
+    profileSubmissionStatus: user.providerProfile?.profileSubmissionStatus || null,
+    approvalEligibility,
+    approvalAlert,
     documentStatus,
     documents: user.providerProfile?.documents || {},
     terms: user.terms?.provider || null
@@ -873,6 +1094,7 @@ function mapProvider(user) {
 }
 
 function mapServiceHistory(request, userById) {
+  const lastReassignment = request.lastReassignment || (Array.isArray(request.reassignmentHistory) ? request.reassignmentHistory[request.reassignmentHistory.length - 1] : null);
   return {
     requestId: request.id || request.requestId,
     requestDate: request.submittedAt || request.createdAt || null,
@@ -893,7 +1115,11 @@ function mapServiceHistory(request, userById) {
     noteCount: Array.isArray(request.noteExchange) ? request.noteExchange.length : 0,
     customerRating: Number.isFinite(Number(request.customerFeedback?.rating)) ? Number(request.customerFeedback.rating) : null,
     refundFlag: Boolean(request.refundFlag || request.refundIssued),
-    disputeFlag: Boolean(request.disputeFlag)
+    disputeFlag: Boolean(request.disputeFlag),
+    reassignmentCount: Array.isArray(request.reassignmentHistory) ? request.reassignmentHistory.length : 0,
+    lastReassignmentSummary: lastReassignment
+      ? `Reassigned ${lastReassignment.reassignedAt || "recently"} from ${lastReassignment.originalProviderName || "unassigned"} to ${lastReassignment.replacementProviderName || "unknown provider"}${lastReassignment.customerFault ? " · customer at fault" : ""}${lastReassignment.secondChargeRequired ? " · second charge required" : ""}${lastReassignment.transferPayoutInternally ? " · payout transfer queued" : ""}`
+      : ""
   };
 }
 
@@ -948,6 +1174,8 @@ function mapFinancialRecord(request, userById) {
     refundIssued: Boolean(request.refundIssued),
     refundFlag: Boolean(request.refundFlag),
     disputeFlag: Boolean(request.disputeFlag),
+    reassignmentCount: Array.isArray(request.reassignmentHistory) ? request.reassignmentHistory.length : 0,
+    lastReassignment: request.lastReassignment || (Array.isArray(request.reassignmentHistory) ? request.reassignmentHistory[request.reassignmentHistory.length - 1] : null),
     paymentStatus: request.paymentStatus || "UNKNOWN",
     providerPayoutStatus: request.providerPayoutStatus || "UNASSIGNED",
     spreadsheetLog: {
@@ -1011,7 +1239,7 @@ function mapPricingConfig(paymentConfig = {}) {
 }
 
 function summarizeProviderDocuments(documents = {}) {
-  const required = ["license", "registration", "insurance"];
+  const required = ["license", "registration", "insurance", "profilePhoto", "proofOfAddress"];
   const missing = required.filter((docType) => !Boolean(documents?.[docType]?.submitted || documents?.[docType] === true));
   const submittedCount = Object.values(documents || {}).filter((entry) => entry?.submitted || entry === true).length;
   return {
@@ -1019,6 +1247,125 @@ function summarizeProviderDocuments(documents = {}) {
     submittedCount,
     missing,
     meetsMinimumRequirements: missing.length === 0
+  };
+}
+
+function buildProviderApprovalEligibility(user, documentStatus = summarizeProviderDocuments(user?.providerProfile?.documents)) {
+  const providerProfile = user?.providerProfile && typeof user.providerProfile === "object" ? user.providerProfile : {};
+  const providerInfo = providerProfile.providerInfo && typeof providerProfile.providerInfo === "object" ? providerProfile.providerInfo : {};
+  const vehicleInfo = providerProfile.vehicleInfo && typeof providerProfile.vehicleInfo === "object" ? providerProfile.vehicleInfo : {};
+  const assessment = providerProfile.assessment && typeof providerProfile.assessment === "object" ? providerProfile.assessment : {};
+  const hoursOfService = providerProfile.hoursOfService && typeof providerProfile.hoursOfService === "object" ? providerProfile.hoursOfService : {};
+  const serviceAreaCoordinates = providerProfile.serviceAreaCoordinates;
+  const currentLocationCoordinates = providerProfile.currentLocationCoordinates;
+  const vehicleReady = Boolean(
+    normalizeString(vehicleInfo.year) &&
+    normalizeString(vehicleInfo.make) &&
+    normalizeString(vehicleInfo.model) &&
+    normalizeString(vehicleInfo.color)
+  );
+  const assessmentPassed = assessment?.passed === true;
+  const assessmentComplete = assessment?.complete === true;
+  const documentsReady = documentStatus?.meetsMinimumRequirements === true;
+  const hoursReady = hoursOfService?.hasHours === true;
+  const serviceAreaReady = Boolean(normalizeString(providerProfile.serviceArea));
+  const currentLocationReady = Boolean(normalizeString(providerProfile.currentLocation));
+  const locationResolved = Boolean(
+    (currentLocationCoordinates && Number.isFinite(Number(currentLocationCoordinates.longitude)) && Number.isFinite(Number(currentLocationCoordinates.latitude))) ||
+    (serviceAreaCoordinates && Number.isFinite(Number(serviceAreaCoordinates.longitude)) && Number.isFinite(Number(serviceAreaCoordinates.latitude)))
+  );
+  const payoutMethodReady = Boolean(normalizeString(providerInfo.payoutProvider) && normalizeString(providerInfo.payoutMethodMasked));
+  const identityReady = Array.isArray(documentStatus?.missing)
+    ? !documentStatus.missing.some((entry) => entry === "license" || entry === "profilePhoto" || entry === "proofOfAddress")
+    : false;
+
+  const missingRequirements = [];
+  if (!assessmentComplete) {
+    missingRequirements.push("assessment_incomplete");
+  } else if (!assessmentPassed) {
+    missingRequirements.push("assessment_failed");
+  }
+  if (!documentsReady) {
+    missingRequirements.push("documents_incomplete");
+  }
+  if (!hoursReady) {
+    missingRequirements.push("hours_of_service_missing");
+  }
+  if (!serviceAreaReady) {
+    missingRequirements.push("service_area_missing");
+  }
+  if (!currentLocationReady) {
+    missingRequirements.push("current_location_missing");
+  }
+  if (!locationResolved) {
+    missingRequirements.push("location_unverified");
+  }
+  if (!vehicleReady) {
+    missingRequirements.push("vehicle_incomplete");
+  }
+  if (!payoutMethodReady) {
+    missingRequirements.push("payout_method_missing");
+  }
+  if (!identityReady) {
+    missingRequirements.push("identity_documents_missing");
+  }
+
+  return {
+    assessmentComplete,
+    assessmentPassed,
+    documentsReady,
+    hoursReady,
+    serviceAreaReady,
+    currentLocationReady,
+    locationResolved,
+    vehicleReady,
+    payoutMethodReady,
+    identityReady,
+    canApprove: missingRequirements.length === 0,
+    pendingDisposition: assessmentPassed ? "PASSED_PENDING_PROVIDER" : "FAILED_PENDING_PROVIDER",
+    missingRequirements
+  };
+}
+
+function buildProviderApprovalAlert(provider, nowValue = new Date().toISOString()) {
+  if (normalizeString(provider?.providerStatus).toUpperCase() !== "PENDING_APPROVAL") {
+    return null;
+  }
+  if (normalizeString(provider?.profileSubmissionStatus).toUpperCase() !== "PASSED_PENDING_PROVIDER") {
+    return null;
+  }
+
+  const submittedAt = normalizeString(provider?.pendingReceivedAt || provider?.profileSubmittedAt);
+  const reviewDeadlineAt = normalizeString(provider?.approvalReviewWindowEndsAt);
+  const submittedTime = submittedAt ? new Date(submittedAt).getTime() : Number.NaN;
+  const deadlineTime = reviewDeadlineAt ? new Date(reviewDeadlineAt).getTime() : Number.NaN;
+  const nowTime = new Date(nowValue).getTime();
+  if (!Number.isFinite(submittedTime) || !Number.isFinite(deadlineTime) || !Number.isFinite(nowTime)) {
+    return null;
+  }
+
+  const msUntilDeadline = deadlineTime - nowTime;
+  const hoursUntilDeadline = Number((msUntilDeadline / (60 * 60 * 1000)).toFixed(1));
+  const overdue = msUntilDeadline < 0;
+  const dueSoon = !overdue && msUntilDeadline <= 24 * 60 * 60 * 1000;
+  const redFlag = overdue || dueSoon;
+  if (!redFlag) {
+    return null;
+  }
+
+  return {
+    providerId: provider?.id || null,
+    fullName: provider?.fullName || provider?.email || "Provider",
+    submittedAt,
+    reviewDeadlineAt,
+    hoursUntilDeadline,
+    overdue,
+    dueSoon,
+    redFlag: true,
+    severity: overdue ? "OVERDUE" : "DUE_SOON",
+    message: overdue
+      ? "Passed pending provider is beyond the third-business-day approval window."
+      : "Passed pending provider is approaching the third-business-day approval window."
   };
 }
 
@@ -1215,7 +1562,10 @@ function buildAdminUserProfile(userId, users, requests) {
         status: request.status || "UNKNOWN",
         paymentStatus: request.paymentStatus || "UNKNOWN",
         fullName: request.fullName || "",
-        location: request.location || ""
+        location: request.location || "",
+        lastReassignmentSummary: request.lastReassignment
+          ? `Reassigned to ${resolveProviderName(request.lastReassignment.replacementProviderId, new Map(users.map((entry) => [Number(entry.id), entry])))}`
+          : ""
       }))
   };
 }
@@ -1230,6 +1580,15 @@ function addCalendarYears(value, years) {
     return null;
   }
   date.setFullYear(date.getFullYear() + years);
+  return date.toISOString();
+}
+
+function addCalendarDays(value, days) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  date.setDate(date.getDate() + Number(days || 0));
   return date.toISOString();
 }
 
