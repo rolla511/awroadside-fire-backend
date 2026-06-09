@@ -431,11 +431,14 @@ export function createAwRoadsideStorageAuthority({
       return { ...status };
     },
     async initialize() {
+      const auth = resolvedDbConfig.authority;
+      console.log(`[STORAGE_AUTHORITY] Initializing in mode: ${auth.mode}, configured: ${auth.configured}`);
+      
       await resolvedDbConfig.recordTransition("awroadsidedb-config-initialized", {
-        mode: resolvedDbConfig.authority.mode,
-        configured: resolvedDbConfig.authority.configured,
-        client: resolvedDbConfig.authority.client,
-        strict: resolvedDbConfig.authority.strict
+        mode: auth.mode,
+        configured: auth.configured,
+        client: auth.client,
+        strict: auth.strict
       });
       status = {
         ...status,
@@ -443,7 +446,8 @@ export function createAwRoadsideStorageAuthority({
         lastEvent: "awroadsidedb-config-initialized"
       };
 
-      if (resolvedDbConfig.authority.mode === "runtime-storage") {
+      if (auth.mode === "runtime-storage") {
+        console.log("[STORAGE_AUTHORITY] Mode is runtime-storage. Skipping SQL initialization.");
         status = {
           ...status,
           enabled: false,
@@ -452,25 +456,35 @@ export function createAwRoadsideStorageAuthority({
         await record("storage-authority-runtime-storage", {
           repositories: Object.keys(repositories)
         });
-        if (resolvedDbConfig.authority.strict) {
+        if (auth.strict) {
           throw new Error("AW Roadside storage authority refused runtime-storage mode while strict mode is enabled.");
         }
         return;
       }
 
-      if (!resolvedDbConfig.authority.configured) {
-        const error = new Error("AW Roadside storage authority is in internal-db mode but the database target or access configuration is incomplete.");
+      if (!auth.configured) {
+        let reason = "Incomplete configuration.";
+        if (auth.mode === "internal-db") {
+          const missing = [];
+          if (!auth.connectionString && (!auth.host || !auth.database || !auth.user)) missing.push("DB_TARGET");
+          if (!auth.userAccessEntryConfigured) missing.push("USDB_ENTRY");
+          if (!auth.configHandleConfigured) missing.push("USDB_CONFIG_HANDLE");
+          reason = `Missing required internal-db envs: ${missing.join(", ")}`;
+        }
+        console.warn(`[STORAGE_AUTHORITY] DB not configured. Reason: ${reason}`);
+        const error = new Error(`AW Roadside storage authority is in internal-db mode but ${reason}`);
         await handleFailure(
           error,
           "storage-authority-db-not-configured"
         );
-        if (!resolvedDbConfig.authority.strict) {
+        if (!auth.strict) {
           await downgradeToRuntimeStorage(error, "storage-authority-runtime-storage-fallback");
         }
         return;
       }
 
       if (!schemaSql || !repositories.users || !repositories.requests || !repositories.payments) {
+        console.error("[STORAGE_AUTHORITY] Incomplete kernel.");
         await handleFailure(
           new Error("AW Roadside storage kernel is incomplete."),
           "storage-authority-incomplete-kernel"
@@ -478,15 +492,17 @@ export function createAwRoadsideStorageAuthority({
         return;
       }
 
-      if (resolvedDbConfig.authority.client !== "postgres") {
+      if (auth.client !== "postgres") {
+        console.error(`[STORAGE_AUTHORITY] Unsupported client: ${auth.client}`);
         await handleFailure(
-          new Error(`Unsupported DB client: ${resolvedDbConfig.authority.client}`),
+          new Error(`Unsupported DB client: ${auth.client}`),
           "storage-authority-unsupported-client"
         );
         return;
       }
 
       try {
+        console.log(`[STORAGE_AUTHORITY] Connecting to ${auth.client} at ${auth.host || "via connection string"}...`);
         const { Pool } = await import("pg");
         sql = new Pool(resolvedDbConfig.getConnectionConfig());
         await sql.query(schemaSql);
@@ -496,14 +512,16 @@ export function createAwRoadsideStorageAuthority({
           enabled: true,
           lastEvent: "storage-authority-sql-ready"
         };
+        console.log("[STORAGE_AUTHORITY] SQL storage ready and schema applied.");
         await record("storage-authority-sql-ready", {
           repositories: Object.keys(repositories),
-          client: resolvedDbConfig.authority.client,
-          database: resolvedDbConfig.authority.database || null
+          client: auth.client,
+          database: auth.database || null
         });
       } catch (error) {
+        console.error("[STORAGE_AUTHORITY] SQL initialization failed:", error.message);
         await handleFailure(error, "storage-authority-sql-unavailable");
-        if (!resolvedDbConfig.authority.strict) {
+        if (!auth.strict) {
           await downgradeToRuntimeStorage(error, "storage-authority-runtime-storage-fallback");
         }
       }
@@ -511,7 +529,7 @@ export function createAwRoadsideStorageAuthority({
     async syncUsers(users) {
       if (!enabled || !sql) {
         if (status.mode === "internal-db") {
-          throw new Error(`Cannot sync users: database is not enabled (status: ${status.lastEvent})`);
+          console.warn(`[STORAGE_AUTHORITY] Cannot sync users: database is not enabled (status: ${status.lastEvent}, error: ${status.lastError})`);
         }
         return;
       }
@@ -519,13 +537,14 @@ export function createAwRoadsideStorageAuthority({
         await repositories.users.sync(sql, Array.isArray(users) ? users : []);
         await repositories.providerHistory.syncFromUsers(sql, Array.isArray(users) ? users : []);
       } catch (error) {
+        console.error("[STORAGE_AUTHORITY] Failed to sync users:", error.message);
         await handleFailure(error, "storage-sync-users-failed");
       }
     },
     async syncRequests(requests) {
       if (!enabled || !sql) {
         if (status.mode === "internal-db") {
-          throw new Error(`Cannot sync requests: database is not enabled (status: ${status.lastEvent})`);
+          console.warn(`[STORAGE_AUTHORITY] Cannot sync requests: database is not enabled (status: ${status.lastEvent}, error: ${status.lastError})`);
         }
         return;
       }
@@ -534,19 +553,21 @@ export function createAwRoadsideStorageAuthority({
         await repositories.requests.sync(sql, list);
         await repositories.providerWallet.syncFromRequests(sql, list);
       } catch (error) {
+        console.error("[STORAGE_AUTHORITY] Failed to sync requests:", error.message);
         await handleFailure(error, "storage-sync-requests-failed");
       }
     },
     async appendPaymentEvent(entry) {
       if (!enabled || !sql) {
         if (status.mode === "internal-db") {
-          throw new Error(`Cannot append payment event: database is not enabled (status: ${status.lastEvent})`);
+          console.warn(`[STORAGE_AUTHORITY] Cannot append payment event: database is not enabled (status: ${status.lastEvent}, error: ${status.lastError})`);
         }
         return;
       }
       try {
         await repositories.payments.insert(sql, entry);
       } catch (error) {
+        console.error("[STORAGE_AUTHORITY] Failed to append payment event:", error.message);
         await handleFailure(error, "storage-sync-payment-failed");
       }
     },
@@ -615,7 +636,7 @@ export function createAwRoadsideStorageAuthority({
   async function readPayloadCollection({ tableName, orderBy, label }) {
     if (!enabled || !sql) {
       if (status.mode === "internal-db") {
-        throw new Error(`Cannot read ${label}: database is not enabled (status: ${status.lastEvent})`);
+        console.warn(`[STORAGE_AUTHORITY] Cannot read ${label}: database is not enabled (status: ${status.lastEvent}, error: ${status.lastError})`);
       }
       return [];
     }
@@ -623,6 +644,7 @@ export function createAwRoadsideStorageAuthority({
       const result = await sql.query(`SELECT payload FROM ${tableName} ORDER BY ${orderBy}`);
       return mapPayloadRows(result.rows);
     } catch (error) {
+      console.error(`[STORAGE_AUTHORITY] Failed to read ${label}:`, error.message);
       await handleFailure(error, `storage-read-${label}-failed`);
       if (status.mode === "internal-db") {
         throw error;

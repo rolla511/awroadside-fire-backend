@@ -25,7 +25,9 @@ const PROVIDER_ONLY_ACTIONS = new Set([
   "soft-contact",
   "hard-contact",
   "arrived",
-  "completed"
+  "completed",
+  "approve-service-change",
+  "deny-service-change"
 ]);
 const CUSTOMER_ONLY_ACTIONS = new Set([
   "subscriber-accept-eta",
@@ -33,7 +35,9 @@ const CUSTOMER_ONLY_ACTIONS = new Set([
   "confirm-arrived",
   "subscriber-arrived-confirm",
   "confirm-completion",
-  "subscriber-completion-confirm"
+  "subscriber-completion-confirm",
+  "cancel-service",
+  "request-service-change"
 ]);
 const SHARED_NOTE_ACTIONS = new Set(["note"]);
 
@@ -808,7 +812,7 @@ async function buildProviderWorkflowPayload(session, helpers) {
   const presented = await helpers.presentRequestsForSession(merged, session);
   const queued = presented.filter((request) => normalizeStatus(request?.status) === "SUBMITTED");
   const inProgress = presented.filter((request) => ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(normalizeStatus(request?.status)));
-  const completed = presented.filter((request) => normalizeStatus(request?.status) === "COMPLETED");
+  const completed = presented.filter((request) => ["COMPLETED", "CANCELLED"].includes(normalizeStatus(request?.status)));
 
   return {
     provider: maskProviderWorkflowProfile(profile),

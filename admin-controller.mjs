@@ -177,7 +177,10 @@ export function createAdminController() {
         }
         const payload = await helpers.readJsonBody(req);
         const providerId = Number(payload.providerId ?? payload.userId);
-        const result = await approveProvider(providerId, payload, helpers);
+        const result = await approveProvider(providerId, {
+          ...payload,
+          adminEmail: adminSession.session.email
+        }, helpers);
         await recordAdminEvent(helpers, "admin-provider-approve", {
           adminEmail: adminSession.session.email,
           userId: result.provider.id
@@ -198,7 +201,10 @@ export function createAdminController() {
           return true;
         }
         const payload = await helpers.readJsonBody(req);
-        const result = await approveProvider(Number(providerApproveMatch[1]), payload, helpers);
+        const result = await approveProvider(Number(providerApproveMatch[1]), {
+          ...payload,
+          adminEmail: adminSession.session.email
+        }, helpers);
         await recordAdminEvent(helpers, "admin-provider-approve", {
           adminEmail: adminSession.session.email,
           userId: result.provider.id
@@ -348,11 +354,21 @@ export function createAdminController() {
         const payload = await helpers.readJsonBody(req);
         const requestId = decodeURIComponent(forceActionMatch[1]);
         const action = normalizeString(payload.action).toLowerCase();
-        const allowed = new Set(["force-accept", "force-arrived", "force-complete", "prompt-payment", "note"]);
+        const allowed = new Set([
+          "force-accept",
+          "force-arrived",
+          "force-complete",
+          "prompt-payment",
+          "note",
+          "cancel-service",
+          "approve-service-change",
+          "deny-service-change"
+        ]);
         if (!allowed.has(action)) {
           helpers.sendJson(res, 400, {
             error: "unsupported-force-action",
-            message: "Supported force actions: force-accept, force-arrived, force-complete, prompt-payment, note."
+            message:
+              "Supported force actions: force-accept, force-arrived, force-complete, prompt-payment, note, cancel-service, approve-service-change, deny-service-change."
           });
           return true;
         }
@@ -611,25 +627,43 @@ async function approveProvider(userId, payload, helpers) {
   }
   const documentStatus = provider.providerProfile?.documentStatus || summarizeProviderDocuments(provider.providerProfile?.documents);
   const approvalEligibility = buildProviderApprovalEligibility(provider, documentStatus);
-  if (!approvalEligibility.canApprove) {
+  const forceApproval = payload.force === true || payload.forceApprove === true;
+  if (!forceApproval && !approvalEligibility.canApprove) {
     throw new Error(`Provider is not approval-ready: ${approvalEligibility.missingRequirements.join(", ")}.`);
   }
 
   const approvedAt = new Date().toISOString();
+  const billing = provider.providerProfile?.billing && typeof provider.providerProfile.billing === "object"
+    ? provider.providerProfile.billing
+    : {};
+  const subscriptionStartedAt =
+    provider.providerSubscriptionStartedAt ||
+    billing.lastBillingAt ||
+    approvedAt;
   provider.providerStatus = "APPROVED";
   provider.accountState = "ACTIVE";
   provider.available = true;
   provider.approvedAt = approvedAt;
   provider.approvalNote = normalizeString(payload.note) || null;
-  provider.providerSubscriptionStartedAt = approvedAt;
-  provider.nextBillingDate = addCalendarDays(approvedAt, 30);
+  provider.providerSubscriptionStartedAt = subscriptionStartedAt;
+  provider.nextBillingDate = provider.nextBillingDate || addCalendarDays(subscriptionStartedAt, 30);
   provider.providerProfile = {
     ...(provider.providerProfile && typeof provider.providerProfile === "object" ? provider.providerProfile : {}),
     documentStatus,
-    approvalEligibility,
+    approvalEligibility: forceApproval
+      ? {
+          ...approvalEligibility,
+          canApprove: true
+        }
+      : approvalEligibility,
     profileSubmissionStatus: "APPROVED",
     subscriptionStartsOnApproval: false,
-    approvalReviewWindowEndsAt: provider.providerProfile?.approvalReviewWindowEndsAt || null
+    approvalReviewWindowEndsAt: provider.providerProfile?.approvalReviewWindowEndsAt || null,
+    forcedApproval: forceApproval,
+    forcedApprovalAt: forceApproval ? approvedAt : provider.providerProfile?.forcedApprovalAt || null,
+    forcedApprovalBy: forceApproval
+      ? normalizeString(payload.adminEmail || payload.approvedBy) || null
+      : provider.providerProfile?.forcedApprovalBy || null
   };
 
   await helpers.writeUsers(users);

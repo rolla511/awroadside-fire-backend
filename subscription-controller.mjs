@@ -625,9 +625,16 @@ export async function applyProvider(payload, helpers, session = null) {
     throw new Error("Not a provider.");
   }
 
+  const existingProviderProfile = user.providerProfile && typeof user.providerProfile === "object"
+    ? user.providerProfile
+    : {};
+  if (!existingProviderProfile.profileSubmittedAt && !hasCapturedProviderMembership(user)) {
+    throw new Error("Provider membership payment must be captured before provider profile submission.");
+  }
+
   const vehicleInfo = payload.vehicleInfo || {};
   const documents = payload.documents || {};
-  const existingDocuments = user.providerProfile?.documents || {};
+  const existingDocuments = existingProviderProfile.documents || {};
   const storedDocuments = typeof helpers.saveProviderDocuments === "function"
     ? await helpers.saveProviderDocuments(user.id, existingDocuments, documents)
     : normalizeProviderDocuments(documents, existingDocuments);
@@ -671,10 +678,20 @@ export async function applyProvider(payload, helpers, session = null) {
 
   const providerPatch = (mutableUser) => {
     const submittedAt = new Date().toISOString();
+    const mutableProviderProfile = mutableUser.providerProfile && typeof mutableUser.providerProfile === "object"
+      ? mutableUser.providerProfile
+      : {};
+    const existingPayoutTerms = mutableProviderProfile.payoutTerms && typeof mutableProviderProfile.payoutTerms === "object"
+      ? mutableProviderProfile.payoutTerms
+      : {};
+    const existingProviderPayoutTerms = mutableUser.terms?.providerPayout && typeof mutableUser.terms.providerPayout === "object"
+      ? mutableUser.terms.providerPayout
+      : {};
     mutableUser.providerStatus = "PENDING_APPROVAL";
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
     mutableUser.available = false;
     mutableUser.providerProfile = {
+      ...mutableProviderProfile,
       providerInfo,
       vehicleInfo: normalizedVehicleInfo,
       documents: storedDocuments,
@@ -690,17 +707,18 @@ export async function applyProvider(payload, helpers, session = null) {
       pendingReceivedAt: submittedAt,
       profileSubmissionStatus: approvalEligibility.assessmentPassed ? "PASSED_PENDING_PROVIDER" : "FAILED_PENDING_PROVIDER",
       approvalEligibility,
-      subscriptionStartsOnApproval: true,
+      subscriptionStartsOnApproval: false,
       approvalReviewWindowEndsAt: addBusinessDays(submittedAt, 3),
       rates: normalizeProviderRates(payload.rates),
       noteExchangeEnabled: true,
       payoutTerms: {
-        accepted: false,
-        acceptedAt: null,
+        ...existingPayoutTerms,
+        accepted: existingPayoutTerms.accepted === true,
+        acceptedAt: existingPayoutTerms.acceptedAt || null,
         termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
-        disputeWindowAccepted: false,
-        noPostReceiptDisputeAccepted: false,
-        safeModeActive: true
+        disputeWindowAccepted: existingPayoutTerms.disputeWindowAccepted === true,
+        noPostReceiptDisputeAccepted: existingPayoutTerms.noPostReceiptDisputeAccepted === true,
+        safeModeActive: existingPayoutTerms.safeModeActive !== false
       }
     };
     mutableUser.services = Array.isArray(payload.services) && payload.services.length > 0 ? payload.services : ["LOCKOUT"];
@@ -716,12 +734,13 @@ export async function applyProvider(payload, helpers, session = null) {
         holdHarmlessAccepted: true
       },
       providerPayout: {
-        accepted: false,
-        acceptedAt: null,
+        ...existingProviderPayoutTerms,
+        accepted: existingProviderPayoutTerms.accepted === true,
+        acceptedAt: existingProviderPayoutTerms.acceptedAt || null,
         termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
-        disputeWindowAccepted: false,
-        noPostReceiptDisputeAccepted: false,
-        safeModeActive: true
+        disputeWindowAccepted: existingProviderPayoutTerms.disputeWindowAccepted === true,
+        noPostReceiptDisputeAccepted: existingProviderPayoutTerms.noPostReceiptDisputeAccepted === true,
+        safeModeActive: existingProviderPayoutTerms.safeModeActive !== false
       }
     };
     return mutableUser;
@@ -1237,6 +1256,16 @@ function normalizeProviderInfo(value) {
     payoutProvider: optionalString(providerInfo.payoutProvider),
     payoutMethodMasked: optionalString(providerInfo.payoutMethodMasked)
   };
+}
+
+function hasCapturedProviderMembership(user) {
+  const billing = user?.providerProfile?.billing && typeof user.providerProfile.billing === "object"
+    ? user.providerProfile.billing
+    : {};
+  const membershipStatus = optionalString(billing.membershipStatus).toUpperCase();
+  const lastBillingStatus = optionalString(billing.lastBillingStatus).toUpperCase();
+  const nextBillingDate = optionalString(user?.nextBillingDate);
+  return membershipStatus === "ACTIVE" || lastBillingStatus === "CAPTURED" || Boolean(nextBillingDate);
 }
 
 function normalizeHoursOfService(value) {

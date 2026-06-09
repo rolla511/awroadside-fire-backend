@@ -19,6 +19,10 @@ const PROVIDER_ACTIONS = new Set([
   "subscriber-arrived-confirm",
   "confirm-completion",
   "subscriber-completion-confirm",
+  "cancel-service",
+  "request-service-change",
+  "approve-service-change",
+  "deny-service-change",
   "prompt-payment",
   "note",
   "force-accept",
@@ -627,6 +631,15 @@ function sanitizeProviderAction(action, payload) {
   const softContact = optionalString(payload?.softContact);
   const hardContact = optionalString(payload?.hardContact);
   const providerUserId = Number.isInteger(payload?.providerUserId) ? payload.providerUserId : null;
+  const userId = Number.isInteger(payload?.userId) ? payload.userId : null;
+  const actorRole = optionalString(payload?.actorRole);
+  const serviceType = optionalString(payload?.serviceType || payload?.requestedServiceType);
+  const adminAction = payload?.adminAction === true;
+  const accountPassword = optionalString(payload?.accountPassword);
+  const noRefundAcknowledged =
+    payload?.noRefundAcknowledged === true ||
+    payload?.confirmNoRefund === true ||
+    payload?.acknowledgeNoRefund === true;
 
   return {
     action: normalizedAction,
@@ -634,7 +647,13 @@ function sanitizeProviderAction(action, payload) {
     ...(note ? { note } : {}),
     ...(softContact ? { softContact } : {}),
     ...(hardContact ? { hardContact } : {}),
-    ...(providerUserId !== null ? { providerUserId } : {})
+    ...(providerUserId !== null ? { providerUserId } : {}),
+    ...(userId !== null ? { userId } : {}),
+    ...(actorRole ? { actorRole } : {}),
+    ...(serviceType ? { serviceType } : {}),
+    ...(accountPassword ? { accountPassword } : {}),
+    ...(noRefundAcknowledged ? { noRefundAcknowledged: true } : {}),
+    ...(adminAction ? { adminAction: true } : {})
   };
 }
 
@@ -648,7 +667,13 @@ function mapProviderActionPayload(apiStyle, payload) {
     note: payload.note || "",
     softContact: payload.softContact || "",
     hardContact: payload.hardContact || "",
-    providerUserId: payload.providerUserId ?? null
+    providerUserId: payload.providerUserId ?? null,
+    userId: payload.userId ?? null,
+    actorRole: payload.actorRole || "",
+    serviceType: payload.serviceType || payload.requestedServiceType || "",
+    accountPassword: payload.accountPassword || "",
+    noRefundAcknowledged: payload.noRefundAcknowledged === true,
+    adminAction: payload.adminAction === true
   };
 }
 

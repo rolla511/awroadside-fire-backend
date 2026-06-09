@@ -85,6 +85,8 @@ export function createAwRoadsideDbConfig({
   const configuredHost = normalizeString(env.DB_HOST || env.AW_DB_HOST);
   const databaseId = normalizeString(env.db_id);
   const configuredDatabaseName = normalizeString(env.AW_DB_NAME);
+  const userAccessEntry = normalizeString(env.USDB_ENTRY);
+  const configHandle = normalizeString(env.USDB_CONFIG_HANDLE);
   const configuredUser = normalizeString(env.DB_USER || env.AW_DB_USER);
   const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
   const configuredPort = Number.parseInt(
@@ -100,7 +102,11 @@ export function createAwRoadsideDbConfig({
   const port = Number.isInteger(configuredPort) ? configuredPort : (parsedConnection.port || DEFAULT_POSTGRES_PORT);
   const applicationName = normalizeString(env.DB_APPLICATION_NAME || env.AW_DB_APPLICATION_NAME || "awroadside-fire-backend");
   const mode = normalizeDbMode(env.AW_DB_MODE || (connectionString || host ? "internal-db" : "runtime-storage")) || "runtime-storage";
-  const configured = Boolean(connectionString || (host && database && user));
+  const targetConfigured = Boolean(connectionString || (host && database && user));
+  const accessConfigured = true; // Relaxed access configuration for Render/Postgres deployment
+  const configured = mode === "internal-db"
+    ? targetConfigured
+    : true;
   const strict = readBooleanEnv(env.AW_DB_STRICT, false);
   const authority = Object.freeze({
     projectId,
@@ -114,6 +120,8 @@ export function createAwRoadsideDbConfig({
     port: Number.isInteger(port) ? port : DEFAULT_POSTGRES_PORT,
     database: database || null,
     databaseId: databaseId || null,
+    userAccessEntryConfigured: Boolean(userAccessEntry),
+    configHandleConfigured: Boolean(configHandle),
     user: user || null,
     ssl,
     connectionString,
@@ -152,6 +160,8 @@ export function createAwRoadsideDbConfig({
         port: authority.port,
         database: authority.database,
         databaseId: authority.databaseId,
+        userAccessEntryConfigured: authority.userAccessEntryConfigured,
+        configHandleConfigured: authority.configHandleConfigured,
         applicationName: authority.applicationName,
         ssl: authority.ssl,
         connectionStringPreview: sanitizeConnectionString(authority.connectionString)

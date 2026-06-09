@@ -130,8 +130,12 @@ function readBooleanEnv(value, fallback = false) {
   return fallback;
 }
 
-const subscriberMonthlyFee = Number.parseFloat(process.env.SUBSCRIBER_MONTHLY_FEE || "7.99");
-const providerMonthlyFee = Number.parseFloat(process.env.PROVIDER_MONTHLY_FEE || "6");
+const subscriberMonthlyFee = 7.99;
+const providerMonthlyFee = 6;
+const providerSuspensionFeeFirst = 100;
+const providerSuspensionFeeSecond = 250;
+const providerSuspensionPlatformShareSecond = 100;
+const providerSuspensionTrainingPayoutSecond = 150;
 const publicPricingVisible = readBooleanEnv(process.env.PUBLIC_PRICING_VISIBLE, false);
 const showInternalPreviewData = readBooleanEnv(process.env.SHOW_INTERNAL_PREVIEW_DATA, false);
 const PROVIDER_ASSESSMENT_QUESTIONS = [
@@ -186,6 +190,18 @@ const AW_ROADSIDE_POLICY = Object.freeze({
       lowRatingStrikeThreshold: PROVIDER_LOW_RATING_STRIKE_THRESHOLD,
       rollingWindowMonths: PROVIDER_LOW_RATING_WINDOW_MONTHS,
       suspensionDaysByStrike: PROVIDER_SUSPENSION_DURATIONS_DAYS,
+      suspensionFeeSchedule: {
+        first: {
+          total: providerSuspensionFeeFirst,
+          platform: providerSuspensionFeeFirst,
+          trainingProvider: 0
+        },
+        second: {
+          total: providerSuspensionFeeSecond,
+          platform: providerSuspensionPlatformShareSecond,
+          trainingProvider: providerSuspensionTrainingPayoutSecond
+        }
+      },
       thirdStrike: "indefinite suspension until admin-managed roadside training enrollment",
       reinstatementProbationYears: PROVIDER_REINSTATEMENT_PROBATION_YEARS,
       postTrainingRestriction:
@@ -196,6 +212,20 @@ const AW_ROADSIDE_POLICY = Object.freeze({
     noRefundsAfterPayment: true,
     payoutLedgerEnabled: true,
     platformServiceChargeRate: 0.02,
+    payoutPlatformFee: 2,
+    priorityAssignmentFee: 5.5,
+    providerSuspensionFees: {
+      first: {
+        total: providerSuspensionFeeFirst,
+        platform: providerSuspensionFeeFirst,
+        trainingProvider: 0
+      },
+      second: {
+        total: providerSuspensionFeeSecond,
+        platform: providerSuspensionPlatformShareSecond,
+        trainingProvider: providerSuspensionTrainingPayoutSecond
+      }
+    },
     walletDisplayTerms: {
       payoutTermsVersion: "provider-payout-2026-05-30",
       title: "Wallet display and financial record",
@@ -242,6 +272,7 @@ const AW_ROADSIDE_POLICY = Object.freeze({
       EN_ROUTE: "Provider on the way",
       ARRIVED: "Provider arrived",
       COMPLETED: "Service completed",
+      CANCELLED: "Service cancelled",
       OPEN: "Open"
     },
     paymentStatus: {
@@ -733,13 +764,15 @@ const mailUser = (process.env.MAIL_USER || "").trim();
 const mailPassword = (process.env.MAIL_PASSWORD || "").trim();
 const mailFrom = (process.env.MAIL_FROM || "").trim();
 const mailReplyTo = (process.env.MAIL_REPLY_TO || mailFrom).trim();
-const priorityServicePrice = Number.parseFloat(process.env.PRIORITY_SERVICE_PRICE || "25");
-const serviceBasePrice = Number.parseFloat(process.env.SERVICE_BASE_PRICE || "55");
-const guestServicePrice = Number.parseFloat(process.env.GUEST_SERVICE_PRICE || `${serviceBasePrice}`);
-const subscriberServicePrice = Number.parseFloat(process.env.SUBSCRIBER_SERVICE_PRICE || "40");
-const assignmentFee = Number.parseFloat(process.env.PROVIDER_ASSIGNMENT_FEE || "5.5");
-const guestDispatchFee = Number.parseFloat(process.env.GUEST_DISPATCH_FEE || "10");
-const subscriberDispatchFee = Number.parseFloat(process.env.SUBSCRIBER_DISPATCH_FEE || "0");
+const priorityServicePrice = 25;
+const serviceBasePrice = 55;
+const guestServicePrice = 55;
+const subscriberServicePrice = 40;
+const priorityAssignmentFee = 5.5;
+const assignmentFee = 2;
+const payoutPlatformFee = 2;
+const guestDispatchFee = 15;
+const subscriberDispatchFee = 2;
 const sessionSecret = process.env.AW_SESSION_SECRET || crypto.randomBytes(32).toString("hex");
 const sessionTtlMs = Number.parseInt(process.env.AW_SESSION_TTL_MS || `${12 * 60 * 60 * 1000}`, 10);
 const watchdogIntervalMs = Number.parseInt(process.env.AW_WATCHDOG_INTERVAL_MS || `${5 * 60 * 1000}`, 10);
@@ -840,6 +873,7 @@ watchdog.record("server-started", {
   databaseConfigured: activeStorageStatus?.configured ?? awRoadsideDbConfig.authority.configured,
   storageEnabled: activeStorageStatus?.enabled ?? false,
   storageEvent: activeStorageStatus?.lastEvent || null,
+  lastError: activeStorageStatus?.lastError || null,
   databaseId: awRoadsideDbConfig.authority.databaseId || null,
   databaseName: awRoadsideDbConfig.authority.database || null
 });
@@ -1221,6 +1255,66 @@ const server = http.createServer(async (req, res) => {
           message: error.message
         });
       }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/providers/paypal-connect`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+      try {
+        const payload = await readJsonBody(req);
+        const providerId = Number(payload.providerId);
+        const paypalEmail = typeof payload.paypalEmail === "string" ? payload.paypalEmail.trim() : "";
+        if (!providerId || !paypalEmail) {
+          sendJson(res, 400, { error: "bad-request", message: "providerId and paypalEmail are required." });
+          return;
+        }
+        const updatedProvider = await mutateUsers(async (users) => {
+          const index = users.findIndex((u) => Number(u.id) === providerId);
+          if (index === -1) throw new Error("Provider not found.");
+          users[index].providerProfile = users[index].providerProfile || {};
+          users[index].providerProfile.paypal = users[index].providerProfile.paypal || {};
+          users[index].providerProfile.paypal.email = paypalEmail;
+          users[index].providerProfile.paypal.onboardingStatus = "COMPLETED";
+          return users[index];
+        });
+        sendJson(res, 200, { provider: updatedProvider });
+      } catch (error) {
+        sendJson(res, 500, { error: "update-failed", message: error.message });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/admin/audit-log`) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+      try {
+        const payments = await readPaymentLog();
+        sendJson(res, 200, { auditLog: payments });
+      } catch (error) {
+        sendJson(res, 500, { error: "fetch-failed", message: error.message });
+      }
+      return;
+    }
+
+    const requestMatch = pathname.match(/^\/api\/requests\/([^/]+)$/);
+    if (requestMatch) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+      const requestId = decodeURIComponent(requestMatch[1]);
+      const currentRequests = await readRequestLog();
+      const existingRequest = currentRequests.find((entry) => String(entry.id || entry.requestId) === String(requestId)) || null;
+      if (!existingRequest) {
+        sendJson(res, 404, { error: "not-found", message: `Request ${requestId} not found.` });
+        return;
+      }
+      sendJson(res, 200, { request: existingRequest });
       return;
     }
 
@@ -1735,26 +1829,22 @@ function resolveServicePricing(request) {
   const serviceCharge = customerTier === "SUBSCRIBER" ? subscriberServicePrice : guestServicePrice;
   const dispatchFee = customerTier === "SUBSCRIBER" ? subscriberDispatchFee : guestDispatchFee;
   const serviceChargeRate = AW_ROADSIDE_POLICY?.financial?.platformServiceChargeRate || 0.02;
-
-  let platformShare;
-  let providerPayout;
-
-  if (customerTier === "SUBSCRIBER") {
-    // Subscriber: $40 total - $5.50 assignment - 2% service rate
-    const platformPercentageCharge = Number((serviceCharge * serviceChargeRate).toFixed(2));
-    platformShare = assignmentFee + platformPercentageCharge;
-    providerPayout = serviceCharge - platformShare;
-  } else {
-    // Guest: $55 total - $10 dispatch - $5.50 assignment = $39.50 payout
-    platformShare = dispatchFee + assignmentFee;
-    providerPayout = serviceCharge - platformShare;
-  }
+  const payoutBaseAmount = Number((serviceCharge - dispatchFee - assignmentFee).toFixed(2));
+  const platformPercentageCharge = Number((Math.max(payoutBaseAmount, 0) * serviceChargeRate).toFixed(2));
+  const platformShare = Number((dispatchFee + assignmentFee + payoutPlatformFee + platformPercentageCharge).toFixed(2));
+  const providerPayout = Number((serviceCharge - platformShare).toFixed(2));
 
   return {
     customerTier,
     serviceCharge,
     dispatchFee,
+    payoutBaseAmount,
     assignmentFee,
+    priorityAssignmentFee,
+    payoutPlatformFee,
+    platformServiceChargeRate: serviceChargeRate,
+    platformPercentageCharge,
+    platformFixedFeeAmount: dispatchFee + assignmentFee + payoutPlatformFee,
     platformShare,
     providerPayout,
     serviceTaxAmount: 0,
@@ -1894,9 +1984,13 @@ async function getPaymentConfigPayload() {
     subscriberServicePrice,
     subscriberMonthlyFee,
     providerMonthlyFee,
+    priorityAssignmentFee,
     assignmentFee,
     guestDispatchFee,
     subscriberDispatchFee,
+    payoutPlatformFee,
+    platformServiceChargeRate: AW_ROADSIDE_POLICY.financial.platformServiceChargeRate,
+    providerSuspensionFees: AW_ROADSIDE_POLICY.financial.providerSuspensionFees,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
     dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability,
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
@@ -2570,11 +2664,15 @@ async function getFrontendConfigPayload(req = null) {
     subscriberServicePrice,
     subscriberMonthlyFee,
     providerMonthlyFee,
+    priorityAssignmentFee,
     publicPricingVisible,
     showInternalPreviewData,
     assignmentFee,
     guestDispatchFee,
     subscriberDispatchFee,
+    payoutPlatformFee,
+    platformServiceChargeRate: AW_ROADSIDE_POLICY.financial.platformServiceChargeRate,
+    providerSuspensionFees: AW_ROADSIDE_POLICY.financial.providerSuspensionFees,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
     uiEventMap: AW_ROADSIDE_POLICY.uiEventMap,
@@ -2728,7 +2826,7 @@ function resolveRequestBaseUrl(req = null) {
 }
 
 function resolvePublicBaseUrl() {
-  const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "https://awroadside-fire-backend.onrender.com").trim().replace(/\/$/, "");
+  const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "https://awroadside-fire-backend.orender.com").trim().replace(/\/$/, "");
   if (configuredBaseUrl) {
     return configuredBaseUrl;
   }
@@ -4125,6 +4223,9 @@ function preferSqlStorageReads() {
     return false;
   }
   const status = storageAuthority.getStatus();
+  if (status.lastError) {
+    console.warn(`[STORAGE_AUTHORITY] preferSqlStorageReads is false due to lastError: ${status.lastError}`);
+  }
   return status.enabled === true && status.mode === "internal-db";
 }
 
@@ -5101,7 +5202,12 @@ function buildSandboxManualTestRequest(fixture, sandboxUserIds) {
     serviceTaxAmount: pricing.serviceTaxAmount,
     providerTaxWithheld: pricing.providerTaxWithheld,
     assignmentFee: pricing.assignmentFee,
+    payoutPlatformFee: pricing.payoutPlatformFee,
     dispatchFee: pricing.dispatchFee,
+    payoutBaseAmount: pricing.payoutBaseAmount,
+    platformServiceChargeRate: pricing.platformServiceChargeRate,
+    platformPercentageChargeAmount: pricing.platformPercentageCharge,
+    platformFixedFeeAmount: pricing.platformFixedFeeAmount,
     platformShareAmount: pricing.platformShare,
     providerPayoutAmount: pricing.providerPayout,
     requestAcceptanceWindowMinutes: 720,
@@ -5355,7 +5461,12 @@ async function createServiceRequest(serviceRequest) {
     serviceTaxAmount: pricing.serviceTaxAmount,
     providerTaxWithheld: pricing.providerTaxWithheld,
     assignmentFee: pricing.assignmentFee,
+    payoutPlatformFee: pricing.payoutPlatformFee,
     dispatchFee: pricing.dispatchFee,
+    payoutBaseAmount: pricing.payoutBaseAmount,
+    platformServiceChargeRate: pricing.platformServiceChargeRate,
+    platformPercentageChargeAmount: pricing.platformPercentageCharge,
+    platformFixedFeeAmount: pricing.platformFixedFeeAmount,
     platformShareAmount: pricing.platformShare,
     providerPayoutAmount: pricing.providerPayout,
     requestAcceptanceWindowMinutes,
@@ -5539,6 +5650,52 @@ async function updateRequestRecord(requestId, updater) {
   });
 }
 
+function normalizeSupportedServiceType(value, fieldName = "serviceType") {
+  const raw = readRequiredString(value, fieldName);
+  const normalized = raw.trim();
+  const serviceTypes = AW_ROADSIDE_POLICY?.serviceTypes && typeof AW_ROADSIDE_POLICY.serviceTypes === "object"
+    ? AW_ROADSIDE_POLICY.serviceTypes
+    : {};
+  const requestedUpper = normalized.toUpperCase();
+
+  for (const [serviceKey, serviceLabel] of Object.entries(serviceTypes)) {
+    if (serviceKey.toUpperCase() === requestedUpper || String(serviceLabel).toUpperCase() === requestedUpper) {
+      return serviceKey;
+    }
+  }
+
+  const fallbackKey = normalized.replace(/\s+/g, "_").toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(serviceTypes, fallbackKey)) {
+    return fallbackKey;
+  }
+
+  const error = new Error(`Unsupported service type: ${normalized}.`);
+  error.statusCode = 400;
+  error.code = "unsupported-service-type";
+  throw error;
+}
+
+async function verifyStoredAccountPasswordForRequest(user, password) {
+  const normalizedPassword = readRequiredString(password, "accountPassword");
+  if (typeof user?.passwordHash === "string" && user.passwordHash.startsWith("scrypt$")) {
+    const [, salt, expectedKey] = user.passwordHash.split("$");
+    if (!salt || !expectedKey) {
+      return false;
+    }
+    const actualKey = await new Promise((resolve, reject) => {
+      crypto.scrypt(normalizedPassword, salt, 64, (error, derivedKey) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(derivedKey.toString("hex"));
+      });
+    });
+    return crypto.timingSafeEqual(Buffer.from(actualKey, "hex"), Buffer.from(expectedKey, "hex"));
+  }
+  return typeof user?.password === "string" && user.password === normalizedPassword;
+}
+
 async function applyLocalRequestAction(requestId, action, payload) {
   const normalizedAction = typeof action === "string" ? action.trim().toLowerCase() : "";
   const now = new Date().toISOString();
@@ -5551,9 +5708,43 @@ async function applyLocalRequestAction(requestId, action, payload) {
     normalizedAction === "force-arrived" ||
     normalizedAction === "force-complete" ||
     normalizedAction === "mark-complete";
-  const provider = providerUserId === null ? null : (await readUsers()).find((entry) => Number(entry.id) === providerUserId) || null;
+  const users = await readUsers();
+  const provider = providerUserId === null ? null : users.find((entry) => Number(entry.id) === providerUserId) || null;
+  const customerUser = userId === null ? null : users.find((entry) => Number(entry.id) === userId) || null;
+  const currentRequests = await readDispatchRequestLog();
+  const existingRequest = currentRequests.find((entry) => String(entry.id || entry.requestId) === String(requestId)) || null;
 
-  await readDispatchRequestLog();
+  if (
+    normalizedAction === "cancel-service" &&
+    actorRole === "SUBSCRIBER" &&
+    !hasAdminAuthority &&
+    existingRequest &&
+    isPaymentCaptured(existingRequest)
+  ) {
+    if (!customerUser || Number(existingRequest.userId) !== Number(userId)) {
+      const error = new Error("Only the subscriber who placed the request can cancel this paid service.");
+      error.statusCode = 403;
+      error.code = "subscriber-request-mismatch";
+      throw error;
+    }
+    const noRefundAcknowledged =
+      payload?.noRefundAcknowledged === true ||
+      payload?.confirmNoRefund === true ||
+      payload?.acknowledgeNoRefund === true;
+    if (!noRefundAcknowledged) {
+      const error = new Error("Cancelling after payment requires confirming that no refund will be issued.");
+      error.statusCode = 409;
+      error.code = "no-refund-acknowledgement-required";
+      throw error;
+    }
+    const passwordValid = await verifyStoredAccountPasswordForRequest(customerUser, payload?.accountPassword);
+    if (!passwordValid) {
+      const error = new Error("Account password verification is required to cancel a paid service.");
+      error.statusCode = 403;
+      error.code = "account-password-invalid";
+      throw error;
+    }
+  }
 
   return updateRequestRecord(requestId, (request) => {
     if (isPendingProviderAcceptanceRequest(request) && isRequestAcceptanceExpired(request)) {
@@ -5575,6 +5766,8 @@ async function applyLocalRequestAction(requestId, action, payload) {
       normalizedAction === "hard-contact" ||
       normalizedAction === "arrived" ||
       normalizedAction === "completed" ||
+      normalizedAction === "approve-service-change" ||
+      normalizedAction === "deny-service-change" ||
       normalizedAction === "prompt-payment";
     const isCustomerOnlyAction =
       normalizedAction === "subscriber-accept-eta" ||
@@ -5582,7 +5775,9 @@ async function applyLocalRequestAction(requestId, action, payload) {
       normalizedAction === "confirm-arrived" ||
       normalizedAction === "subscriber-arrived-confirm" ||
       normalizedAction === "confirm-completion" ||
-      normalizedAction === "subscriber-completion-confirm";
+      normalizedAction === "subscriber-completion-confirm" ||
+      normalizedAction === "cancel-service" ||
+      normalizedAction === "request-service-change";
 
     if (isForcedAction && !hasAdminAuthority) {
       const error = new Error("Administrative request actions require the admin workflow.");
@@ -5761,6 +5956,105 @@ async function applyLocalRequestAction(requestId, action, payload) {
     } else if (normalizedAction === "prompt-payment") {
       next.paymentPromptedAt = now;
       next.paymentStatus = request.paymentStatus === "CAPTURED" ? request.paymentStatus : "PROMPTED";
+    } else if (normalizedAction === "cancel-service") {
+      const currentStatus = readOptionalString(request?.status).toUpperCase();
+      if (["COMPLETED", "CANCELLED", "EXPIRED"].includes(currentStatus)) {
+        const error = new Error("This request is already closed.");
+        error.statusCode = 409;
+        error.code = "request-already-closed";
+        throw error;
+      }
+      next.status = "CANCELLED";
+      next.completionStatus = hasAdminAuthority ? "CANCELLED_BY_ADMIN" : "CANCELLED_BY_CUSTOMER";
+      next.cancelledAt = now;
+      next.cancelReason = readOptionalString(payload.cancelReason || payload.reason || payload.note) || request.cancelReason || null;
+      next.cancelledByRole = actorRole;
+      next.cancelledByUserId = actorRole === "PROVIDER" ? providerUserId : userId;
+      next.pendingServiceTypeChange = null;
+      if (isPaymentCaptured(request) && actorRole === "SUBSCRIBER" && !hasAdminAuthority) {
+        next.cancelNoRefundAcknowledgedAt = now;
+        next.cancelNoRefundVerification = "ACCOUNT_PASSWORD";
+        next.cancelPasswordVerifiedAt = now;
+      }
+      if (readOptionalString(request.paymentStatus).toUpperCase() === "PROMPTED") {
+        next.paymentStatus = "CANCELLED";
+      }
+      if (readOptionalString(request.providerPayoutStatus).toUpperCase() === "PENDING") {
+        next.providerPayoutStatus = "UNASSIGNED";
+      }
+    } else if (normalizedAction === "request-service-change") {
+      const currentStatus = readOptionalString(request?.status).toUpperCase();
+      if (["COMPLETED", "CANCELLED", "EXPIRED"].includes(currentStatus)) {
+        const error = new Error("Service type can only be changed on an active request.");
+        error.statusCode = 409;
+        error.code = "request-already-closed";
+        throw error;
+      }
+      const requestedServiceType = normalizeSupportedServiceType(payload.serviceType || payload.requestedServiceType, "serviceType");
+      const currentServiceType = normalizeSupportedServiceType(request.serviceType || "Roadside Service", "serviceType");
+      const pendingChange = request.pendingServiceTypeChange && typeof request.pendingServiceTypeChange === "object"
+        ? request.pendingServiceTypeChange
+        : null;
+      if (requestedServiceType === currentServiceType) {
+        const error = new Error("Requested service type already matches the active request.");
+        error.statusCode = 409;
+        error.code = "service-type-unchanged";
+        throw error;
+      }
+      if (pendingChange && readOptionalString(pendingChange.approvalStatus).toUpperCase() === "PENDING") {
+        const error = new Error("A service type change is already pending review.");
+        error.statusCode = 409;
+        error.code = "service-type-change-pending";
+        throw error;
+      }
+      next.pendingServiceTypeChange = {
+        previousServiceType: request.serviceType || null,
+        requestedServiceType,
+        requestedAt: now,
+        requestedByRole: actorRole,
+        requestedByUserId: actorRole === "PROVIDER" ? providerUserId : userId,
+        approvalStatus: "PENDING",
+        note: readOptionalString(payload.note || payload.reason) || null
+      };
+    } else if (normalizedAction === "approve-service-change" || normalizedAction === "deny-service-change") {
+      const pendingChange = request.pendingServiceTypeChange && typeof request.pendingServiceTypeChange === "object"
+        ? request.pendingServiceTypeChange
+        : null;
+      if (!pendingChange || readOptionalString(pendingChange.approvalStatus).toUpperCase() !== "PENDING") {
+        const error = new Error("No pending service type change is available for review.");
+        error.statusCode = 409;
+        error.code = "service-type-change-missing";
+        throw error;
+      }
+      const requestedServiceType = normalizeSupportedServiceType(
+        pendingChange.requestedServiceType || request.serviceType || "Roadside Service",
+        "serviceType"
+      );
+      if (actorRole === "PROVIDER" && !hasAdminAuthority) {
+        const providerServices = Array.isArray(provider?.services)
+          ? provider.services.map((value) => readOptionalString(value).toUpperCase()).filter(Boolean)
+          : [];
+        if (providerServices.length && !providerServices.includes(requestedServiceType)) {
+          const error = new Error("Assigned provider is not enabled for the requested service type.");
+          error.statusCode = 409;
+          error.code = "provider-service-type-ineligible";
+          throw error;
+        }
+      }
+      const approved = normalizedAction === "approve-service-change";
+      const reviewedChange = {
+        ...pendingChange,
+        approvalStatus: approved ? "APPROVED" : "DENIED",
+        reviewedAt: now,
+        reviewedByRole: actorRole,
+        reviewedByUserId: actorRole === "PROVIDER" ? providerUserId : userId,
+        reviewNote: readOptionalString(payload.note || payload.reason) || null
+      };
+      next.pendingServiceTypeChange = null;
+      next.lastServiceTypeChange = reviewedChange;
+      if (approved) {
+        next.serviceType = requestedServiceType;
+      }
     } else if (normalizedAction === "note") {
       const noteMessage = readRequiredString(payload.note || payload.message, "note");
       const noteExchange = Array.isArray(request.noteExchange) ? [...request.noteExchange] : [];
@@ -5785,6 +6079,7 @@ async function applyLocalRequestAction(requestId, action, payload) {
       providerUserId,
       etaMinutes: Number.isFinite(Number(payload.etaMinutes)) ? Number(payload.etaMinutes) : null,
       note: readOptionalString(payload.note),
+      serviceType: readOptionalString(payload.serviceType || payload.requestedServiceType) || null,
       actorRole,
       createdAt: now
     });
