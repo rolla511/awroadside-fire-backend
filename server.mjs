@@ -7,16 +7,6 @@ import {fileURLToPath} from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper to resolve relative modules from project root if needed
-const resolveModule = (relPath) => {
-  // If we are in backend/ subdirectory, we might need to go up
-  const rootRel = path.join(__dirname, relPath);
-  if (existsSync(rootRel)) return rootRel;
-  const parentRel = path.join(__dirname, "..", relPath);
-  if (existsSync(parentRel)) return parentRel;
-  return relPath; // Fallback
-};
-
 import * as paypal from "./paypal-client.mjs";
 import { createPaypalWebhookRouteHandler } from "./paypal-webhooks.mjs";
 import {createAdminController} from "./admin-controller.mjs";
@@ -37,6 +27,8 @@ import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from ".
 import {activateSubscriberMembership, createSubscriptionController} from "./subscription-controller.mjs";
 import {createSmtpMailer} from "./smtp-mailer.mjs";
 import {createPreSignupIntakeController} from "./intake-events.mjs";
+
+console.log(`[DEBUG_LOG] Modules imported successfully. Running on Node ${process.versions.node}`);
 
 // Internalize project configuration
 function loadInternalEnv() {

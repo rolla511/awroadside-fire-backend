@@ -417,25 +417,27 @@ export function createAdminController() {
 }
 
 function loginAdmin(payload, trustedZoneList, sessions) {
-  const email = normalizeString(payload.email);
+  const identifier = normalizeString(payload.identifier || payload.email).toLowerCase();
   const password = normalizeString(payload.password);
   const locationZone = normalizeString(payload.locationZone) || null;
   const twoFactorCode = normalizeString(payload.twoFactorCode);
   const configuredEmail = process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL;
+  const configuredIdentifier = configuredEmail.toLowerCase();
+  const configuredUsername = configuredIdentifier.includes("@") ? configuredIdentifier.split("@")[0] : configuredIdentifier;
   const configuredPassword = process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
   const configuredRoles = readRoles();
 
-  if (!email || !password) {
+  if (!identifier || !password) {
     return {
       statusCode: 400,
       body: {
         error: "missing-admin-credentials",
-        message: "Admin email and password are required."
+        message: "Admin identifier and password are required."
       }
     };
   }
 
-  if (email !== configuredEmail || password !== configuredPassword) {
+  if (![configuredIdentifier, configuredUsername].includes(identifier) || password !== configuredPassword) {
     return {
       statusCode: 401,
       body: {
@@ -461,7 +463,7 @@ function loginAdmin(payload, trustedZoneList, sessions) {
   const token = crypto.randomUUID();
   const session = {
     token,
-    email,
+    email: configuredEmail,
     roles: configuredRoles,
     trustedZone,
     twoFactorVerified: outsideTrustedZone,
@@ -1081,6 +1083,7 @@ function mapSubscriber(user, requests) {
     signUpDate: user.signUpDate || user.createdAt || null,
     accountState: normalizeAccountState(user.accountState),
     savedVehicles,
+    primaryAddress: user.subscriberProfile?.primaryAddress || null,
     paymentInfo: user.subscriberProfile?.paymentInfo || null,
     terms: user.terms?.subscriber || null,
     serviceHistoryCount: requests.filter((request) => Number(request.userId) === Number(user.id)).length
@@ -1164,19 +1167,30 @@ function mapFinancialRecord(request, userById) {
   const customerTier = request.customerTier || request.customerType || "GUEST";
   const amountCharged = Number(request.amountCharged || 0);
   const amountCollected = Number(request.amountCollected || 0);
-  const serviceFee = Number(request.pricing?.serviceFee || 0);
+  const serviceFee = Number(
+    request.pricing?.serviceCharge ??
+      request.pricing?.serviceFee ??
+      amountCharged ??
+      0
+  );
   const additionalServices = Number(request.pricing?.additionalServices || 0);
   const totalServiceGross = serviceFee + additionalServices;
   
   const dispatchFee = Number(request.pricing?.dispatchFee || 0);
   const assignmentFee = Number(request.pricing?.assignmentFee || 0);
+  const storedPercentageCharge = Number(
+    request.platformPercentageChargeAmount ??
+      request.pricing?.platformPercentageCharge ??
+      0
+  );
   
   let platformCharge = 0;
   let calculationFormula = "";
+  let percentageCharge = 0;
 
   if (customerTier === "SUBSCRIBER") {
     // Subscriber: $40 - $5.50 assignment - 2% service rate
-    const percentageCharge = Number((totalServiceGross * serviceChargeRate).toFixed(2));
+    percentageCharge = storedPercentageCharge || Number((totalServiceGross * serviceChargeRate).toFixed(2));
     platformCharge = assignmentFee + percentageCharge;
     calculationFormula = `${totalServiceGross} (gross) - ${assignmentFee} (assignment) - ${percentageCharge} (2% platform) = ${Number((totalServiceGross - platformCharge).toFixed(2))} (payout)`;
   } else {
@@ -1197,7 +1211,10 @@ function mapFinancialRecord(request, userById) {
     totalServiceGross,
     serviceFee,
     additionalServices,
+    platformServiceChargeRate: serviceChargeRate,
+    platformFixedFeeAmount: dispatchFee + assignmentFee,
     platformServiceCharge: platformCharge,
+    platformPercentageCharge: percentageCharge,
     providerPayout,
     providerPayoutAmount: Number(request.providerPayoutAmount || providerPayout),
     platformShareAmount: Number(request.platformShareAmount || platformCharge),
@@ -1251,12 +1268,17 @@ function summarizeUser(user) {
 }
 
 function mapPricingConfig(paymentConfig = {}) {
+  const platformServiceChargeRate = Number(paymentConfig.platformServiceChargeRate || 0);
+  const guestPercentageCharge = 0;
+  const subscriberPercentageCharge = Number(
+    (Number(paymentConfig.subscriberServicePrice || 0) * platformServiceChargeRate).toFixed(2)
+  );
   const guestPayout = Number(paymentConfig.guestServicePrice || 0) -
     Number(paymentConfig.guestDispatchFee || 0) -
     Number(paymentConfig.assignmentFee || 0);
   const subscriberPayout = Number(paymentConfig.subscriberServicePrice || 0) -
-    Number(paymentConfig.subscriberDispatchFee || 0) -
-    Number(paymentConfig.assignmentFee || 0);
+    Number(paymentConfig.assignmentFee || 0) -
+    subscriberPercentageCharge;
   return {
     provider: paymentConfig.provider || "paypal",
     enabled: Boolean(paymentConfig.enabled),
@@ -1264,9 +1286,13 @@ function mapPricingConfig(paymentConfig = {}) {
     priorityServicePrice: Number(paymentConfig.priorityServicePrice || 0),
     guestServicePrice: Number(paymentConfig.guestServicePrice || 0),
     subscriberServicePrice: Number(paymentConfig.subscriberServicePrice || 0),
+    platformServiceChargeRate,
     assignmentFee: Number(paymentConfig.assignmentFee || 0),
     guestDispatchFee: Number(paymentConfig.guestDispatchFee || 0),
     subscriberDispatchFee: Number(paymentConfig.subscriberDispatchFee || 0),
+    guestPlatformPercentageCharge: guestPercentageCharge,
+    subscriberPlatformPercentageCharge: subscriberPercentageCharge,
+    providerSuspensionFees: paymentConfig.providerSuspensionFees || null,
     estimatedGuestProviderPayout: Math.max(guestPayout, 0),
     estimatedSubscriberProviderPayout: Math.max(subscriberPayout, 0)
   };

@@ -289,7 +289,10 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           helpers.sendJson(res, 200, {
             userId: updatedUser.id,
             subscriberActive: updatedUser.subscriberActive,
-            membershipPrice: 5
+            subscriptionStatus: updatedUser.subscriptionStatus || null,
+            membershipStatus: updatedUser.subscriberProfile?.membershipStatus || null,
+            paymentRequired: updatedUser.subscriberActive !== true,
+            membershipPrice: Number(updatedUser.subscriberProfile?.membershipPrice || helpers.getRoadsidePolicy().subscriber.monthlyFee || 0)
           });
           recordAudit("subscriber-setup", { userId: updatedUser.id });
           await helpers.recordSecurityEvent("subscriber-setup", { userId: updatedUser.id });
@@ -553,52 +556,34 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
         }
-        const payload = await helpers.readJsonBody(req);
-        const paymentKind = optionalString(payload.paymentKind) || "priority";
-        let normalizedRequest = null;
-        if (paymentKind === "service") {
-          const requestId = requireString(payload.requestId, "requestId");
-          const request = await requestServiceController.getRequest(requestId, helpers);
-          const quote = helpers.createServicePaymentQuote(request);
-          normalizedRequest = helpers.normalizeServicePaymentRequest(payload, request, quote);
-        } else if (paymentKind !== "priority") {
-          helpers.sendJson(res, 400, {
-            error: "unsupported-payment-kind",
-            message: "Payment kind must be priority or service."
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const session = helpers.resolveUserSession(req);
+          const paymentConfig = await helpers.getPaymentConfigPayload();
+          if (!paymentConfig.enabled) {
+            helpers.sendJson(res, 503, {
+              error: "paypal-not-configured",
+              message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
+            });
+            return true;
+          }
+          const result = await helpers.createPaypalPaymentOrder({
+            payload,
+            session,
+            route: "aw-roadside-security"
           });
-          return true;
-        }
-        const paymentConfig = await helpers.getPaymentConfigPayload();
-        if (!paymentConfig.enabled) {
-          helpers.sendJson(res, 503, {
-            error: "paypal-not-configured",
-            message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
+          helpers.sendJson(res, 201, {
+            orderId: result.orderId,
+            status: result.status,
+            paymentKind: result.paymentKind,
+            userId: result.userId
           });
-          return true;
+        } catch (error) {
+          helpers.sendJson(res, Number.isInteger(error?.statusCode) ? error.statusCode : 500, {
+            error: error?.code || "paypal-create-failed",
+            message: error.message
+          });
         }
-        normalizedRequest = normalizedRequest || helpers.normalizeServiceRequest(payload);
-        const order = await helpers.createPaypalOrder(normalizedRequest);
-        await helpers.appendPaymentLog({
-          event: "order-created",
-          request: normalizedRequest,
-          paymentKind,
-          paypalOrderId: order.id,
-          status: order.status,
-          createdAt: new Date().toISOString(),
-          route: "aw-roadside-security"
-        });
-        if (normalizedRequest.requestId && typeof helpers.updateRequestRecord === "function") {
-          await helpers.updateRequestRecord(normalizedRequest.requestId, (request) => ({
-            ...request,
-            amountCharged: Number(normalizedRequest.amount?.value || 0),
-            paymentStatus: "ORDER_CREATED",
-            lastPaymentOrderId: order.id
-          }));
-        }
-        helpers.sendJson(res, 201, {
-          orderId: order.id,
-          status: order.status
-        });
         return true;
       }
 
@@ -619,57 +604,67 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
           helpers.sendMethodNotAllowed(res, "POST");
           return true;
         }
-        const paymentConfig = await helpers.getPaymentConfigPayload();
-        if (!paymentConfig.enabled) {
-          helpers.sendJson(res, 503, {
-            error: "paypal-not-configured",
-            message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
+        try {
+          const paymentConfig = await helpers.getPaymentConfigPayload();
+          if (!paymentConfig.enabled) {
+            helpers.sendJson(res, 503, {
+              error: "paypal-not-configured",
+              message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
+            });
+            return true;
+          }
+          const session = helpers.resolveUserSession(req);
+          const payload = await helpers.readJsonBody(req);
+          const result = await helpers.capturePaypalPaymentOrder({
+            payload,
+            session,
+            route: "aw-roadside-security"
           });
-          return true;
+          if (result.paymentKind === "membership") {
+            helpers.sendJson(res, 200, {
+              status: result.status,
+              orderId: result.orderId,
+              capture: result.capture,
+              paymentKind: result.paymentKind,
+              userId: result.userId,
+              subscriberActive: Boolean(result.user?.subscriberActive),
+              subscriptionStatus: result.user?.subscriptionStatus || null,
+              subscriberProfile: result.user?.subscriberProfile || null
+            });
+            return true;
+          }
+          if (result.paymentKind === "provider-membership" || result.paymentKind === "provider-suspension") {
+            helpers.sendJson(res, 200, {
+              status: result.status,
+              orderId: result.orderId,
+              capture: result.capture,
+              paymentKind: result.paymentKind,
+              userId: result.userId,
+              providerStatus: result.user?.providerStatus || null,
+              nextBillingDate: result.user?.nextBillingDate || null,
+              providerProfile: result.user?.providerProfile || null
+            });
+            return true;
+          }
+          helpers.sendJson(res, 200, {
+            status: result.status,
+            orderId: result.orderId,
+            capture: result.capture,
+            paymentKind: result.paymentKind,
+            paymentReceipt: result.paymentReceipt,
+            request: result.request
+              ? await helpers.presentRequestForSession(
+                  result.request,
+                  session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }
+                )
+              : null
+          });
+        } catch (error) {
+          helpers.sendJson(res, Number.isInteger(error?.statusCode) ? error.statusCode : 500, {
+            error: error?.code || "paypal-capture-failed",
+            message: error.message
+          });
         }
-        const session = helpers.resolveUserSession(req);
-        const payload = await helpers.readJsonBody(req);
-        const orderId = typeof payload.orderId === "string" ? payload.orderId.trim() : "";
-        if (!orderId) {
-          throw new Error("A PayPal orderId is required.");
-        }
-        const capture = await helpers.capturePaypalOrder(orderId);
-        await helpers.appendPaymentLog({
-          event: "order-captured",
-          paypalOrderId: orderId,
-          status: capture.status,
-          capturedAt: new Date().toISOString(),
-          route: "aw-roadside-security",
-          capture
-        });
-        let updatedRequest = null;
-        if (typeof payload.requestId === "string" && payload.requestId.trim() && typeof helpers.updateRequestRecord === "function") {
-          updatedRequest = await helpers.updateRequestRecord(payload.requestId, (request) => ({
-            ...request,
-            paymentStatus: "CAPTURED",
-            amountCollected: Number(request.amountCharged || request.amountCollected || 0),
-            lastPaymentOrderId: orderId
-          }));
-        }
-        const paymentReceipt =
-          updatedRequest && typeof helpers.sendPaymentReceiptEmailForRequest === "function"
-            ? await helpers.sendPaymentReceiptEmailForRequest(updatedRequest, {
-                orderId,
-                captureStatus: capture.status
-              })
-            : null;
-        helpers.sendJson(res, 200, {
-          status: capture.status,
-          orderId,
-          capture,
-          paymentReceipt,
-          request: updatedRequest
-            ? await helpers.presentRequestForSession(
-                updatedRequest,
-                session || { roles: ["GUEST"], actorRole: "GUEST", ownsRequest: true }
-              )
-            : null
-        });
         return true;
       }
 
@@ -810,7 +805,9 @@ async function buildProviderWorkflowPayload(session, helpers) {
   });
   const merged = dedupeRequestsById([...visibleQueue, ...assignedHistory]).sort(sortRequestsByRecent);
   const presented = await helpers.presentRequestsForSession(merged, session);
-  const queued = presented.filter((request) => normalizeStatus(request?.status) === "SUBMITTED");
+  const queued = presented
+    .filter((request) => normalizeStatus(request?.status) === "SUBMITTED")
+    .sort(sortProviderQueuedRequests);
   const inProgress = presented.filter((request) => ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(normalizeStatus(request?.status)));
   const completed = presented.filter((request) => ["COMPLETED", "CANCELLED"].includes(normalizeStatus(request?.status)));
 
@@ -911,6 +908,25 @@ function sortRequestsByRecent(left, right) {
   const leftTime = new Date(left?.updatedAt || left?.completedAt || left?.submittedAt || left?.createdAt || 0).getTime();
   const rightTime = new Date(right?.updatedAt || right?.completedAt || right?.submittedAt || right?.createdAt || 0).getTime();
   return rightTime - leftTime;
+}
+
+function sortProviderQueuedRequests(left, right) {
+  const leftSubscriber = isSubscriberQueueRequest(left);
+  const rightSubscriber = isSubscriberQueueRequest(right);
+  if (leftSubscriber !== rightSubscriber) {
+    return leftSubscriber ? -1 : 1;
+  }
+  return sortRequestsByRecent(left, right);
+}
+
+function isSubscriberQueueRequest(request) {
+  if (optionalString(request?.customerTier).toUpperCase() === "SUBSCRIBER") {
+    return true;
+  }
+  if (request?.subscriberActive === true) {
+    return true;
+  }
+  return Array.isArray(request?.roles) && request.roles.includes("SUBSCRIBER");
 }
 
 function normalizeStatus(value) {
