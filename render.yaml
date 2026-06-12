@@ -16,6 +16,10 @@ services:
         sync: false
       - key: internal_db_url
         sync: false
+      - key: USDB_ENTRY
+        sync: false
+      - key: USDB_CONFIG_HANDLE
+        sync: false
       - key: AW_DB_MODE
         value: internal-db
       - key: AW_DB_STRICT

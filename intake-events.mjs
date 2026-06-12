@@ -5,6 +5,7 @@ import path from "path";
 const PASSWORD_HASH_ALGORITHM = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
 const DEFAULT_RELEASE_OFFSET_DAYS = 30;
+const PRE_SIGNUP_FEE = "10.99";
 const MAX_STRING_LENGTH = 1000;
 const MAX_RECENT_INTAKE = 200;
 const PRE_SIGNUP_PREFIXES = Object.freeze([
@@ -44,6 +45,8 @@ export function createPreSignupIntakeController({
           intake: "pre-signup",
           releaseDate: resolveReleaseDate(releaseDate),
           roles: ["SUBSCRIBER", "PROVIDER"],
+          fee: PRE_SIGNUP_FEE,
+          currency: "USD",
           endpoints: {
             subscriber: "/api/pre-signup/subscriber",
             provider: "/api/pre-signup/provider"
@@ -296,7 +299,7 @@ async function syncIntakeToUserAccount(entry, helpers) {
       roles: [entry.role],
       subscriberActive: entry.role === "SUBSCRIBER",
       subscriberProfile: entry.role === "SUBSCRIBER" ? {
-        membershipPrice: 7.99,
+        membershipPrice: 10.99,
         vehicle: entry.vehicle,
         savedVehicles: [entry.vehicle],
         membershipStatus: "ACTIVE",
@@ -443,6 +446,9 @@ function normalizePaymentStatus(status, hasCaptureId) {
 
 function requireCapturedPayment(payment) {
   if (payment?.status === "CAPTURED" && payment?.captureId) {
+    if (payment.amount && payment.amount.value !== PRE_SIGNUP_FEE) {
+       console.warn(`[INTAKE] Payment amount mismatch: expected ${PRE_SIGNUP_FEE}, got ${payment.amount.value}`);
+    }
     return;
   }
   const error = new Error("Pre-signup storage requires a captured PayPal payment.");
