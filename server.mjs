@@ -3,23 +3,40 @@ import crypto from "crypto";
 import http from "http";
 import path from "path";
 import {fileURLToPath} from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper to resolve relative modules from project root if needed
+const resolveModule = (relPath) => {
+  // If we are in backend/ subdirectory, we might need to go up
+  const rootRel = path.join(__dirname, relPath);
+  if (existsSync(rootRel)) return rootRel;
+  const parentRel = path.join(__dirname, "..", relPath);
+  if (existsSync(parentRel)) return parentRel;
+  return relPath; // Fallback
+};
+
 import * as paypal from "./paypal-client.mjs";
 import { createPaypalWebhookRouteHandler } from "./paypal-webhooks.mjs";
 import {createAdminController} from "./admin-controller.mjs";
 import {createAwRoadsideSecurityController} from "./aw-roadside-security.mjs";
 import {createCompatibilityGateway} from "./compatibility-gateway.mjs";
 import {createAwRoadsideDbConfig} from "./awroadsidedb-config.mjs";
+import {
+  createPaypalCaptureController,
+  PAYPAL_CAPTURE_PAYMENT_KINDS,
+  PAYPAL_WEBHOOK_EVENT_FAMILIES
+} from "./paypal-capture.mjs";
 import {createWatchdog} from "./watchdog.mjs";
 import {createLocationService} from "./location-service.mjs";
 import {createProviderWalletPayload} from "./provider-wallet-controller.mjs";
 import {createRequestServiceController} from "./request-service-controller.mjs";
 import {createRuntimeRepository} from "./runtime-repository.mjs";
 import {createAwRoadsideStorageAuthority, createAwRoadsideStorageKernel} from "./db-index.mjs";
-import {createSubscriptionController} from "./subscription-controller.mjs";
+import {activateSubscriberMembership, createSubscriptionController} from "./subscription-controller.mjs";
 import {createSmtpMailer} from "./smtp-mailer.mjs";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import {createPreSignupIntakeController} from "./intake-events.mjs";
 
 // Internalize project configuration
 function loadInternalEnv() {
@@ -67,6 +84,7 @@ const requestsRoot = path.join(runtimeRoot, "requests");
 const authRoot = path.join(runtimeRoot, "auth");
 const requestServiceCacheRoot = path.join(runtimeRoot, "request-service-cache");
 const providerDocumentsRoot = path.join(runtimeRoot, "provider-documents");
+const preSignupIntakeRoot = path.join(runtimeRoot, "pre-signup-intake");
 const paymentLogPath = path.join(paymentsRoot, "paypal-orders.jsonl");
 const webhookLogPath = path.join(paymentsRoot, "paypal-webhooks.jsonl");
 const requestLogPath = path.join(requestsRoot, "service-requests.jsonl");
@@ -78,20 +96,7 @@ const ROOT_RUNTIME_FILES = Object.freeze([
   "server.mjs",
   "local.server.mjs",
   "watchdog.mjs",
-  "admin-controller.mjs",
-  "aw-roadside-security.mjs",
-  "awroadsidedb-config.mjs",
-  "compatibility-gateway.mjs",
-  "location-service.mjs",
-  "paypal-client.mjs",
-  "provider-wallet-controller.mjs",
-  "request-service-controller.mjs",
-  "runtime-repository.mjs",
-  "smtp-mailer.mjs",
-  "db-index.mjs",
-  "storage-index.mjs",
-  "storage-schema.mjs",
-  "subscription-controller.mjs",
+  "intake-events.mjs",
   "render.yaml",
   "aw.backend.yaml"
 ]);
@@ -799,6 +804,10 @@ const requestServiceController = createRequestServiceController({
   fallbackApiStyle: PUBLIC_RUNTIME_ENTRYPOINT
 });
 const subscriptionController = createSubscriptionController();
+const preSignupIntakeController = createPreSignupIntakeController({
+  intakeRoot: preSignupIntakeRoot,
+  paymentsConfigured: () => Boolean(paypalClientId && paypalClientSecret)
+});
 const watchdog = createWatchdog({
   projectRoot,
   runtimeRoot
@@ -974,12 +983,30 @@ const server = http.createServer(async (req, res) => {
       deleteFile,
       listCacheFiles,
       appendPaymentLog,
+      appendPreSignupIntake: (entry) => storageAuthority.appendPreSignupIntake(entry),
       normalizeServiceRequest,
       normalizeServicePaymentRequest,
+      shouldTreatPaymentAsSubscriberMembership: (payload, session = null) =>
+        shouldTreatPaymentAsSubscriberMembership(payload, session),
+      createSubscriberMembershipPaymentRequest: (payload, session = null) =>
+        createSubscriberMembershipPaymentRequest(payload, session),
+      recordSubscriberMembershipPaymentOrder: (userId, context = {}) =>
+        recordSubscriberMembershipPaymentOrder(userId, context),
+      updateSubscriberMembershipPaymentState: (userId, context = {}) =>
+        updateSubscriberMembershipPaymentState(userId, context),
+      activateSubscriberMembershipByUserId: (userId, context = {}) =>
+        activateSubscriberMembershipByUserId(userId, context),
       createServicePaymentQuote,
       createServiceRequest,
       createPaypalOrder,
       capturePaypalOrder,
+      extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
+      extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
+      createPaypalPaymentOrder: ({ payload, session = null, route = null } = {}) =>
+        paypalCaptureController.createOrderForPayload({ payload, session, route }),
+      capturePaypalPaymentOrder: ({ payload, session = null, route = null } = {}) =>
+        paypalCaptureController.captureOrderForPayload({ payload, session, route }),
+      getPaypalPaymentCoverage: () => paypalCaptureController.getPaymentCoverage(),
       resolveUserSession,
       revokeUserSession,
       issueUserSession,
@@ -1000,6 +1027,7 @@ const server = http.createServer(async (req, res) => {
       presentRequestForSession: (request, session) => presentRequestForSession(request, session),
       presentRequestsForSession: (requests, session) => presentRequestsForSession(requests, session),
       getWatchdogStatus: () => watchdog.getStatus(),
+      getStorageStatus: () => storageAuthority.getStatus(),
       recordSecurityEvent: (event, details) => watchdog.record(event, details),
       saveProviderDocuments: (userId, currentDocuments, documentsPayload) =>
         saveProviderDocuments(userId, currentDocuments, documentsPayload),
@@ -1044,6 +1072,16 @@ const server = http.createServer(async (req, res) => {
       ...commonHelpers
     });
     if (requestServiceHandled) {
+      return;
+    }
+
+    const preSignupIntakeHandled = await preSignupIntakeController.handle(req, res, pathname, {
+      ...commonHelpers,
+      mutateUsers,
+      allocateUserId,
+      issueUserSession
+    });
+    if (preSignupIntakeHandled) {
       return;
     }
 
@@ -1159,33 +1197,24 @@ const server = http.createServer(async (req, res) => {
 
       try {
         const payload = await readJsonBody(req);
-        const normalizedRequest = normalizeServiceRequest(payload);
-        const order = await createPaypalOrder(normalizedRequest);
-
-        await appendPaymentLog({
-          event: "order-created",
-          request: normalizedRequest,
-          paypalOrderId: order.id,
-          status: order.status,
-          createdAt: new Date().toISOString()
+        const session = resolveUserSession(req);
+        const result = await paypalCaptureController.createOrderForPayload({
+          payload,
+          session,
+          route: RAW_API_BASE_PATH
         });
-        if (normalizedRequest.requestId) {
-          await updateRequestRecord(normalizedRequest.requestId, (request) => ({
-            ...request,
-            amountCharged: Number(normalizedRequest.amount?.value || 0),
-            paymentStatus: "ORDER_CREATED",
-            lastPaymentOrderId: order.id
-          }));
-        }
 
         sendJson(res, 201, {
-          orderId: order.id,
-          status: order.status
+          orderId: result.orderId,
+          status: result.status,
+          paymentKind: result.paymentKind,
+          userId: result.userId
         });
       } catch (error) {
         console.error('[ERROR] Create Order Route Failed:', error);
-        sendJson(res, 500, {
-          error: "paypal-create-failed",
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-create-failed",
           message: error.message
         });
       }
@@ -1208,113 +1237,57 @@ const server = http.createServer(async (req, res) => {
 
       try {
         const payload = await readJsonBody(req);
-        const orderId = typeof payload.orderId === "string" ? payload.orderId.trim() : "";
-        if (!orderId) {
-          sendJson(res, 400, {
-            error: "invalid-order-id",
-            message: "A PayPal orderId is required."
+        const session = resolveUserSession(req);
+        const result = await paypalCaptureController.captureOrderForPayload({
+          payload,
+          session,
+          route: RAW_API_BASE_PATH
+        });
+
+        if (result.paymentKind === "membership") {
+          sendJson(res, 200, {
+            status: result.status,
+            orderId: result.orderId,
+            capture: result.capture,
+            paymentKind: result.paymentKind,
+            userId: result.userId,
+            subscriberActive: Boolean(result.user?.subscriberActive),
+            subscriptionStatus: result.user?.subscriptionStatus || null,
+            subscriberProfile: result.user?.subscriberProfile || null
           });
           return;
         }
 
-        const capture = await capturePaypalOrder(orderId);
-        await appendPaymentLog({
-          event: "order-captured",
-          paypalOrderId: orderId,
-          status: capture.status,
-          capturedAt: new Date().toISOString(),
-          capture
-        });
-        let updatedRequest = null;
-        if (typeof payload.requestId === "string" && payload.requestId.trim()) {
-          updatedRequest = await updateRequestRecord(payload.requestId, (request) => ({
-            ...request,
-            paymentStatus: "CAPTURED",
-            amountCollected: Number(request.amountCharged || request.amountCollected || 0),
-            lastPaymentOrderId: orderId
-          }));
+        if (result.paymentKind === "provider-membership" || result.paymentKind === "provider-suspension") {
+          sendJson(res, 200, {
+            status: result.status,
+            orderId: result.orderId,
+            capture: result.capture,
+            paymentKind: result.paymentKind,
+            userId: result.userId,
+            providerStatus: result.user?.providerStatus || null,
+            nextBillingDate: result.user?.nextBillingDate || null,
+            providerProfile: result.user?.providerProfile || null
+          });
+          return;
         }
-        const paymentReceipt = updatedRequest
-          ? await sendPaymentReceiptEmailForRequest(updatedRequest, {
-              orderId,
-              captureStatus: capture.status
-            })
-          : null;
 
         sendJson(res, 200, {
-          status: capture.status,
-          orderId,
-          capture,
-          request: updatedRequest,
-          paymentReceipt
+          status: result.status,
+          orderId: result.orderId,
+          capture: result.capture,
+          paymentKind: result.paymentKind,
+          request: result.request,
+          paymentReceipt: result.paymentReceipt
         });
       } catch (error) {
         console.error('[ERROR] Capture Order Route Failed:', error);
-        sendJson(res, 500, {
-          error: "paypal-capture-failed",
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-capture-failed",
           message: error.message
         });
       }
-      return;
-    }
-
-    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/providers/paypal-connect`) {
-      if (req.method !== "POST") {
-        sendMethodNotAllowed(res, "POST");
-        return;
-      }
-      try {
-        const payload = await readJsonBody(req);
-        const providerId = Number(payload.providerId);
-        const paypalEmail = typeof payload.paypalEmail === "string" ? payload.paypalEmail.trim() : "";
-        if (!providerId || !paypalEmail) {
-          sendJson(res, 400, { error: "bad-request", message: "providerId and paypalEmail are required." });
-          return;
-        }
-        const updatedProvider = await mutateUsers(async (users) => {
-          const index = users.findIndex((u) => Number(u.id) === providerId);
-          if (index === -1) throw new Error("Provider not found.");
-          users[index].providerProfile = users[index].providerProfile || {};
-          users[index].providerProfile.paypal = users[index].providerProfile.paypal || {};
-          users[index].providerProfile.paypal.email = paypalEmail;
-          users[index].providerProfile.paypal.onboardingStatus = "COMPLETED";
-          return users[index];
-        });
-        sendJson(res, 200, { provider: updatedProvider });
-      } catch (error) {
-        sendJson(res, 500, { error: "update-failed", message: error.message });
-      }
-      return;
-    }
-
-    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/admin/audit-log`) {
-      if (req.method !== "GET") {
-        sendMethodNotAllowed(res, "GET");
-        return;
-      }
-      try {
-        const payments = await readPaymentLog();
-        sendJson(res, 200, { auditLog: payments });
-      } catch (error) {
-        sendJson(res, 500, { error: "fetch-failed", message: error.message });
-      }
-      return;
-    }
-
-    const requestMatch = pathname.match(/^\/api\/requests\/([^/]+)$/);
-    if (requestMatch) {
-      if (req.method !== "GET") {
-        sendMethodNotAllowed(res, "GET");
-        return;
-      }
-      const requestId = decodeURIComponent(requestMatch[1]);
-      const currentRequests = await readRequestLog();
-      const existingRequest = currentRequests.find((entry) => String(entry.id || entry.requestId) === String(requestId)) || null;
-      if (!existingRequest) {
-        sendJson(res, 404, { error: "not-found", message: `Request ${requestId} not found.` });
-        return;
-      }
-      sendJson(res, 200, { request: existingRequest });
       return;
     }
 
@@ -1341,14 +1314,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (webRoot) {
-      const relativePath = pathname === "/" ? (webRootEntryFile || WEB_ROOT_ENTRY_FILES[0]) : pathname.slice(1);
+    const relativePath = pathname === "/" ? (webRootEntryFile || WEB_ROOT_ENTRY_FILES[0]) : pathname.slice(1);
       const candidate = path.normalize(path.join(webRoot, relativePath));
       if (candidate.startsWith(webRoot)) {
         try {
           const stat = await fs.stat(candidate);
           if (stat.isFile()) {
             const body = await fs.readFile(candidate);
-            res.writeHead(200, { 
+            res.writeHead(200, {
               "Content-Type": contentType(candidate),
               "Cache-Control": "public, max-age=3600"
             });
@@ -1511,7 +1484,6 @@ async function createRuntimeStatus() {
     apiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
     adminApiBaseUrl: `${publicBaseUrl}${ADMIN_API_BASE_PATH}`,
     rawApiBaseUrl: `${publicBaseUrl}${RAW_API_BASE_PATH}`,
-    eventStreamUrl: `${publicBaseUrl}/events.mjs`,
     frontendConfigUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}/frontend-config`,
     protectedApiBaseUrl: `${publicBaseUrl}${PROTECTED_API_BASE_PATH}`,
     compatibilityRepositoryUrl: `${publicBaseUrl}/compatibility-gateway.mjs/repository`,
@@ -1792,6 +1764,521 @@ function normalizeServiceRequest(payload) {
   };
 }
 
+function isServiceScopedPaymentPayload(payload) {
+  return Boolean(
+    readOptionalString(payload?.requestId) ||
+    readOptionalString(payload?.serviceType) ||
+    readOptionalString(payload?.location) ||
+    readOptionalString(payload?.fullName) ||
+    readOptionalString(payload?.phoneNumber)
+  );
+}
+
+async function findSubscriberUserForMembershipPayment(payload = {}, session = null) {
+  const candidateUserId = Number.isInteger(session?.userId) ? session.userId : Number(payload.userId);
+  if (!Number.isInteger(candidateUserId)) {
+    return null;
+  }
+
+  const users = await readUsers();
+  const user = users.find((entry) => Number(entry.id) === Number(candidateUserId)) || null;
+  if (!user || !Array.isArray(user.roles) || !user.roles.includes("SUBSCRIBER")) {
+    return null;
+  }
+
+  return user;
+}
+
+async function shouldTreatPaymentAsSubscriberMembership(payload = {}, session = null) {
+  const requestedKind = readOptionalString(payload?.paymentKind).toLowerCase();
+  if (requestedKind === "membership") {
+    return Boolean(await findSubscriberUserForMembershipPayment(payload, session));
+  }
+  if (requestedKind && requestedKind !== "priority" && requestedKind !== "service") {
+    return false;
+  }
+
+  if (isServiceScopedPaymentPayload(payload)) {
+    return false;
+  }
+
+  const subscriber = await findSubscriberUserForMembershipPayment(payload, session);
+  return Boolean(subscriber && subscriber.subscriberActive !== true);
+}
+
+async function createSubscriberMembershipPaymentRequest(payload = {}, session = null) {
+  const subscriber = await findSubscriberUserForMembershipPayment(payload, session);
+  if (!subscriber) {
+    throw new Error("A valid subscriber session is required for membership payment.");
+  }
+  if (subscriber.subscriberActive === true) {
+    throw new Error("Subscriber membership is already active.");
+  }
+
+  const subscriberProfile = subscriber.subscriberProfile && typeof subscriber.subscriberProfile === "object"
+    ? subscriber.subscriberProfile
+    : {};
+  const paymentInfo = subscriberProfile.paymentInfo && typeof subscriberProfile.paymentInfo === "object"
+    ? subscriberProfile.paymentInfo
+    : {};
+  const maskedPayment =
+    readOptionalString(payload.paymentMethodMasked) ||
+    readOptionalString(payload.paymentMethod) ||
+    readOptionalString(subscriberProfile.paymentMethodMasked) ||
+    readOptionalString(paymentInfo.paymentMethodMasked) ||
+    null;
+
+  return {
+    paymentKind: "membership",
+    userId: Number(subscriber.id),
+    roles: Array.isArray(subscriber.roles) ? subscriber.roles : ["SUBSCRIBER"],
+    subscriberActive: Boolean(subscriber.subscriberActive),
+    serviceType: "Subscriber Membership",
+    amount: {
+      currency_code: "USD",
+      value: subscriberMonthlyFee.toFixed(2)
+    },
+    customId: `membership:user:${subscriber.id}`,
+    fullName: readOptionalString(subscriber.fullName) || readOptionalString(subscriber.username) || "Subscriber",
+    phoneNumber: readOptionalString(subscriber.phoneNumber) || `subscriber-${subscriber.id}`,
+    paymentMethodMasked: maskedPayment
+  };
+}
+
+async function updateSubscriberMembershipPaymentState(userId, context = {}) {
+  return mutateUsers(async (users) => {
+    const user = users.find((entry) => Number(entry.id) === Number(userId));
+    if (!user) {
+      throw new Error("User not found.");
+    }
+    if (!Array.isArray(user.roles) || !user.roles.includes("SUBSCRIBER")) {
+      throw new Error("Not a subscriber.");
+    }
+
+    const existingProfile = user.subscriberProfile && typeof user.subscriberProfile === "object"
+      ? user.subscriberProfile
+      : {};
+    const existingPaymentInfo = existingProfile.paymentInfo && typeof existingProfile.paymentInfo === "object"
+      ? existingProfile.paymentInfo
+      : {};
+    const recordedAt = optionalIsoString(context.recordedAt || context.capturedAt || context.paidAt) || new Date().toISOString();
+    const paymentMethodMasked =
+      readOptionalString(context.paymentMethodMasked) ||
+      readOptionalString(existingProfile.paymentMethodMasked) ||
+      readOptionalString(existingPaymentInfo.paymentMethodMasked) ||
+      null;
+    const paymentProvider =
+      readOptionalString(context.paymentProvider) ||
+      readOptionalString(existingPaymentInfo.paymentProvider) ||
+      null;
+    const paymentStatus = readOptionalString(context.paymentStatus) || null;
+    const membershipStatus =
+      readOptionalString(context.membershipStatus) ||
+      readOptionalString(existingProfile.membershipStatus) ||
+      (user.subscriberActive ? "ACTIVE" : "PENDING_PAYMENT");
+    const paymentAmount = Number(context.paymentAmount);
+    const normalizedAmount = Number.isFinite(paymentAmount) && paymentAmount > 0 ? paymentAmount : null;
+
+    if (typeof context.subscriberActive === "boolean") {
+      user.subscriberActive = context.subscriberActive;
+    }
+    if (typeof context.subscriptionStatus === "string" && context.subscriptionStatus.trim()) {
+      user.subscriptionStatus = context.subscriptionStatus.trim();
+    } else if (!user.subscriptionStatus) {
+      user.subscriptionStatus = user.subscriberActive ? "ACTIVE" : "PENDING_PAYMENT";
+    }
+    if (Object.prototype.hasOwnProperty.call(context, "nextBillingDate")) {
+      user.nextBillingDate = context.nextBillingDate || null;
+    }
+
+    user.subscriberProfile = {
+      ...existingProfile,
+      membershipPrice: Number(existingProfile.membershipPrice || subscriberMonthlyFee),
+      paymentMethodMasked,
+      paymentInfo: {
+        ...existingPaymentInfo,
+        paymentMethodMasked,
+        billingZip:
+          readOptionalString(context.billingZip) ||
+          readOptionalString(existingPaymentInfo.billingZip) ||
+          readOptionalString(existingProfile.primaryAddress?.postalCode) ||
+          null,
+        paymentProvider,
+        lastMembershipPaymentStatus: paymentStatus || readOptionalString(existingPaymentInfo.lastMembershipPaymentStatus) || null,
+        lastMembershipPaymentOrderId:
+          readOptionalString(context.paypalOrderId) ||
+          readOptionalString(existingPaymentInfo.lastMembershipPaymentOrderId) ||
+          null,
+        lastMembershipPaymentCaptureId:
+          readOptionalString(context.paypalCaptureId) ||
+          readOptionalString(existingPaymentInfo.lastMembershipPaymentCaptureId) ||
+          null,
+        lastMembershipPaymentEventType:
+          readOptionalString(context.paymentEventType) ||
+          readOptionalString(existingPaymentInfo.lastMembershipPaymentEventType) ||
+          null,
+        lastMembershipPaymentAt: recordedAt,
+        lastMembershipPaymentAmount:
+          normalizedAmount !== null ? normalizedAmount : existingPaymentInfo.lastMembershipPaymentAmount || null
+      },
+      membershipStatus,
+      lastMembershipPaymentOrderId:
+        readOptionalString(context.paypalOrderId) ||
+        readOptionalString(existingProfile.lastMembershipPaymentOrderId) ||
+        null,
+      lastMembershipPaymentCaptureId:
+        readOptionalString(context.paypalCaptureId) ||
+        readOptionalString(existingProfile.lastMembershipPaymentCaptureId) ||
+        null,
+      lastMembershipPaymentStatus:
+        paymentStatus || readOptionalString(existingProfile.lastMembershipPaymentStatus) || null,
+      lastMembershipPaymentEventType:
+        readOptionalString(context.paymentEventType) ||
+        readOptionalString(existingProfile.lastMembershipPaymentEventType) ||
+        null,
+      lastMembershipPaymentAt: recordedAt,
+      lastMembershipPaymentAmount:
+        normalizedAmount !== null ? normalizedAmount : existingProfile.lastMembershipPaymentAmount || null,
+      updatedAt: recordedAt
+    };
+
+    return user;
+  });
+}
+
+async function recordSubscriberMembershipPaymentOrder(userId, context = {}) {
+  return updateSubscriberMembershipPaymentState(userId, {
+    ...context,
+    membershipStatus: "PENDING_PAYMENT",
+    subscriptionStatus: "PENDING_PAYMENT",
+    subscriberActive: false,
+    paymentStatus: readOptionalString(context.paymentStatus) || "ORDER_CREATED"
+  });
+}
+
+async function activateSubscriberMembershipByUserId(userId, context = {}) {
+  return activateSubscriberMembership(
+    {
+      userId,
+      paymentMethodMasked: context.paymentMethodMasked || null,
+      paymentProvider: context.paymentProvider || "paypal",
+      billingZip: context.billingZip || null,
+      paymentStatus: context.paymentStatus || "CAPTURED",
+      paymentAmount: context.paymentAmount,
+      paypalOrderId: context.paypalOrderId || null,
+      paypalCaptureId: context.paypalCaptureId || null,
+      paymentEventType: context.paymentEventType || null,
+      paidAt: context.paidAt || context.capturedAt || null
+    },
+    {
+      readUsers,
+      writeUsers,
+      mutateUsers,
+      sendSubscriberConfirmationEmail: (payload) => sendSubscriberConfirmationEmail(payload),
+      getRoadsidePolicy: () => AW_ROADSIDE_POLICY
+    }
+  );
+}
+
+async function getServiceRequestById(requestId) {
+  const normalizedRequestId = readOptionalString(requestId);
+  if (!normalizedRequestId) {
+    throw new Error("A backend requestId is required before service payment.");
+  }
+  const requests = await readDispatchRequestLog();
+  const request = requests.find((entry) => String(entry.requestId || entry.id || "") === normalizedRequestId) || null;
+  if (!request) {
+    throw new Error(`Request ${normalizedRequestId} was not found.`);
+  }
+  return request;
+}
+
+async function findProviderUserForBillingPayment(payload = {}, session = null) {
+  const candidateUserId = Number.isInteger(session?.userId) ? session.userId : Number(payload.userId);
+  if (!Number.isInteger(candidateUserId)) {
+    return null;
+  }
+
+  const users = await readUsers();
+  const user = users.find((entry) => Number(entry.id) === Number(candidateUserId)) || null;
+  if (!user || !Array.isArray(user.roles) || !user.roles.includes("PROVIDER")) {
+    return null;
+  }
+  return user;
+}
+
+function buildProviderBillingNextDate(value, days = 30) {
+  const date = new Date(value || Date.now());
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  date.setUTCDate(date.getUTCDate() + Number(days || 0));
+  return date.toISOString();
+}
+
+function resolveProviderSuspensionFeeAmount(level = 1, explicitAmount = null) {
+  const normalizedExplicitAmount = Number(explicitAmount);
+  if (Number.isFinite(normalizedExplicitAmount) && normalizedExplicitAmount > 0) {
+    return normalizedExplicitAmount;
+  }
+
+  const numericLevel = Number.isFinite(Number(level)) ? Number(level) : 1;
+  return numericLevel <= 1 ? providerSuspensionFeeFirst : providerSuspensionFeeSecond;
+}
+
+async function createProviderRecurringPaymentRequest(payload = {}, session = null) {
+  const provider = await findProviderUserForBillingPayment(payload, session);
+  if (!provider) {
+    throw new Error("A valid provider session is required for provider billing.");
+  }
+
+  const providerProfile = provider.providerProfile && typeof provider.providerProfile === "object"
+    ? provider.providerProfile
+    : {};
+  const billing = providerProfile.billing && typeof providerProfile.billing === "object"
+    ? providerProfile.billing
+    : {};
+  const paymentMethodMasked =
+    readOptionalString(payload.paymentMethodMasked) ||
+    readOptionalString(billing.paymentMethodMasked) ||
+    null;
+  const recurringAmount = Number(provider.providerMonthly || providerMonthlyFee);
+
+  return {
+    paymentKind: "provider-membership",
+    userId: Number(provider.id),
+    roles: Array.isArray(provider.roles) ? provider.roles : ["PROVIDER"],
+    serviceType: "Provider Monthly Billing",
+    amount: {
+      currency_code: "USD",
+      value: recurringAmount.toFixed(2)
+    },
+    customId: `provider-membership:user:${provider.id}`,
+    fullName: readOptionalString(provider.fullName) || readOptionalString(provider.username) || "Provider",
+    phoneNumber: readOptionalString(provider.phoneNumber) || `provider-${provider.id}`,
+    paymentMethodMasked
+  };
+}
+
+async function createProviderSuspensionPaymentRequest(payload = {}, session = null) {
+  const provider = await findProviderUserForBillingPayment(payload, session);
+  if (!provider) {
+    throw new Error("A valid provider session is required for provider suspension fees.");
+  }
+
+  const providerProfile = provider.providerProfile && typeof provider.providerProfile === "object"
+    ? provider.providerProfile
+    : {};
+  const discipline = providerProfile.discipline && typeof providerProfile.discipline === "object"
+    ? providerProfile.discipline
+    : {};
+  const currentSuspension = normalizeCurrentProviderSuspension(
+    discipline.currentSuspension,
+    discipline.suspensionHistory,
+    discipline.strikeCount
+  );
+  if (!currentSuspension.active) {
+    throw new Error("No active provider suspension fee is due.");
+  }
+
+  const requestedAmount = Number.parseFloat(
+    readOptionalString(payload?.amount?.value) ||
+      readOptionalString(payload.amountValue) ||
+      readOptionalString(payload.suspensionFeeAmount) ||
+      ""
+  );
+  const resolvedAmount = resolveProviderSuspensionFeeAmount(
+    currentSuspension.level,
+    Number.isFinite(requestedAmount) && requestedAmount > 0
+      ? requestedAmount
+      : currentSuspension.feeAmountDue
+  );
+  if (!(resolvedAmount > 0)) {
+    throw new Error("Set provider suspension fee tiers or pass a positive suspension fee amount.");
+  }
+
+  const billing = providerProfile.billing && typeof providerProfile.billing === "object"
+    ? providerProfile.billing
+    : {};
+  const paymentMethodMasked =
+    readOptionalString(payload.paymentMethodMasked) ||
+    readOptionalString(billing.paymentMethodMasked) ||
+    null;
+
+  return {
+    paymentKind: "provider-suspension",
+    userId: Number(provider.id),
+    roles: Array.isArray(provider.roles) ? provider.roles : ["PROVIDER"],
+    serviceType: "Provider Suspension Fee",
+    amount: {
+      currency_code: "USD",
+      value: resolvedAmount.toFixed(2)
+    },
+    customId: `provider-suspension:user:${provider.id}`,
+    fullName: readOptionalString(provider.fullName) || readOptionalString(provider.username) || "Provider",
+    phoneNumber: readOptionalString(provider.phoneNumber) || `provider-${provider.id}`,
+    paymentMethodMasked,
+    suspensionId: currentSuspension.suspensionId || null,
+    suspensionLevel: currentSuspension.level || 1
+  };
+}
+
+async function updateProviderPaymentState(userId, context = {}) {
+  return mutateUsers(async (users) => {
+    const user = users.find((entry) => Number(entry.id) === Number(userId));
+    if (!user) {
+      throw new Error("User not found.");
+    }
+    if (!Array.isArray(user.roles) || !user.roles.includes("PROVIDER")) {
+      throw new Error("Not a provider.");
+    }
+
+    const providerProfile = user.providerProfile && typeof user.providerProfile === "object"
+      ? user.providerProfile
+      : {};
+    const billing = providerProfile.billing && typeof providerProfile.billing === "object"
+      ? providerProfile.billing
+      : {};
+    const discipline = providerProfile.discipline && typeof providerProfile.discipline === "object"
+      ? providerProfile.discipline
+      : {};
+    const currentSuspension = discipline.currentSuspension && typeof discipline.currentSuspension === "object"
+      ? discipline.currentSuspension
+      : null;
+    const recordedAt = optionalIsoString(context.recordedAt || context.capturedAt || context.paidAt) || new Date().toISOString();
+    const paymentKind = readOptionalString(context.paymentKind).toLowerCase();
+    const paymentStatus = readOptionalString(context.paymentStatus) || null;
+    const paymentAmount = Number(context.paymentAmount);
+    const normalizedAmount = Number.isFinite(paymentAmount) && paymentAmount > 0 ? paymentAmount : null;
+    const paymentMethodMasked =
+      readOptionalString(context.paymentMethodMasked) ||
+      readOptionalString(billing.paymentMethodMasked) ||
+      null;
+    const paymentProvider =
+      readOptionalString(context.paymentProvider) ||
+      readOptionalString(billing.paymentProvider) ||
+      "paypal";
+    const nextBilling = {
+      ...billing,
+      monthlyFee: Number(user.providerMonthly || providerMonthlyFee),
+      paymentMethodMasked,
+      paymentProvider,
+      lastPaymentKind: paymentKind || readOptionalString(billing.lastPaymentKind) || null,
+      lastPaymentStatus: paymentStatus || readOptionalString(billing.lastPaymentStatus) || null,
+      lastPaymentOrderId: readOptionalString(context.paypalOrderId) || readOptionalString(billing.lastPaymentOrderId) || null,
+      lastPaymentCaptureId: readOptionalString(context.paypalCaptureId) || readOptionalString(billing.lastPaymentCaptureId) || null,
+      lastPaymentEventType: readOptionalString(context.paymentEventType) || readOptionalString(billing.lastPaymentEventType) || null,
+      lastPaymentAt: recordedAt,
+      lastPaymentAmount: normalizedAmount !== null ? normalizedAmount : billing.lastPaymentAmount || null
+    };
+
+    let nextDiscipline = discipline;
+    if (paymentKind === "provider-membership") {
+      nextBilling.membershipStatus =
+        readOptionalString(context.membershipStatus) ||
+        readOptionalString(billing.membershipStatus) ||
+        (paymentStatus === "CAPTURED" ? "ACTIVE" : "PENDING_PAYMENT");
+      nextBilling.lastBillingStatus = paymentStatus || readOptionalString(billing.lastBillingStatus) || null;
+      nextBilling.lastBillingOrderId = readOptionalString(context.paypalOrderId) || readOptionalString(billing.lastBillingOrderId) || null;
+      nextBilling.lastBillingCaptureId = readOptionalString(context.paypalCaptureId) || readOptionalString(billing.lastBillingCaptureId) || null;
+      nextBilling.lastBillingEventType = readOptionalString(context.paymentEventType) || readOptionalString(billing.lastBillingEventType) || null;
+      nextBilling.lastBillingAt = recordedAt;
+      nextBilling.lastBillingAmount = normalizedAmount !== null ? normalizedAmount : billing.lastBillingAmount || null;
+      if (Object.prototype.hasOwnProperty.call(context, "nextBillingDate")) {
+        user.nextBillingDate = context.nextBillingDate || null;
+      }
+    }
+
+    if (paymentKind === "provider-suspension") {
+      nextBilling.suspensionFeeStatus =
+        readOptionalString(context.suspensionFeeStatus) ||
+        readOptionalString(billing.suspensionFeeStatus) ||
+        paymentStatus ||
+        "PENDING_PAYMENT";
+      nextBilling.lastSuspensionFeeStatus = paymentStatus || readOptionalString(billing.lastSuspensionFeeStatus) || null;
+      nextBilling.lastSuspensionFeeOrderId =
+        readOptionalString(context.paypalOrderId) || readOptionalString(billing.lastSuspensionFeeOrderId) || null;
+      nextBilling.lastSuspensionFeeCaptureId =
+        readOptionalString(context.paypalCaptureId) || readOptionalString(billing.lastSuspensionFeeCaptureId) || null;
+      nextBilling.lastSuspensionFeeEventType =
+        readOptionalString(context.paymentEventType) || readOptionalString(billing.lastSuspensionFeeEventType) || null;
+      nextBilling.lastSuspensionFeeAt = recordedAt;
+      nextBilling.lastSuspensionFeeAmount =
+        normalizedAmount !== null ? normalizedAmount : billing.lastSuspensionFeeAmount || null;
+      nextBilling.lastSuspensionId =
+        readOptionalString(context.suspensionId) ||
+        readOptionalString(currentSuspension?.suspensionId) ||
+        readOptionalString(billing.lastSuspensionId) ||
+        null;
+
+      if (currentSuspension) {
+        nextDiscipline = {
+          ...discipline,
+          currentSuspension: {
+            ...currentSuspension,
+            feeStatus: nextBilling.suspensionFeeStatus,
+            feeOrderId: nextBilling.lastSuspensionFeeOrderId,
+            feeCaptureId: nextBilling.lastSuspensionFeeCaptureId,
+            feePaidAt:
+              nextBilling.suspensionFeeStatus === "CAPTURED"
+                ? recordedAt
+                : currentSuspension.feePaidAt || null
+          }
+        };
+      }
+    }
+
+    user.providerProfile = {
+      ...providerProfile,
+      billing: nextBilling,
+      discipline: nextDiscipline
+    };
+
+    return user;
+  });
+}
+
+async function recordProviderRecurringPaymentOrder(userId, context = {}) {
+  return updateProviderPaymentState(userId, {
+    ...context,
+    paymentKind: "provider-membership",
+    membershipStatus: "PENDING_PAYMENT",
+    paymentStatus: readOptionalString(context.paymentStatus) || "ORDER_CREATED"
+  });
+}
+
+async function activateProviderRecurringBillingByUserId(userId, context = {}) {
+  const paidAt = optionalIsoString(context.paidAt || context.capturedAt) || new Date().toISOString();
+  return updateProviderPaymentState(userId, {
+    ...context,
+    paymentKind: "provider-membership",
+    membershipStatus: "ACTIVE",
+    paymentStatus: context.paymentStatus || "CAPTURED",
+    nextBillingDate: buildProviderBillingNextDate(paidAt, 30),
+    recordedAt: paidAt
+  });
+}
+
+async function recordProviderSuspensionPaymentOrder(userId, context = {}) {
+  return updateProviderPaymentState(userId, {
+    ...context,
+    paymentKind: "provider-suspension",
+    suspensionFeeStatus: "PENDING_PAYMENT",
+    paymentStatus: readOptionalString(context.paymentStatus) || "ORDER_CREATED"
+  });
+}
+
+async function recordProviderSuspensionFeeCaptureByUserId(userId, context = {}) {
+  const paidAt = optionalIsoString(context.paidAt || context.capturedAt) || new Date().toISOString();
+  return updateProviderPaymentState(userId, {
+    ...context,
+    paymentKind: "provider-suspension",
+    suspensionFeeStatus: "CAPTURED",
+    paymentStatus: context.paymentStatus || "CAPTURED",
+    recordedAt: paidAt
+  });
+}
+
 function summarizeLocationForDispatch(location) {
   const normalized = readOptionalString(location);
   if (!normalized) {
@@ -1971,6 +2458,7 @@ async function tryForwardGeocode(query) {
 }
 
 async function getPaymentConfigPayload() {
+  const paymentCoverage = paypalCaptureController.getPaymentCoverage();
   return {
     provider: "paypal",
     enabled: Boolean(paypalClientId && paypalClientSecret),
@@ -1985,12 +2473,25 @@ async function getPaymentConfigPayload() {
     subscriberMonthlyFee,
     providerMonthlyFee,
     priorityAssignmentFee,
+    providerSuspensionFees: {
+      first: {
+        total: providerSuspensionFeeFirst,
+        platform: providerSuspensionFeeFirst,
+        trainingProvider: 0
+      },
+      second: {
+        total: providerSuspensionFeeSecond,
+        platform: providerSuspensionPlatformShareSecond,
+        trainingProvider: providerSuspensionTrainingPayoutSecond
+      }
+    },
+    platformServiceChargeRate: AW_ROADSIDE_POLICY.financial.platformServiceChargeRate,
     assignmentFee,
     guestDispatchFee,
     subscriberDispatchFee,
     payoutPlatformFee,
-    platformServiceChargeRate: AW_ROADSIDE_POLICY.financial.platformServiceChargeRate,
-    providerSuspensionFees: AW_ROADSIDE_POLICY.financial.providerSuspensionFees,
+    supportedPaymentKinds: paymentCoverage.paymentKinds,
+    supportedWebhookEventFamilies: paymentCoverage.webhookEventFamilies,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
     dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability,
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
@@ -2151,6 +2652,7 @@ async function getUserProfile(userId) {
     providerDiscipline: createProviderDisciplineSnapshot(user),
     providerSelection,
     subscriberActive: Boolean(user.subscriberActive),
+    subscriptionStatus: user.subscriptionStatus || null,
     subscriberProfile: user.subscriberProfile || null,
     requestHistory: subscriberRequestHistory,
     requestHistoryCount: subscriberRequestHistory.length,
@@ -2470,7 +2972,9 @@ async function filterRequestsForSession(requests, session = null) {
     return [];
   }
 
-  return list.filter((request) => isRequestEligibleForProvider(request, provider));
+  return list
+    .filter((request) => isRequestEligibleForProvider(request, provider))
+    .sort(sortProviderVisibleRequests);
 }
 
 function isRequestEligibleForProvider(request, provider) {
@@ -2496,6 +3000,105 @@ function isRequestEligibleForProvider(request, provider) {
   }
 
   return isProviderEligibleForPendingRequest(request, provider);
+}
+
+function isSubscriberPriorityRequest(request) {
+  return resolveCustomerTier(request) === "SUBSCRIBER";
+}
+
+function requestHasRecordedEta(request) {
+  return (
+    readNumericValue(request?.etaMinutes) !== null ||
+    readNumericValue(request?.softEtaMinutes) !== null ||
+    readNumericValue(request?.hardEtaMinutes) !== null
+  );
+}
+
+function sortRequestsByRecency(left, right) {
+  const leftTime = new Date(left?.updatedAt || left?.completedAt || left?.submittedAt || left?.createdAt || 0).getTime();
+  const rightTime = new Date(right?.updatedAt || right?.completedAt || right?.submittedAt || right?.createdAt || 0).getTime();
+  return rightTime - leftTime;
+}
+
+function sortProviderVisibleRequests(left, right) {
+  const leftStatus = readOptionalString(left?.status).toUpperCase();
+  const rightStatus = readOptionalString(right?.status).toUpperCase();
+  if (leftStatus === "SUBMITTED" && rightStatus === "SUBMITTED") {
+    const leftSubscriber = isSubscriberPriorityRequest(left);
+    const rightSubscriber = isSubscriberPriorityRequest(right);
+    if (leftSubscriber !== rightSubscriber) {
+      return leftSubscriber ? -1 : 1;
+    }
+  }
+  return sortRequestsByRecency(left, right);
+}
+
+function hasHigherPrioritySubscriberAheadForProvider(request, provider, requests = []) {
+  const status = readOptionalString(request?.status).toUpperCase();
+  if (status !== "SUBMITTED" || isSubscriberPriorityRequest(request)) {
+    return false;
+  }
+
+  const providerId = Number(provider?.id);
+  const requestKey = String(request?.id || request?.requestId || "");
+  return (Array.isArray(requests) ? requests : []).some((candidate) => {
+    const candidateKey = String(candidate?.id || candidate?.requestId || "");
+    if (!candidateKey || candidateKey === requestKey || !isSubscriberPriorityRequest(candidate)) {
+      return false;
+    }
+
+    const candidateStatus = readOptionalString(candidate?.status).toUpperCase();
+    if (candidateStatus === "SUBMITTED") {
+      return isProviderEligibleForPendingRequest(candidate, provider);
+    }
+
+    if (candidateStatus !== "ASSIGNED") {
+      return false;
+    }
+
+    if (!Number.isInteger(providerId) || Number(candidate?.assignedProviderId) !== providerId) {
+      return false;
+    }
+
+    return !requestHasRecordedEta(candidate);
+  });
+}
+
+function estimateSubscriberPriorityRetryMinutes(provider, requests = []) {
+  const providerId = Number(provider?.id);
+  const subscriberAhead = (Array.isArray(requests) ? requests : []).find((candidate) => {
+    if (!isSubscriberPriorityRequest(candidate)) {
+      return false;
+    }
+
+    const candidateStatus = readOptionalString(candidate?.status).toUpperCase();
+    if (candidateStatus === "SUBMITTED") {
+      return isProviderEligibleForPendingRequest(candidate, provider);
+    }
+
+    if (candidateStatus !== "ASSIGNED") {
+      return false;
+    }
+
+    if (!Number.isInteger(providerId) || Number(candidate?.assignedProviderId) !== providerId) {
+      return false;
+    }
+
+    return !requestHasRecordedEta(candidate);
+  });
+
+  if (!subscriberAhead) {
+    return 5;
+  }
+
+  const expiry = readOptionalString(subscriberAhead?.requestAcceptanceExpiresAt);
+  const expiryTime = expiry ? new Date(expiry).getTime() : Number.NaN;
+  if (Number.isFinite(expiryTime)) {
+    const remainingMs = Math.max(0, expiryTime - Date.now());
+    return Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
+  }
+
+  return Math.max(1, Math.ceil(getRequestAcceptanceWindowForRequest(subscriberAhead)));
 }
 
 function isProviderEligibleForPendingRequest(request, provider, { ignoreExpiry = false } = {}) {
@@ -2639,6 +3242,7 @@ function isProviderWithinCoverage(request, provider) {
 }
 
 async function getFrontendConfigPayload(req = null) {
+  const paymentCoverage = paypalCaptureController.getPaymentCoverage();
   const baseUrl = resolveRequestBaseUrl(req);
   const uiBaseUrl = webRoot ? baseUrl : null;
   return {
@@ -2650,7 +3254,6 @@ async function getFrontendConfigPayload(req = null) {
     adminApiModule: "admin-controller.mjs",
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
-    eventStreamUrl: `${baseUrl}/events.mjs`,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
     uiBaseUrl,
     expectedHtmlIntegrationPath: null,
@@ -2665,14 +3268,27 @@ async function getFrontendConfigPayload(req = null) {
     subscriberMonthlyFee,
     providerMonthlyFee,
     priorityAssignmentFee,
+    providerSuspensionFees: {
+      first: {
+        total: providerSuspensionFeeFirst,
+        platform: providerSuspensionFeeFirst,
+        trainingProvider: 0
+      },
+      second: {
+        total: providerSuspensionFeeSecond,
+        platform: providerSuspensionPlatformShareSecond,
+        trainingProvider: providerSuspensionTrainingPayoutSecond
+      }
+    },
     publicPricingVisible,
     showInternalPreviewData,
+    platformServiceChargeRate: AW_ROADSIDE_POLICY.financial.platformServiceChargeRate,
+    payoutPlatformFee,
     assignmentFee,
     guestDispatchFee,
     subscriberDispatchFee,
-    payoutPlatformFee,
-    platformServiceChargeRate: AW_ROADSIDE_POLICY.financial.platformServiceChargeRate,
-    providerSuspensionFees: AW_ROADSIDE_POLICY.financial.providerSuspensionFees,
+    supportedPaymentKinds: paymentCoverage.paymentKinds,
+    supportedWebhookEventFamilies: paymentCoverage.webhookEventFamilies,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
     uiEventMap: AW_ROADSIDE_POLICY.uiEventMap,
@@ -2775,7 +3391,6 @@ function getIntegrationTargetPayload(req = null) {
     adminApiModule: "admin-controller.mjs",
     rawApiBaseUrl: `${baseUrl}${RAW_API_BASE_PATH}`,
     rawApiModule: PUBLIC_RUNTIME_ENTRYPOINT,
-    eventStreamUrl: `${baseUrl}/events.mjs`,
     locationConfigUrl: `${getProtectedApiBaseUrl(req)}/location/config`,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
   };
@@ -3165,10 +3780,21 @@ function validateProviderDocumentByType(docType, fileName, contentType, fallback
 
 
 async function createPaypalOrder(serviceRequest) {
+  const paymentKind = readOptionalString(serviceRequest?.paymentKind).toLowerCase();
+  const description =
+    paymentKind === "service"
+      ? `Roadside service payment - ${serviceRequest.serviceType}`
+      : paymentKind === "membership"
+        ? `AW Roadside subscriber membership - ${serviceRequest.serviceType || "activation"}`
+        : paymentKind === "provider-membership"
+          ? `AW Roadside provider billing - ${serviceRequest.serviceType || "monthly fee"}`
+          : paymentKind === "provider-suspension"
+            ? `AW Roadside provider suspension fee - ${serviceRequest.serviceType || "reinstatement"}`
+            : `Priority roadside service - ${serviceRequest.serviceType}`;
   return paypal.createOrder({
-    description: `${serviceRequest.paymentKind === "service" ? "Roadside service payment" : "Priority roadside service"} - ${serviceRequest.serviceType}`,
+    description,
     amount: serviceRequest.amount,
-    customId: serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
+    customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
   });
 }
 
@@ -3176,38 +3802,64 @@ async function capturePaypalOrder(orderId) {
   return paypal.captureOrder(orderId);
 }
 
+function extractPaypalCapturedAmount(capture) {
+  const amountValue = Number.parseFloat(
+    readOptionalString(capture?.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value) ||
+      readOptionalString(capture?.purchase_units?.[0]?.payments?.captures?.[0]?.seller_receivable_breakdown?.gross_amount?.value) ||
+      readOptionalString(capture?.purchase_units?.[0]?.amount?.value) ||
+      "0"
+  );
+  return Number.isFinite(amountValue) && amountValue > 0 ? amountValue : 0;
+}
+
+function extractPaypalCaptureId(capture) {
+  return (
+    readOptionalString(capture?.purchase_units?.[0]?.payments?.captures?.[0]?.id) ||
+    readOptionalString(capture?.id) ||
+    null
+  );
+}
+
+const paypalCaptureController = createPaypalCaptureController({
+  readOptionalString,
+  normalizeServiceRequest,
+  createServicePaymentQuote,
+  normalizeServicePaymentRequest,
+  getServiceRequestById: (requestId) => getServiceRequestById(requestId),
+  shouldTreatPaymentAsSubscriberMembership: (payload, session = null) =>
+    shouldTreatPaymentAsSubscriberMembership(payload, session),
+  createSubscriberMembershipPaymentRequest: (payload, session = null) =>
+    createSubscriberMembershipPaymentRequest(payload, session),
+  createProviderRecurringPaymentRequest: (payload, session = null) =>
+    createProviderRecurringPaymentRequest(payload, session),
+  createProviderSuspensionPaymentRequest: (payload, session = null) =>
+    createProviderSuspensionPaymentRequest(payload, session),
+  createPaypalOrder,
+  capturePaypalOrder,
+  extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
+  extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
+  appendPaymentLog,
+  updateRequestRecord,
+  recordSubscriberMembershipPaymentOrder: (userId, context = {}) =>
+    recordSubscriberMembershipPaymentOrder(userId, context),
+  recordProviderRecurringPaymentOrder: (userId, context = {}) =>
+    recordProviderRecurringPaymentOrder(userId, context),
+  recordProviderSuspensionPaymentOrder: (userId, context = {}) =>
+    recordProviderSuspensionPaymentOrder(userId, context),
+  activateSubscriberMembershipByUserId: (userId, context = {}) =>
+    activateSubscriberMembershipByUserId(userId, context),
+  activateProviderRecurringBillingByUserId: (userId, context = {}) =>
+    activateProviderRecurringBillingByUserId(userId, context),
+  recordProviderSuspensionFeeCaptureByUserId: (userId, context = {}) =>
+    recordProviderSuspensionFeeCaptureByUserId(userId, context),
+  sendPaymentReceiptEmailForRequest: (request, context = {}) => sendPaymentReceiptEmailForRequest(request, context),
+  applyPaypalSubscriptionWebhook: (webhookEvent, eventType) => applyPaypalSubscriptionWebhook(webhookEvent, eventType),
+  applyPaypalProviderWebhook: (webhookEvent, eventType) => applyPaypalProviderWebhook(webhookEvent, eventType),
+  applyPaypalPaymentWebhook: (webhookEvent, eventType) => applyPaypalPaymentWebhook(webhookEvent, eventType)
+});
+
 async function applyPaypalWebhookEvent(webhookEvent) {
-  const eventType = readOptionalString(webhookEvent?.event_type).toUpperCase();
-  if (!eventType) {
-    return {
-      matched: false,
-      applied: false,
-      note: "missing-event-type"
-    };
-  }
-
-  if (eventType.startsWith("BILLING.SUBSCRIPTION.")) {
-    return applyPaypalSubscriptionWebhook(webhookEvent, eventType);
-  }
-
-  if (isPaypalProviderWebhookEvent(eventType)) {
-    return applyPaypalProviderWebhook(webhookEvent, eventType);
-  }
-
-  if (
-    eventType.startsWith("PAYMENT.CAPTURE.") ||
-    eventType.startsWith("PAYMENT.REFUND.") ||
-    eventType.startsWith("PAYMENT.SALE.") ||
-    eventType === "PAYMENT.ORDER.CANCELLED"
-  ) {
-    return applyPaypalPaymentWebhook(webhookEvent, eventType);
-  }
-
-  return {
-    matched: false,
-    applied: false,
-    note: "ignored-event-type"
-  };
+  return paypalCaptureController.applyWebhookEvent(webhookEvent);
 }
 
 function isPaypalProviderWebhookEvent(eventType) {
@@ -3926,14 +4578,6 @@ function firstNonEmptyString(values) {
 async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
   const resource = normalizePaypalResource(webhookEvent?.resource);
   const matchedRequest = await findRequestForPaypalPayment(resource);
-  if (!matchedRequest) {
-    return {
-      matched: false,
-      applied: false,
-      note: "request-not-found"
-    };
-  }
-
   const amountValue = Number.parseFloat(
     readOptionalString(resource?.amount?.value) ||
       readOptionalString(resource?.seller_receivable_breakdown?.gross_amount?.value) ||
@@ -3943,8 +4587,139 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
     readOptionalString(resource?.invoice_id) ||
-    matchedRequest.lastPaymentOrderId ||
+    matchedRequest?.lastPaymentOrderId ||
     "";
+
+  if (!matchedRequest) {
+    const matchedSubscriber = await findUserForPaypalMembershipPayment(resource);
+    if (matchedSubscriber) {
+      let updatedUser = null;
+      if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {
+        updatedUser = await activateSubscriberMembershipByUserId(matchedSubscriber.id, {
+          paypalOrderId: orderId,
+          paypalCaptureId: captureId,
+          paymentStatus: "CAPTURED",
+          paymentAmount: amountValue,
+          paymentProvider: "paypal",
+          paymentEventType: eventType,
+          paidAt: new Date().toISOString()
+        });
+      } else {
+        const membershipStatus =
+          eventType === "PAYMENT.CAPTURE.PENDING" || eventType === "PAYMENT.SALE.PENDING"
+            ? "PENDING_PAYMENT"
+            : eventType === "PAYMENT.ORDER.CANCELLED"
+              ? "CANCELLED"
+              : eventType.startsWith("PAYMENT.REFUND.") || eventType.includes("REFUNDED") || eventType.includes("REVERSED")
+                ? "REFUNDED"
+                : eventType.includes("DENIED") || eventType.includes("DECLINED")
+                  ? "PAYMENT_FAILED"
+                  : "PENDING_PAYMENT";
+        const subscriptionStatus =
+          membershipStatus === "REFUNDED" || membershipStatus === "PAYMENT_FAILED" || membershipStatus === "CANCELLED"
+            ? "PENDING_PAYMENT"
+            : membershipStatus;
+        updatedUser = await updateSubscriberMembershipPaymentState(matchedSubscriber.id, {
+          paypalOrderId: orderId,
+          paypalCaptureId: captureId,
+          paymentStatus:
+            membershipStatus === "PENDING_PAYMENT" && (eventType === "PAYMENT.CAPTURE.PENDING" || eventType === "PAYMENT.SALE.PENDING")
+              ? "PENDING_CAPTURE"
+              : membershipStatus,
+          paymentAmount: amountValue,
+          paymentProvider: "paypal",
+          paymentEventType: eventType,
+          membershipStatus,
+          subscriptionStatus,
+          subscriberActive: membershipStatus === "REFUNDED" || membershipStatus === "PAYMENT_FAILED" || membershipStatus === "CANCELLED"
+            ? false
+            : matchedSubscriber.subscriberActive
+        });
+      }
+
+      return {
+        matched: true,
+        applied: true,
+        targetType: "user",
+        targetId: String(updatedUser.id),
+        note: updatedUser.subscriptionStatus || updatedUser.subscriberProfile?.membershipStatus || "updated"
+      };
+    }
+
+    const matchedProviderPayment = await findUserForPaypalProviderPayment(resource);
+    if (!matchedProviderPayment) {
+      return {
+        matched: false,
+        applied: false,
+        note: "request-or-user-payment-not-found"
+      };
+    }
+
+    let updatedProvider = null;
+    if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {
+      if (matchedProviderPayment.paymentKind === "provider-membership") {
+        updatedProvider = await activateProviderRecurringBillingByUserId(matchedProviderPayment.user.id, {
+          paypalOrderId: orderId,
+          paypalCaptureId: captureId,
+          paymentStatus: "CAPTURED",
+          paymentAmount: amountValue,
+          paymentProvider: "paypal",
+          paymentEventType: eventType,
+          paidAt: new Date().toISOString()
+        });
+      } else {
+        updatedProvider = await recordProviderSuspensionFeeCaptureByUserId(matchedProviderPayment.user.id, {
+          paypalOrderId: orderId,
+          paypalCaptureId: captureId,
+          paymentStatus: "CAPTURED",
+          paymentAmount: amountValue,
+          paymentProvider: "paypal",
+          paymentEventType: eventType,
+          paidAt: new Date().toISOString()
+        });
+      }
+    } else {
+      const providerPaymentState =
+        eventType === "PAYMENT.CAPTURE.PENDING" || eventType === "PAYMENT.SALE.PENDING"
+          ? { paymentStatus: "PENDING_CAPTURE", state: "PENDING_PAYMENT" }
+          : eventType === "PAYMENT.ORDER.CANCELLED"
+            ? { paymentStatus: "CANCELLED", state: "CANCELLED" }
+            : eventType.startsWith("PAYMENT.REFUND.") || eventType.includes("REFUNDED") || eventType.includes("REVERSED")
+              ? { paymentStatus: "REFUNDED", state: "REFUNDED" }
+              : eventType.includes("DENIED") || eventType.includes("DECLINED")
+                ? { paymentStatus: "DECLINED", state: "PAYMENT_FAILED" }
+                : { paymentStatus: "PENDING_PAYMENT", state: "PENDING_PAYMENT" };
+      updatedProvider = await updateProviderPaymentState(matchedProviderPayment.user.id, {
+        paymentKind: matchedProviderPayment.paymentKind,
+        paypalOrderId: orderId,
+        paypalCaptureId: captureId,
+        paymentStatus: providerPaymentState.paymentStatus,
+        paymentAmount: amountValue,
+        paymentProvider: "paypal",
+        paymentEventType: eventType,
+        membershipStatus:
+          matchedProviderPayment.paymentKind === "provider-membership"
+            ? providerPaymentState.state
+            : undefined,
+        suspensionFeeStatus:
+          matchedProviderPayment.paymentKind === "provider-suspension"
+            ? providerPaymentState.state
+            : undefined
+      });
+    }
+
+    const providerBilling = updatedProvider.providerProfile?.billing || {};
+    return {
+      matched: true,
+      applied: true,
+      targetType: "user",
+      targetId: String(updatedProvider.id),
+      note:
+        matchedProviderPayment.paymentKind === "provider-membership"
+          ? providerBilling.membershipStatus || providerBilling.lastBillingStatus || "updated"
+          : providerBilling.suspensionFeeStatus || providerBilling.lastSuspensionFeeStatus || "updated"
+    };
+  }
 
   const updatedRequest = await updateRequestRecord(matchedRequest.requestId || matchedRequest.id, (request) => {
     const next = {
@@ -4079,6 +4854,106 @@ async function findRequestForPaypalPayment(resource) {
   return null;
 }
 
+async function findUserForPaypalMembershipPayment(resource) {
+  const users = await readUsers();
+  const customId =
+    readOptionalString(resource.custom_id) ||
+    readOptionalString(resource?.purchase_units?.[0]?.custom_id);
+  const explicitUserId = readPaypalUserId(customId);
+  const orderId =
+    readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
+    readOptionalString(resource?.invoice_id) ||
+    readOptionalString(resource.id);
+  if (readPaypalPaymentKindFromCustomId(customId) === "provider-membership") {
+    return null;
+  }
+
+  if (explicitUserId !== null) {
+    const user = users.find((entry) => Number(entry.id) === explicitUserId);
+    if (user && Array.isArray(user.roles) && user.roles.includes("SUBSCRIBER")) {
+      return user;
+    }
+  }
+
+  if (!orderId) {
+    return null;
+  }
+
+  return (
+    users.find((user) => {
+      if (!Array.isArray(user.roles) || !user.roles.includes("SUBSCRIBER")) {
+        return false;
+      }
+      const subscriberProfile = user.subscriberProfile && typeof user.subscriberProfile === "object"
+        ? user.subscriberProfile
+        : {};
+      const paymentInfo = subscriberProfile.paymentInfo && typeof subscriberProfile.paymentInfo === "object"
+        ? subscriberProfile.paymentInfo
+        : {};
+      return (
+        readOptionalString(subscriberProfile.lastMembershipPaymentOrderId) === orderId ||
+        readOptionalString(paymentInfo.lastMembershipPaymentOrderId) === orderId
+      );
+    }) || null
+  );
+}
+
+async function findUserForPaypalProviderPayment(resource) {
+  const users = await readUsers();
+  const customId =
+    readOptionalString(resource.custom_id) ||
+    readOptionalString(resource?.purchase_units?.[0]?.custom_id);
+  const explicitUserId = readPaypalUserId(customId);
+  const explicitPaymentKind = readPaypalPaymentKindFromCustomId(customId);
+  const orderId =
+    readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
+    readOptionalString(resource?.invoice_id) ||
+    readOptionalString(resource.id);
+
+  if (
+    explicitUserId !== null &&
+    (explicitPaymentKind === "provider-membership" || explicitPaymentKind === "provider-suspension")
+  ) {
+    const user = users.find((entry) => Number(entry.id) === explicitUserId);
+    if (user && Array.isArray(user.roles) && user.roles.includes("PROVIDER")) {
+      return {
+        user,
+        paymentKind: explicitPaymentKind
+      };
+    }
+  }
+
+  if (!orderId) {
+    return null;
+  }
+
+  for (const user of users) {
+    if (!Array.isArray(user.roles) || !user.roles.includes("PROVIDER")) {
+      continue;
+    }
+    const billing = user.providerProfile?.billing && typeof user.providerProfile.billing === "object"
+      ? user.providerProfile.billing
+      : {};
+    if (
+      readOptionalString(billing.lastBillingOrderId) === orderId ||
+      readOptionalString(billing.lastPaymentOrderId) === orderId
+    ) {
+      return {
+        user,
+        paymentKind: "provider-membership"
+      };
+    }
+    if (readOptionalString(billing.lastSuspensionFeeOrderId) === orderId) {
+      return {
+        user,
+        paymentKind: "provider-suspension"
+      };
+    }
+  }
+
+  return null;
+}
+
 function readPaypalUserId(value) {
   const normalized = readOptionalString(value);
   if (!normalized) {
@@ -4092,6 +4967,23 @@ function readPaypalUserId(value) {
     return null;
   }
   return Number(match[1]);
+}
+
+function readPaypalPaymentKindFromCustomId(value) {
+  const normalized = readOptionalString(value).toLowerCase();
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.startsWith("membership:user:")) {
+    return "membership";
+  }
+  if (normalized.startsWith("provider-membership:user:")) {
+    return "provider-membership";
+  }
+  if (normalized.startsWith("provider-suspension:user:")) {
+    return "provider-suspension";
+  }
+  return null;
 }
 
 function resolvePaypalNextBillingDate(resource) {
@@ -4466,25 +5358,33 @@ function normalizeProviderSuspensionRecord(value, index = 0) {
 
 function normalizeCurrentProviderSuspension(value, suspensionHistory = [], strikeCount = 0) {
   if (value && typeof value === "object") {
+    const level = Number.isFinite(Number(value.level)) ? Number(value.level) : strikeCount;
     return {
       suspensionId: optionalString(value.suspensionId) || null,
       active: Boolean(value.active),
-      level: Number.isFinite(Number(value.level)) ? Number(value.level) : strikeCount,
+      level,
       startedAt: optionalIsoString(value.startedAt),
       endsAt: optionalIsoString(value.endsAt),
       indefinite: Boolean(value.indefinite),
+      feeAmountDue: Number.isFinite(Number(value.feeAmountDue))
+        ? Number(value.feeAmountDue)
+        : resolveProviderSuspensionFeeAmount(level),
       previousProviderStatus: optionalString(value.previousProviderStatus) || "APPROVED"
     };
   }
 
   const latest = suspensionHistory[0] || null;
+  const level = latest?.level || strikeCount;
   return {
     suspensionId: latest?.suspensionId || null,
     active: false,
-    level: latest?.level || strikeCount,
+    level,
     startedAt: latest?.startedAt || null,
     endsAt: latest?.endsAt || null,
     indefinite: Boolean(latest?.indefinite),
+    feeAmountDue: Number.isFinite(Number(latest?.feeAmountDue))
+      ? Number(latest.feeAmountDue)
+      : resolveProviderSuspensionFeeAmount(level),
     previousProviderStatus: latest?.previousProviderStatus || "APPROVED"
   };
 }
@@ -4646,6 +5546,7 @@ function buildSuspensionRecord(level, eventGroup, previousProviderStatus) {
     endsAt: durationDays ? addDays(startedAt, durationDays) : null,
     indefinite,
     durationDays,
+    feeAmountDue: resolveProviderSuspensionFeeAmount(level),
     lowRatingWindowStart: eventGroup[0]?.submittedAt || null,
     lowRatingWindowEnd: eventGroup[eventGroup.length - 1]?.submittedAt || null,
     triggerRequestIds: eventGroup.map((entry) => entry.requestId).filter(Boolean),
@@ -5371,9 +6272,13 @@ async function writeUsers(users) {
 
 function mutateUsers(mutator) {
   const task = async () => {
+    console.log("[DEBUG_LOG] mutateUsers task starting...");
     const users = await readUsers();
+    console.log(`[DEBUG_LOG] mutateUsers read ${users.length} users.`);
     const result = await mutator(users);
+    console.log("[DEBUG_LOG] mutateUsers mutator finished.");
     await writeUsers(users);
+    console.log("[DEBUG_LOG] mutateUsers write finished.");
     broadcastSseEvent("users-updated", { timestamp: new Date().toISOString() });
     return result;
   };
@@ -5641,7 +6546,7 @@ async function updateRequestRecord(requestId, updater) {
     const current = requests[index];
     requests[index] = {
       ...current,
-      ...updater(current),
+      ...updater(current, requests, index),
       id: current.id || current.requestId,
       requestId: current.requestId || current.id,
       updatedAt: new Date().toISOString()
@@ -5746,7 +6651,7 @@ async function applyLocalRequestAction(requestId, action, payload) {
     }
   }
 
-  return updateRequestRecord(requestId, (request) => {
+  return updateRequestRecord(requestId, (request, requests) => {
     if (isPendingProviderAcceptanceRequest(request) && isRequestAcceptanceExpired(request)) {
       const error = new Error("This request timed out before a provider accepted it.");
       error.statusCode = 409;
@@ -5820,6 +6725,15 @@ async function applyLocalRequestAction(requestId, action, payload) {
           const error = new Error("This request is no longer eligible for the current provider.");
           error.statusCode = 409;
           error.code = "provider-request-ineligible";
+          throw error;
+        }
+        if (!hasAdminAuthority && hasHigherPrioritySubscriberAheadForProvider(request, provider, requests)) {
+          const retryMinutes = estimateSubscriberPriorityRetryMinutes(provider, requests);
+          const error = new Error(
+            `The current service request is not available at this time. Try again in ${retryMinutes} minute${retryMinutes === 1 ? "" : "s"}.`
+          );
+          error.statusCode = 409;
+          error.code = "subscriber-priority-pending";
           throw error;
         }
       } else if (Number(request?.assignedProviderId) !== providerUserId) {

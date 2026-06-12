@@ -59,6 +59,22 @@ CREATE TABLE IF NOT EXISTS aw_payment_events (
   payload JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
+CREATE TABLE IF NOT EXISTS aw_pre_signup_intake (
+  intake_id TEXT PRIMARY KEY,
+  role TEXT NOT NULL,
+  email TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  zip TEXT NULL,
+  profile_status TEXT NULL,
+  payment_status TEXT NULL,
+  paypal_order_id TEXT NULL,
+  paypal_capture_id TEXT NULL,
+  release_date DATE NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
 CREATE TABLE IF NOT EXISTS aw_provider_wallet_history (
   entry_id TEXT PRIMARY KEY,
   provider_user_id BIGINT NULL,

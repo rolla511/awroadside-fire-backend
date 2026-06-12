@@ -192,6 +192,47 @@ async function insertPaymentEventRow(sql, entry) {
   );
 }
 
+async function upsertPreSignupIntakeRow(sql, entry) {
+  const intakeId = String(entry?.id || "");
+  if (!intakeId) {
+    return;
+  }
+  await sql.query(
+    `INSERT INTO aw_pre_signup_intake (
+      intake_id, role, email, full_name, zip, profile_status, payment_status,
+      paypal_order_id, paypal_capture_id, release_date, created_at, updated_at, payload
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)
+    ON CONFLICT (intake_id) DO UPDATE SET
+      role = EXCLUDED.role,
+      email = EXCLUDED.email,
+      full_name = EXCLUDED.full_name,
+      zip = EXCLUDED.zip,
+      profile_status = EXCLUDED.profile_status,
+      payment_status = EXCLUDED.payment_status,
+      paypal_order_id = EXCLUDED.paypal_order_id,
+      paypal_capture_id = EXCLUDED.paypal_capture_id,
+      release_date = EXCLUDED.release_date,
+      updated_at = EXCLUDED.updated_at,
+      payload = EXCLUDED.payload`,
+    [
+      intakeId,
+      entry?.role || null,
+      entry?.contact?.email || null,
+      entry?.contact?.fullName || null,
+      entry?.logistics?.zip || null,
+      entry?.profileStatus || null,
+      entry?.payment?.status || null,
+      entry?.payment?.orderId || null,
+      entry?.payment?.captureId || null,
+      entry?.releaseDate || null,
+      normalizeTimestamp(entry?.createdAt || new Date().toISOString()),
+      normalizeTimestamp(entry?.updatedAt || entry?.createdAt || new Date().toISOString()),
+      toJson(entry)
+    ]
+  );
+}
+
 function buildPerformanceRowsFromUser(user) {
   const providerId = Number(user?.id);
   if (!Number.isInteger(providerId)) {
@@ -340,6 +381,17 @@ function createPaymentsRepository() {
   };
 }
 
+function createPreSignupIntakeRepository() {
+  return {
+    name: "preSignupIntake",
+    syncCoordinator: "server.mjs",
+    targetTables: ["aw_pre_signup_intake"],
+    async insert(sql, entry) {
+      await upsertPreSignupIntakeRow(sql, entry);
+    }
+  };
+}
+
 function createProviderWalletRepository() {
   return {
     name: "providerWallet",
@@ -392,6 +444,7 @@ export function createAwRoadsideStorageKernel() {
       users: createUsersRepository(),
       requests: createRequestsRepository(),
       payments: createPaymentsRepository(),
+      preSignupIntake: createPreSignupIntakeRepository(),
       providerWallet: createProviderWalletRepository(),
       providerHistory: createProviderHistoryRepository()
     })
@@ -571,6 +624,19 @@ export function createAwRoadsideStorageAuthority({
         await handleFailure(error, "storage-sync-payment-failed");
       }
     },
+    async appendPreSignupIntake(entry) {
+      if (!enabled || !sql) {
+        if (status.mode === "internal-db") {
+          throw new Error(`Cannot append pre-signup intake: database is not enabled (status: ${status.lastEvent})`);
+        }
+        return;
+      }
+      try {
+        await repositories.preSignupIntake.insert(sql, entry);
+      } catch (error) {
+        await handleFailure(error, "storage-sync-pre-signup-intake-failed");
+      }
+    },
     async readUsers() {
       return readPayloadCollection({
         tableName: "aw_users",
@@ -590,6 +656,13 @@ export function createAwRoadsideStorageAuthority({
         tableName: "aw_payment_events",
         orderBy: "created_at DESC, event_id DESC",
         label: "payments"
+      });
+    },
+    async readPreSignupIntake() {
+      return readPayloadCollection({
+        tableName: "aw_pre_signup_intake",
+        orderBy: "created_at DESC, intake_id DESC",
+        label: "pre-signup-intake"
       });
     }
   };
