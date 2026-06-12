@@ -143,7 +143,10 @@ export function createSubscriptionController() {
           helpers.sendJson(res, 200, {
             userId: updatedUser.id,
             subscriberActive: updatedUser.subscriberActive,
-            membershipPrice: DEFAULT_SUBSCRIBER_MONTHLY
+            subscriptionStatus: updatedUser.subscriptionStatus || null,
+            membershipStatus: updatedUser.subscriberProfile?.membershipStatus || null,
+            paymentRequired: updatedUser.subscriberActive !== true,
+            membershipPrice: Number(updatedUser.subscriberProfile?.membershipPrice || DEFAULT_SUBSCRIBER_MONTHLY)
           });
         } catch (error) {
           await helpers.markInboundPayloadRejected?.(req, error, {
@@ -151,6 +154,79 @@ export function createSubscriptionController() {
           });
           helpers.sendJson(res, 400, {
             error: "subscriber-setup-failed",
+            message: error.message
+          });
+        }
+        return true;
+      }
+
+      if (pathname === "/server.mjs/auth/subscriber/profile") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const session = requireAuthenticatedUser(req, helpers);
+          const updatedUser = await updateSubscriberProfile(payload, helpers, session);
+          helpers.sendJson(res, 200, {
+            userId: updatedUser.id,
+            subscriberActive: updatedUser.subscriberActive,
+            subscriberProfile: updatedUser.subscriberProfile || null,
+            nextBillingDate: updatedUser.nextBillingDate || null
+          });
+        } catch (error) {
+          helpers.sendJson(res, 400, {
+            error: "subscriber-profile-update-failed",
+            message: error.message
+          });
+        }
+        return true;
+      }
+
+      if (pathname === "/server.mjs/auth/password/change") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const session = requireAuthenticatedUser(req, helpers);
+          const updatedUser = await changeAccountPassword(payload, helpers, session);
+          helpers.sendJson(res, 200, {
+            userId: updatedUser.id,
+            message: "Password updated."
+          });
+        } catch (error) {
+          helpers.sendJson(res, 400, {
+            error: "password-change-failed",
+            message: error.message
+          });
+        }
+        return true;
+      }
+
+      if (pathname === "/server.mjs/auth/subscriber/cancel") {
+        if (req.method !== "POST") {
+          helpers.sendMethodNotAllowed(res, "POST");
+          return true;
+        }
+
+        try {
+          const payload = await helpers.readJsonBody(req);
+          const session = requireAuthenticatedUser(req, helpers);
+          const updatedUser = await cancelSubscriberMembership(payload, helpers, session);
+          helpers.sendJson(res, 200, {
+            userId: updatedUser.id,
+            subscriberActive: updatedUser.subscriberActive,
+            nextBillingDate: updatedUser.nextBillingDate || null,
+            subscriberProfile: updatedUser.subscriberProfile || null
+          });
+        } catch (error) {
+          helpers.sendJson(res, 400, {
+            error: "subscriber-cancel-failed",
             message: error.message
           });
         }
@@ -260,11 +336,6 @@ export async function createSignup(payload, helpers) {
     throw new Error("Provider terms must be accepted.");
   }
 
-  // Ensure payment context is present for profile creation
-  if (role === "SUBSCRIBER" && !payload.paymentMethodMasked && !termsBypass) {
-    throw new Error("A valid payment method is required to create a subscriber profile.");
-  }
-
   const createUser = async (users) => {
     if (users.some((user) => user.username === username)) {
       throw new Error("An account with that username already exists.");
@@ -292,7 +363,8 @@ export async function createSignup(payload, helpers) {
       available: false,
       activeShiftId: null,
       accountState: "ACTIVE",
-      nextBillingDate: role === "SUBSCRIBER" ? addDays(createdAt, 30) : null,
+      nextBillingDate: null,
+      subscriptionStatus: role === "SUBSCRIBER" ? "PENDING_PROFILE" : null,
       createdAt,
       signUpDate: createdAt
     };
@@ -344,6 +416,493 @@ export async function loginUser(payload, helpers) {
   }
 
   return buildLoginPayload(user);
+}
+
+export async function setupSubscriber(payload, helpers, session = null) {
+  const policy = getRoadsidePolicy(helpers);
+  const termsBypass = testingTermsBypassEnabled();
+  const vehicle = payload.vehicle || {};
+  const primaryAddress = normalizeSubscriberAddress(payload.address || payload.primaryAddress || {});
+  const make = requireString(vehicle.make, "vehicle.make");
+  const model = requireString(vehicle.model, "vehicle.model");
+  const year = requireString(vehicle.year, "vehicle.year");
+  const color = requireString(vehicle.color, "vehicle.color");
+  const paymentMethodMasked = optionalString(payload.paymentMethodMasked) || optionalString(payload.paymentMethod);
+  const paymentInfo = {
+    paymentMethodMasked,
+    billingZip: optionalString(payload.billingZip),
+    paymentProvider: optionalString(payload.paymentProvider) || null
+  };
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!user.roles.includes("SUBSCRIBER")) {
+    throw new Error("Not a subscriber.");
+  }
+  if (!termsBypass && payload.subscriberTermsAccepted !== true && user.terms?.subscriber?.accepted !== true) {
+    throw new Error("Subscriber terms must be accepted before setup.");
+  }
+  if (!termsBypass && payload.dispatchOnlyLiabilityAccepted !== true && user.terms?.subscriber?.dispatchOnlyLiabilityAccepted !== true) {
+    throw new Error("Dispatch-only liability terms must be accepted before setup.");
+  }
+  if (!termsBypass && payload.noRefundPolicyAccepted !== true && user.terms?.subscriber?.noRefundPolicyAccepted !== true) {
+    throw new Error("No-refund policy must be accepted before setup.");
+  }
+
+  const updateUser = async (mutableUser) => {
+    const setupAt = new Date().toISOString();
+    const existingProfile = mutableUser.subscriberProfile && typeof mutableUser.subscriberProfile === "object"
+      ? mutableUser.subscriberProfile
+      : {};
+    const existingPaymentInfo = existingProfile.paymentInfo && typeof existingProfile.paymentInfo === "object"
+      ? existingProfile.paymentInfo
+      : {};
+    const membershipStatus = mutableUser.subscriberActive ? "ACTIVE" : "PENDING_PAYMENT";
+
+    mutableUser.accountState = mutableUser.accountState || "ACTIVE";
+    mutableUser.subscriptionStatus = mutableUser.subscriberActive ? "ACTIVE" : "PENDING_PAYMENT";
+    mutableUser.subscriberProfile = {
+      ...existingProfile,
+      membershipPrice: policy.subscriber.monthlyFee,
+      vehicle: { make, model, year, color },
+      savedVehicles: [{ make, model, year, color }],
+      primaryAddress,
+      savedAddresses: primaryAddress.line1 ? [primaryAddress] : [],
+      paymentMethodMasked: paymentMethodMasked || existingProfile.paymentMethodMasked || null,
+      paymentInfo: {
+        ...existingPaymentInfo,
+        ...paymentInfo,
+        paymentMethodMasked: paymentMethodMasked || existingPaymentInfo.paymentMethodMasked || null,
+        billingZip: paymentInfo.billingZip || existingPaymentInfo.billingZip || primaryAddress.postalCode || null,
+        paymentProvider: paymentInfo.paymentProvider || existingPaymentInfo.paymentProvider || null
+      },
+      membershipStatus,
+      setupCompletedAt: setupAt,
+      updatedAt: setupAt,
+      termsAcceptedAt: setupAt,
+      termsVersion: policy.subscriber.termsVersion,
+      confirmation: mutableUser.subscriberActive
+        ? existingProfile.confirmation || null
+        : {
+            status: "PENDING_PAYMENT",
+            confirmedAt: null,
+            recipientEmail: mutableUser.email || null,
+            subject: "AW Roadside subscription pending payment",
+            body: "Subscriber profile is on file. Payment capture is required before membership becomes active."
+          }
+    };
+    mutableUser.terms = {
+      ...(mutableUser.terms || {}),
+      subscriber: {
+        accepted: true,
+        acceptedAt: setupAt,
+        termsVersion: policy.subscriber.termsVersion,
+        dispatchOnlyLiabilityAccepted: true,
+        noRefundPolicyAccepted: true,
+        platformLiability: policy.subscriber.platformLiability,
+        providerLiability: policy.provider.liabilityStatement
+      }
+    };
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      if (!mutableUser.roles.includes("SUBSCRIBER")) {
+        throw new Error("Not a subscriber.");
+      }
+      return updateUser(mutableUser);
+    });
+  }
+
+  const result = await updateUser(user);
+  await helpers.writeUsers(users);
+  return result;
+}
+
+export async function activateSubscriberMembership(payload, helpers, session = null) {
+  const policy = getRoadsidePolicy(helpers);
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!Array.isArray(user.roles) || !user.roles.includes("SUBSCRIBER")) {
+    throw new Error("Not a subscriber.");
+  }
+
+  const activateUser = async (mutableUser) => {
+    const activatedAt = optionalIsoString(payload.paidAt || payload.capturedAt) || new Date().toISOString();
+    const existingProfile = mutableUser.subscriberProfile && typeof mutableUser.subscriberProfile === "object"
+      ? mutableUser.subscriberProfile
+      : {};
+    const existingPaymentInfo = existingProfile.paymentInfo && typeof existingProfile.paymentInfo === "object"
+      ? existingProfile.paymentInfo
+      : {};
+    const alreadyActive = Boolean(mutableUser.subscriberActive) && optionalString(existingProfile.membershipStatus) === "ACTIVE";
+    const paymentMethodMasked =
+      optionalString(payload.paymentMethodMasked) ||
+      optionalString(payload.paymentMethod) ||
+      existingProfile.paymentMethodMasked ||
+      existingPaymentInfo.paymentMethodMasked ||
+      null;
+    const paymentProvider = optionalString(payload.paymentProvider) || existingPaymentInfo.paymentProvider || "paypal";
+    const vehicle = existingProfile.vehicle && typeof existingProfile.vehicle === "object"
+      ? existingProfile.vehicle
+      : {};
+    const confirmationRecord = buildSubscriberConfirmationRecord({
+      user: mutableUser,
+      vehicle,
+      membershipPrice: Number(existingProfile.membershipPrice || policy.subscriber.monthlyFee),
+      confirmedAt: activatedAt
+    });
+    const delivery = alreadyActive
+      ? existingProfile.confirmation || {
+          deliveryStatus: "already-active",
+          deliveredAt: existingProfile.activatedAt || activatedAt,
+          transport: "profile-record-only",
+          message: "Subscriber membership was already active."
+        }
+      : typeof helpers.sendSubscriberConfirmationEmail === "function"
+        ? await helpers.sendSubscriberConfirmationEmail(confirmationRecord)
+        : {
+            deliveryStatus: "stored-no-transport",
+            deliveredAt: null,
+            transport: "profile-record-only",
+            message: "Subscriber confirmation stored in profile. No outbound email transport is configured."
+          };
+
+    mutableUser.subscriberActive = true;
+    mutableUser.accountState = "ACTIVE";
+    mutableUser.subscriptionStatus = "ACTIVE";
+    mutableUser.nextBillingDate = addDays(activatedAt, 30);
+    mutableUser.subscriberProfile = {
+      ...existingProfile,
+      membershipPrice: Number(existingProfile.membershipPrice || policy.subscriber.monthlyFee),
+      paymentMethodMasked: paymentMethodMasked || existingProfile.paymentMethodMasked || null,
+      paymentInfo: {
+        ...existingPaymentInfo,
+        paymentMethodMasked: paymentMethodMasked || existingPaymentInfo.paymentMethodMasked || null,
+        billingZip: optionalString(payload.billingZip) || existingPaymentInfo.billingZip || existingProfile.primaryAddress?.postalCode || null,
+        paymentProvider,
+        lastMembershipPaymentStatus: optionalString(payload.paymentStatus) || "CAPTURED",
+        lastMembershipPaymentOrderId: optionalString(payload.paypalOrderId) || existingPaymentInfo.lastMembershipPaymentOrderId || null,
+        lastMembershipPaymentCaptureId: optionalString(payload.paypalCaptureId) || existingPaymentInfo.lastMembershipPaymentCaptureId || null,
+        lastMembershipPaymentEventType: optionalString(payload.paymentEventType) || existingPaymentInfo.lastMembershipPaymentEventType || null,
+        lastMembershipPaymentAt: activatedAt,
+        lastMembershipPaymentAmount: Number.isFinite(Number(payload.paymentAmount))
+          ? Number(payload.paymentAmount)
+          : existingPaymentInfo.lastMembershipPaymentAmount || null
+      },
+      membershipStatus: "ACTIVE",
+      activatedAt,
+      updatedAt: activatedAt,
+      confirmation: alreadyActive
+        ? existingProfile.confirmation || null
+        : {
+            ...confirmationRecord,
+            ...delivery
+          }
+    };
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      if (!mutableUser.roles.includes("SUBSCRIBER")) {
+        throw new Error("Not a subscriber.");
+      }
+      return activateUser(mutableUser);
+    });
+  }
+
+  const result = await activateUser(user);
+  await helpers.writeUsers(users);
+  return result;
+}
+
+export async function applyProvider(payload, helpers, session = null) {
+  const policy = getRoadsidePolicy(helpers);
+  const termsBypass = testingTermsBypassEnabled();
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!user.roles.includes("PROVIDER")) {
+    throw new Error("Not a provider.");
+  }
+
+  const existingProviderProfile = user.providerProfile && typeof user.providerProfile === "object"
+    ? user.providerProfile
+    : {};
+  if (!existingProviderProfile.profileSubmittedAt && !hasCapturedProviderMembership(user)) {
+    throw new Error("Provider membership payment must be captured before provider profile submission.");
+  }
+
+  const vehicleInfo = payload.vehicleInfo || {};
+  const documents = payload.documents || {};
+  const existingDocuments = existingProviderProfile.documents || {};
+  const storedDocuments = typeof helpers.saveProviderDocuments === "function"
+    ? await helpers.saveProviderDocuments(user.id, existingDocuments, documents)
+    : normalizeProviderDocuments(documents, existingDocuments);
+  const documentStatus = summarizeProviderDocuments(storedDocuments);
+  if (!termsBypass && payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
+    throw new Error("Provider terms must be accepted before profile submission.");
+  }
+  if (!termsBypass && payload.providerLiabilityAccepted !== true && user.terms?.provider?.liabilityAccepted !== true) {
+    throw new Error("Provider liability acknowledgement is required.");
+  }
+
+  const providerInfo = normalizeProviderInfo(payload.providerInfo || payload);
+  const hoursOfService = normalizeHoursOfService(payload.hoursOfService || payload.availability || {});
+  const serviceArea = normalizeString(payload.serviceArea || payload.coverageArea || "");
+  const equipment = normalizeStringArray(payload.equipment);
+  const assessment = evaluateProviderAssessment(payload.assessmentAnswers || {}, policy);
+
+  const currentLocation = normalizeString(payload.currentLocation || payload.location);
+  const locationMetadata = typeof helpers.resolveProviderLocationMetadata === "function"
+    ? await helpers.resolveProviderLocationMetadata({
+        currentLocation,
+        serviceArea
+      })
+    : {};
+  const normalizedVehicleInfo = {
+    make: requireString(vehicleInfo.make, "vehicleInfo.make"),
+    model: requireString(vehicleInfo.model, "vehicleInfo.model"),
+    year: requireString(vehicleInfo.year, "vehicleInfo.year"),
+    color: requireString(vehicleInfo.color, "vehicleInfo.color")
+  };
+  const approvalEligibility = buildProviderApprovalEligibility({
+    providerInfo,
+    vehicleInfo: normalizedVehicleInfo,
+    documentStatus,
+    assessment,
+    hoursOfService,
+    serviceArea,
+    currentLocation,
+    ...locationMetadata
+  });
+
+  const providerPatch = (mutableUser) => {
+    const submittedAt = new Date().toISOString();
+    const mutableProviderProfile = mutableUser.providerProfile && typeof mutableUser.providerProfile === "object"
+      ? mutableUser.providerProfile
+      : {};
+    const existingPayoutTerms = mutableProviderProfile.payoutTerms && typeof mutableProviderProfile.payoutTerms === "object"
+      ? mutableProviderProfile.payoutTerms
+      : {};
+    const existingProviderPayoutTerms = mutableUser.terms?.providerPayout && typeof mutableUser.terms.providerPayout === "object"
+      ? mutableUser.terms.providerPayout
+      : {};
+    mutableUser.providerStatus = "PENDING_APPROVAL";
+    mutableUser.accountState = mutableUser.accountState || "ACTIVE";
+    mutableUser.available = false;
+    mutableUser.providerProfile = {
+      ...mutableProviderProfile,
+      providerInfo,
+      vehicleInfo: normalizedVehicleInfo,
+      documents: storedDocuments,
+      documentStatus,
+      experience: optionalString(payload.experience),
+      assessment,
+      hoursOfService,
+      serviceArea,
+      currentLocation,
+      ...locationMetadata,
+      equipment,
+      profileSubmittedAt: submittedAt,
+      pendingReceivedAt: submittedAt,
+      profileSubmissionStatus: approvalEligibility.assessmentPassed ? "PASSED_PENDING_PROVIDER" : "FAILED_PENDING_PROVIDER",
+      approvalEligibility,
+      subscriptionStartsOnApproval: false,
+      approvalReviewWindowEndsAt: addBusinessDays(submittedAt, 3),
+      rates: normalizeProviderRates(payload.rates),
+      noteExchangeEnabled: true,
+      payoutTerms: {
+        ...existingPayoutTerms,
+        accepted: existingPayoutTerms.accepted === true,
+        acceptedAt: existingPayoutTerms.acceptedAt || null,
+        termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
+        disputeWindowAccepted: existingPayoutTerms.disputeWindowAccepted === true,
+        noPostReceiptDisputeAccepted: existingPayoutTerms.noPostReceiptDisputeAccepted === true,
+        safeModeActive: existingPayoutTerms.safeModeActive !== false
+      }
+    };
+    mutableUser.services = Array.isArray(payload.services) && payload.services.length > 0 ? payload.services : ["LOCKOUT"];
+    mutableUser.providerMonthly = policy.provider.monthlyFee;
+    mutableUser.terms = {
+      ...(mutableUser.terms || {}),
+      provider: {
+        accepted: true,
+        acceptedAt: new Date().toISOString(),
+        termsVersion: policy.provider.termsVersion,
+        liabilityAccepted: true,
+        liabilityStatement: policy.provider.liabilityStatement,
+        holdHarmlessAccepted: true
+      },
+      providerPayout: {
+        ...existingProviderPayoutTerms,
+        accepted: existingProviderPayoutTerms.accepted === true,
+        acceptedAt: existingProviderPayoutTerms.acceptedAt || null,
+        termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
+        disputeWindowAccepted: existingProviderPayoutTerms.disputeWindowAccepted === true,
+        noPostReceiptDisputeAccepted: existingProviderPayoutTerms.noPostReceiptDisputeAccepted === true,
+        safeModeActive: existingProviderPayoutTerms.safeModeActive !== false
+      }
+    };
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      if (!mutableUser.roles.includes("PROVIDER")) {
+        throw new Error("Not a provider.");
+      }
+      return providerPatch(mutableUser);
+    });
+  }
+
+  const result = providerPatch(user);
+  await helpers.writeUsers(users);
+  return result;
+}
+
+export async function updateSubscriberProfile(payload, helpers, session = null) {
+  const policy = getRoadsidePolicy(helpers);
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!Array.isArray(user.roles) || !user.roles.includes("SUBSCRIBER")) {
+    throw new Error("Not a subscriber.");
+  }
+
+  const currentProfile = user.subscriberProfile && typeof user.subscriberProfile === "object"
+    ? user.subscriberProfile
+    : {};
+  const currentVehicle = currentProfile.vehicle && typeof currentProfile.vehicle === "object"
+    ? currentProfile.vehicle
+    : {};
+  const currentPaymentInfo = currentProfile.paymentInfo && typeof currentProfile.paymentInfo === "object"
+    ? currentProfile.paymentInfo
+    : {};
+  const currentAddress = currentProfile.primaryAddress && typeof currentProfile.primaryAddress === "object"
+    ? currentProfile.primaryAddress
+    : {};
+
+  const nextVehicle = {
+    year: requireString(payload.vehicle?.year || currentVehicle.year, "vehicle.year"),
+    make: requireString(payload.vehicle?.make || currentVehicle.make, "vehicle.make"),
+    model: requireString(payload.vehicle?.model || currentVehicle.model, "vehicle.model"),
+    color: requireString(payload.vehicle?.color || currentVehicle.color, "vehicle.color")
+  };
+  const nextAddress = normalizeSubscriberAddress({
+    ...currentAddress,
+    ...(payload.address && typeof payload.address === "object" ? payload.address : {})
+  });
+  const paymentMethodMasked = optionalString(payload.paymentMethodMasked) || currentProfile.paymentMethodMasked || currentPaymentInfo.paymentMethodMasked || null;
+  const paymentInfo = {
+    ...currentPaymentInfo,
+    paymentMethodMasked,
+    billingZip: optionalString(payload.billingZip) || currentPaymentInfo.billingZip || nextAddress.postalCode || null,
+    paymentProvider: optionalString(payload.paymentProvider) || currentPaymentInfo.paymentProvider || null
+  };
+
+  const patchUser = (mutableUser) => {
+    const existingProfile = mutableUser.subscriberProfile && typeof mutableUser.subscriberProfile === "object"
+      ? mutableUser.subscriberProfile
+      : {};
+    mutableUser.fullName = requireString(payload.fullName || mutableUser.fullName, "fullName");
+    mutableUser.phoneNumber = requireString(payload.phoneNumber || mutableUser.phoneNumber, "phoneNumber");
+    mutableUser.email = requireString(payload.email || mutableUser.email, "email").toLowerCase();
+    mutableUser.subscriberProfile = {
+      ...existingProfile,
+      membershipPrice: Number(existingProfile.membershipPrice || policy.subscriber.monthlyFee),
+      vehicle: nextVehicle,
+      savedVehicles: [nextVehicle],
+      primaryAddress: nextAddress,
+      savedAddresses: nextAddress.line1 ? [nextAddress] : [],
+      paymentMethodMasked,
+      paymentInfo,
+      updatedAt: new Date().toISOString()
+    };
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      if (!mutableUser.roles.includes("SUBSCRIBER")) {
+        throw new Error("Not a subscriber.");
+      }
+      return patchUser(mutableUser);
+    });
+  }
+
+  const result = patchUser(user);
+  await helpers.writeUsers(users);
+  return result;
+}
+
+export async function changeAccountPassword(payload, helpers, session = null) {
+  const currentPassword = requireString(payload.currentPassword, "currentPassword");
+  const nextPassword = requireString(payload.newPassword, "newPassword");
+  const confirmPassword = requireString(payload.confirmPassword, "confirmPassword");
+  if (nextPassword !== confirmPassword) {
+    throw new Error("Passwords do not match.");
+  }
+  if (nextPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
+
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!(await verifyStoredPassword(user, currentPassword))) {
+    throw new Error("Current password is invalid.");
+  }
+
+  const applyPassword = async (mutableUser) => {
+    mutableUser.passwordHash = await hashPassword(nextPassword);
+    delete mutableUser.password;
+    mutableUser.passwordChangedAt = new Date().toISOString();
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      return applyPassword(mutableUser);
+    });
+  }
+
+  const result = await applyPassword(user);
+  await helpers.writeUsers(users);
+  return result;
 }
 
 export async function requestPasswordReset(payload, helpers, req = null) {
@@ -514,82 +1073,33 @@ export async function resetAccountPassword(payload, helpers) {
   return updatedUser;
 }
 
-export async function setupSubscriber(payload, helpers, session = null) {
-  const policy = getRoadsidePolicy(helpers);
-  const termsBypass = testingTermsBypassEnabled();
-  const vehicle = payload.vehicle || {};
-  const make = requireString(vehicle.make, "vehicle.make");
-  const model = requireString(vehicle.model, "vehicle.model");
-  const year = requireString(vehicle.year, "vehicle.year");
-  const color = requireString(vehicle.color, "vehicle.color");
-  const paymentMethodMasked =
-    optionalString(payload.paymentMethodMasked) || optionalString(payload.paymentMethod) || "manual-test-mode";
-  const paymentInfo = {
-    paymentMethodMasked,
-    billingZip: optionalString(payload.billingZip),
-    paymentProvider: optionalString(payload.paymentProvider) || "manual-test-mode"
-  };
+export async function cancelSubscriberMembership(payload, helpers, session = null) {
   const users = await helpers.readUsers();
   const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
   if (!user) {
     throw new Error("User not found.");
   }
-  if (!user.roles.includes("SUBSCRIBER")) {
+  if (!Array.isArray(user.roles) || !user.roles.includes("SUBSCRIBER")) {
     throw new Error("Not a subscriber.");
   }
-  if (!termsBypass && payload.subscriberTermsAccepted !== true && user.terms?.subscriber?.accepted !== true) {
-    throw new Error("Subscriber terms must be accepted before activation.");
-  }
-  if (!termsBypass && payload.dispatchOnlyLiabilityAccepted !== true && user.terms?.subscriber?.dispatchOnlyLiabilityAccepted !== true) {
-    throw new Error("Dispatch-only liability terms must be accepted before activation.");
-  }
-  if (!termsBypass && payload.noRefundPolicyAccepted !== true && user.terms?.subscriber?.noRefundPolicyAccepted !== true) {
-    throw new Error("No-refund policy must be accepted before activation.");
-  }
 
-  const updateUser = async (mutableUser) => {
-    const confirmedAt = new Date().toISOString();
-    const confirmationRecord = buildSubscriberConfirmationRecord({
-      user: mutableUser,
-      vehicle: { make, model, year, color },
-      membershipPrice: policy.subscriber.monthlyFee,
-      confirmedAt
-    });
-    const delivery = typeof helpers.sendSubscriberConfirmationEmail === "function"
-      ? await helpers.sendSubscriberConfirmationEmail(confirmationRecord)
-      : {
-          deliveryStatus: "stored-no-transport",
-          deliveredAt: null,
-          transport: "profile-record-only",
-          message: "Subscriber confirmation stored in profile. No outbound email transport is configured."
-        };
-
-    mutableUser.subscriberActive = true;
-    mutableUser.accountState = mutableUser.accountState || "ACTIVE";
-    mutableUser.nextBillingDate = mutableUser.nextBillingDate || addDays(new Date().toISOString(), 30);
+  const cancelReason = optionalString(payload.reason) || "Cancelled by subscriber.";
+  const patchUser = (mutableUser) => {
+    const now = new Date().toISOString();
+    mutableUser.subscriberActive = false;
+    mutableUser.subscriptionStatus = "CANCELLED";
+    mutableUser.nextBillingDate = null;
     mutableUser.subscriberProfile = {
-      membershipPrice: policy.subscriber.monthlyFee,
-      vehicle: { make, model, year, color },
-      savedVehicles: [{ make, model, year, color }],
-      paymentMethodMasked,
-      paymentInfo,
-      termsAcceptedAt: confirmedAt,
-      termsVersion: policy.subscriber.termsVersion,
-      confirmation: {
-        ...confirmationRecord,
-        ...delivery
-      }
+      ...(mutableUser.subscriberProfile && typeof mutableUser.subscriberProfile === "object" ? mutableUser.subscriberProfile : {}),
+      membershipStatus: "CANCELLED",
+      cancelledAt: now,
+      cancelReason
     };
     mutableUser.terms = {
       ...(mutableUser.terms || {}),
       subscriber: {
-        accepted: true,
-        acceptedAt: confirmedAt,
-        termsVersion: policy.subscriber.termsVersion,
-        dispatchOnlyLiabilityAccepted: true,
-        noRefundPolicyAccepted: true,
-        platformLiability: policy.subscriber.platformLiability,
-        providerLiability: policy.provider.liabilityStatement
+        ...(mutableUser.terms?.subscriber || {}),
+        cancelledAt: now
       }
     };
     return mutableUser;
@@ -603,222 +1113,6 @@ export async function setupSubscriber(payload, helpers, session = null) {
       }
       if (!mutableUser.roles.includes("SUBSCRIBER")) {
         throw new Error("Not a subscriber.");
-      }
-      return updateUser(mutableUser);
-    });
-  }
-
-  const result = await updateUser(user);
-  await helpers.writeUsers(users);
-  return result;
-}
-
-export async function applyProvider(payload, helpers, session = null) {
-  const policy = getRoadsidePolicy(helpers);
-  const termsBypass = testingTermsBypassEnabled();
-  const users = await helpers.readUsers();
-  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
-  if (!user) {
-    throw new Error("User not found.");
-  }
-  if (!user.roles.includes("PROVIDER")) {
-    throw new Error("Not a provider.");
-  }
-
-  const existingProviderProfile = user.providerProfile && typeof user.providerProfile === "object"
-    ? user.providerProfile
-    : {};
-  if (!existingProviderProfile.profileSubmittedAt && !hasCapturedProviderMembership(user)) {
-    throw new Error("Provider membership payment must be captured before provider profile submission.");
-  }
-
-  const vehicleInfo = payload.vehicleInfo || {};
-  const documents = payload.documents || {};
-  const existingDocuments = existingProviderProfile.documents || {};
-  const storedDocuments = typeof helpers.saveProviderDocuments === "function"
-    ? await helpers.saveProviderDocuments(user.id, existingDocuments, documents)
-    : normalizeProviderDocuments(documents, existingDocuments);
-  const documentStatus = summarizeProviderDocuments(storedDocuments);
-  if (!termsBypass && payload.providerTermsAccepted !== true && user.terms?.provider?.accepted !== true) {
-    throw new Error("Provider terms must be accepted before profile submission.");
-  }
-  if (!termsBypass && payload.providerLiabilityAccepted !== true && user.terms?.provider?.liabilityAccepted !== true) {
-    throw new Error("Provider liability acknowledgement is required.");
-  }
-
-  const providerInfo = normalizeProviderInfo(payload.providerInfo || payload);
-  const hoursOfService = normalizeHoursOfService(payload.hoursOfService || payload.availability || {});
-  const serviceArea = normalizeString(payload.serviceArea || payload.coverageArea || "");
-  const equipment = normalizeStringArray(payload.equipment);
-  const assessment = evaluateProviderAssessment(payload.assessmentAnswers || {}, policy);
-
-  const currentLocation = normalizeString(payload.currentLocation || payload.location);
-  const locationMetadata = typeof helpers.resolveProviderLocationMetadata === "function"
-    ? await helpers.resolveProviderLocationMetadata({
-        currentLocation,
-        serviceArea
-      })
-    : {};
-  const normalizedVehicleInfo = {
-    make: requireString(vehicleInfo.make, "vehicleInfo.make"),
-    model: requireString(vehicleInfo.model, "vehicleInfo.model"),
-    year: requireString(vehicleInfo.year, "vehicleInfo.year"),
-    color: requireString(vehicleInfo.color, "vehicleInfo.color")
-  };
-  const approvalEligibility = buildProviderApprovalEligibility({
-    providerInfo,
-    vehicleInfo: normalizedVehicleInfo,
-    documentStatus,
-    assessment,
-    hoursOfService,
-    serviceArea,
-    currentLocation,
-    ...locationMetadata
-  });
-
-  const providerPatch = (mutableUser) => {
-    const submittedAt = new Date().toISOString();
-    const mutableProviderProfile = mutableUser.providerProfile && typeof mutableUser.providerProfile === "object"
-      ? mutableUser.providerProfile
-      : {};
-    const existingPayoutTerms = mutableProviderProfile.payoutTerms && typeof mutableProviderProfile.payoutTerms === "object"
-      ? mutableProviderProfile.payoutTerms
-      : {};
-    const existingProviderPayoutTerms = mutableUser.terms?.providerPayout && typeof mutableUser.terms.providerPayout === "object"
-      ? mutableUser.terms.providerPayout
-      : {};
-    mutableUser.providerStatus = "PENDING_APPROVAL";
-    mutableUser.accountState = mutableUser.accountState || "ACTIVE";
-    mutableUser.available = false;
-    mutableUser.providerProfile = {
-      ...mutableProviderProfile,
-      providerInfo,
-      vehicleInfo: normalizedVehicleInfo,
-      documents: storedDocuments,
-      documentStatus,
-      experience: optionalString(payload.experience),
-      assessment,
-      hoursOfService,
-      serviceArea,
-      currentLocation,
-      ...locationMetadata,
-      equipment,
-      profileSubmittedAt: submittedAt,
-      pendingReceivedAt: submittedAt,
-      profileSubmissionStatus: approvalEligibility.assessmentPassed ? "PASSED_PENDING_PROVIDER" : "FAILED_PENDING_PROVIDER",
-      approvalEligibility,
-      subscriptionStartsOnApproval: false,
-      approvalReviewWindowEndsAt: addBusinessDays(submittedAt, 3),
-      rates: normalizeProviderRates(payload.rates),
-      noteExchangeEnabled: true,
-      payoutTerms: {
-        ...existingPayoutTerms,
-        accepted: existingPayoutTerms.accepted === true,
-        acceptedAt: existingPayoutTerms.acceptedAt || null,
-        termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
-        disputeWindowAccepted: existingPayoutTerms.disputeWindowAccepted === true,
-        noPostReceiptDisputeAccepted: existingPayoutTerms.noPostReceiptDisputeAccepted === true,
-        safeModeActive: existingPayoutTerms.safeModeActive !== false
-      }
-    };
-    mutableUser.services = Array.isArray(payload.services) && payload.services.length > 0 ? payload.services : ["LOCKOUT"];
-    mutableUser.providerMonthly = policy.provider.monthlyFee;
-    mutableUser.terms = {
-      ...(mutableUser.terms || {}),
-      provider: {
-        accepted: true,
-        acceptedAt: new Date().toISOString(),
-        termsVersion: policy.provider.termsVersion,
-        liabilityAccepted: true,
-        liabilityStatement: policy.provider.liabilityStatement,
-        holdHarmlessAccepted: true
-      },
-      providerPayout: {
-        ...existingProviderPayoutTerms,
-        accepted: existingProviderPayoutTerms.accepted === true,
-        acceptedAt: existingProviderPayoutTerms.acceptedAt || null,
-        termsVersion: policy.financial?.walletDisplayTerms?.payoutTermsVersion || "provider-payout-2026-05-30",
-        disputeWindowAccepted: existingProviderPayoutTerms.disputeWindowAccepted === true,
-        noPostReceiptDisputeAccepted: existingProviderPayoutTerms.noPostReceiptDisputeAccepted === true,
-        safeModeActive: existingProviderPayoutTerms.safeModeActive !== false
-      }
-    };
-    return mutableUser;
-  };
-
-  if (typeof helpers.mutateUsers === "function") {
-    return helpers.mutateUsers(async (mutableUsers) => {
-      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
-      if (!mutableUser) {
-        throw new Error("User not found.");
-      }
-      if (!mutableUser.roles.includes("PROVIDER")) {
-        throw new Error("Not a provider.");
-      }
-      return providerPatch(mutableUser);
-    });
-  }
-
-  const result = providerPatch(user);
-  await helpers.writeUsers(users);
-  return result;
-}
-
-export async function uploadProviderDocuments(payload, helpers, session = null) {
-  const users = await helpers.readUsers();
-  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
-  if (!user) {
-    throw new Error("User not found.");
-  }
-  if (!user.roles.includes("PROVIDER")) {
-    throw new Error("Not a provider.");
-  }
-
-  const documents = payload.documents && typeof payload.documents === "object" ? payload.documents : {};
-  const existingDocuments = user.providerProfile?.documents || {};
-  const storedDocuments = typeof helpers.saveProviderDocuments === "function"
-    ? await helpers.saveProviderDocuments(user.id, existingDocuments, documents)
-    : normalizeProviderDocuments(documents, existingDocuments);
-
-  const patchUser = (mutableUser) => {
-    const providerProfile = mutableUser.providerProfile && typeof mutableUser.providerProfile === "object"
-      ? mutableUser.providerProfile
-      : {};
-    const documentStatus = summarizeProviderDocuments(storedDocuments);
-    const approvalEligibility = buildProviderApprovalEligibility({
-      providerInfo: providerProfile.providerInfo || {},
-      vehicleInfo: providerProfile.vehicleInfo || {},
-      documentStatus,
-      assessment: providerProfile.assessment || {},
-      hoursOfService: providerProfile.hoursOfService || {},
-      serviceArea: providerProfile.serviceArea || "",
-      currentLocation: providerProfile.currentLocation || "",
-      currentLocationCoordinates: providerProfile.currentLocationCoordinates || null,
-      serviceAreaCoordinates: providerProfile.serviceAreaCoordinates || null
-    });
-    mutableUser.providerProfile = {
-      ...providerProfile,
-      documents: storedDocuments,
-      documentStatus,
-      approvalEligibility,
-      profileSubmissionStatus: mutableUser.providerStatus === "APPROVED"
-        ? "APPROVED"
-        : approvalEligibility.assessmentPassed
-          ? "PASSED_PENDING_PROVIDER"
-          : "FAILED_PENDING_PROVIDER"
-    };
-    mutableUser.providerStatus = mutableUser.providerStatus || "DRAFT";
-    return mutableUser;
-  };
-
-  if (typeof helpers.mutateUsers === "function") {
-    return helpers.mutateUsers(async (mutableUsers) => {
-      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
-      if (!mutableUser) {
-        throw new Error("User not found.");
-      }
-      if (!mutableUser.roles.includes("PROVIDER")) {
-        throw new Error("Not a provider.");
       }
       return patchUser(mutableUser);
     });
@@ -889,6 +1183,71 @@ export async function acceptProviderPayoutTerms(payload, helpers, session = null
   return result;
 }
 
+export async function uploadProviderDocuments(payload, helpers, session = null) {
+  const users = await helpers.readUsers();
+  const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  if (!user.roles.includes("PROVIDER")) {
+    throw new Error("Not a provider.");
+  }
+
+  const documents = payload.documents && typeof payload.documents === "object" ? payload.documents : {};
+  const existingDocuments = user.providerProfile?.documents || {};
+  const storedDocuments = typeof helpers.saveProviderDocuments === "function"
+    ? await helpers.saveProviderDocuments(user.id, existingDocuments, documents)
+    : normalizeProviderDocuments(documents, existingDocuments);
+
+  const patchUser = (mutableUser) => {
+    const providerProfile = mutableUser.providerProfile && typeof mutableUser.providerProfile === "object"
+      ? mutableUser.providerProfile
+      : {};
+    const documentStatus = summarizeProviderDocuments(storedDocuments);
+    const approvalEligibility = buildProviderApprovalEligibility({
+      providerInfo: providerProfile.providerInfo || {},
+      vehicleInfo: providerProfile.vehicleInfo || {},
+      documentStatus,
+      assessment: providerProfile.assessment || {},
+      hoursOfService: providerProfile.hoursOfService || {},
+      serviceArea: providerProfile.serviceArea || "",
+      currentLocation: providerProfile.currentLocation || "",
+      currentLocationCoordinates: providerProfile.currentLocationCoordinates || null,
+      serviceAreaCoordinates: providerProfile.serviceAreaCoordinates || null
+    });
+    mutableUser.providerProfile = {
+      ...providerProfile,
+      documents: storedDocuments,
+      documentStatus,
+      approvalEligibility,
+      profileSubmissionStatus: mutableUser.providerStatus === "APPROVED"
+        ? "APPROVED"
+        : approvalEligibility.assessmentPassed
+          ? "PASSED_PENDING_PROVIDER"
+          : "FAILED_PENDING_PROVIDER"
+    };
+    mutableUser.providerStatus = mutableUser.providerStatus || "DRAFT";
+    return mutableUser;
+  };
+
+  if (typeof helpers.mutateUsers === "function") {
+    return helpers.mutateUsers(async (mutableUsers) => {
+      const mutableUser = mutableUsers.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
+      if (!mutableUser) {
+        throw new Error("User not found.");
+      }
+      if (!mutableUser.roles.includes("PROVIDER")) {
+        throw new Error("Not a provider.");
+      }
+      return patchUser(mutableUser);
+    });
+  }
+
+  const result = patchUser(user);
+  await helpers.writeUsers(users);
+  return result;
+}
+
 function buildLoginPayload(user) {
   const payload = {
     userId: user.id,
@@ -899,6 +1258,7 @@ function buildLoginPayload(user) {
     phoneNumber: user.phoneNumber || "",
     providerStatus: user.providerStatus,
     subscriberActive: user.subscriberActive,
+    subscriptionStatus: user.subscriptionStatus || null,
     accountState: user.accountState || "ACTIVE"
   };
 
@@ -940,25 +1300,15 @@ function optionalString(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function buildSubscriberConfirmationRecord({ user, vehicle, membershipPrice, confirmedAt }) {
-  const subject = "AW Roadside subscription confirmed";
-  const body = [
-    `Hello ${user.fullName || user.username || "subscriber"},`,
-    "",
-    "Your AW Roadside subscription is now active.",
-    `Membership price: $${Number(membershipPrice || 0).toFixed(2)}/month`,
-    `Vehicle on file: ${[vehicle.year, vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(" ") || "not provided"}`,
-    `Confirmation date: ${confirmedAt}`,
-    "",
-    "Keep this confirmation for your records."
-  ].join("\n");
-
+function normalizeSubscriberAddress(value) {
+  const address = value && typeof value === "object" ? value : {};
   return {
-    status: "CONFIRMED",
-    confirmedAt,
-    recipientEmail: user.email || null,
-    subject,
-    body
+    line1: optionalString(address.line1 || address.addressLine),
+    line2: optionalString(address.line2),
+    city: optionalString(address.city),
+    state: optionalString(address.state || address.stateRegion),
+    postalCode: optionalString(address.postalCode || address.zip || address.billingZip),
+    crossStreet: optionalString(address.crossStreet)
   };
 }
 
@@ -1002,8 +1352,39 @@ function resolveRequestBaseUrl(helpers, req) {
   return value.replace(/\/$/, "") || "https://awroadside-fire-backend.onrender.com";
 }
 
+export function buildSubscriberConfirmationRecord({ user, vehicle, membershipPrice, confirmedAt }) {
+  const subject = "AW Roadside subscription confirmed";
+  const body = [
+    `Hello ${user.fullName || user.username || "subscriber"},`,
+    "",
+    "Your AW Roadside subscription is now active.",
+    `Membership price: $${Number(membershipPrice || 0).toFixed(2)}/month`,
+    `Vehicle on file: ${[vehicle.year, vehicle.make, vehicle.model, vehicle.color].filter(Boolean).join(" ") || "not provided"}`,
+    `Confirmation date: ${confirmedAt}`,
+    "",
+    "Keep this confirmation for your records."
+  ].join("\n");
+
+  return {
+    status: "CONFIRMED",
+    confirmedAt,
+    recipientEmail: user.email || null,
+    subject,
+    body
+  };
+}
+
 function normalizeString(value) {
   return optionalString(value);
+}
+
+function optionalIsoString(value) {
+  const normalized = optionalString(value);
+  if (!normalized) {
+    return null;
+  }
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 function normalizeProviderDocuments(incomingDocuments = {}, existingDocuments = {}) {
