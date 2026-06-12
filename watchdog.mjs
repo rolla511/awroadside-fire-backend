@@ -1,7 +1,6 @@
-const [{ promises: fs }, { default: path }] = await Promise.all([
-  import("fs"),
-  import("path")
-]);
+import fs from "fs";
+import path from "path";
+const { promises: fsPromises } = fs;
 
 const WATCHDOG_RETENTION_BUSINESS_DAYS = 14;
 const WATCHDOG_RECENT_EVENT_LIMIT = 25;
@@ -114,7 +113,7 @@ function buildStatus(events) {
 
 async function ensureSecurityRoot(securityRoot) {
   try {
-    await fs.mkdir(securityRoot, { recursive: true });
+    await fsPromises.mkdir(securityRoot, { recursive: true });
   } catch (error) {
     console.warn(`[WARN] Failed to create securityRoot ${securityRoot}:`, error.message);
   }
@@ -122,7 +121,7 @@ async function ensureSecurityRoot(securityRoot) {
 
 async function readAuditLog(auditLogPath) {
   try {
-    const raw = await fs.readFile(auditLogPath, "utf8");
+    const raw = await fsPromises.readFile(auditLogPath, "utf8");
     return raw
       .split("\n")
       .map((line) => line.trim())
@@ -176,7 +175,7 @@ function subtractBusinessDays(referenceDate, businessDays) {
 async function writeAuditLog(auditLogPath, events) {
   try {
     const serialized = events.map((entry) => JSON.stringify(entry)).join("\n");
-    await fs.writeFile(auditLogPath, serialized ? `${serialized}\n` : "", "utf8");
+    await fsPromises.writeFile(auditLogPath, serialized ? `${serialized}\n` : "", "utf8");
   } catch (error) {
     console.warn(`[WARN] Failed to write watchdog audit log ${auditLogPath}:`, error.message);
   }
@@ -184,7 +183,7 @@ async function writeAuditLog(auditLogPath, events) {
 
 async function writeLatestStatus(latestStatusPath, status) {
   try {
-    await fs.writeFile(latestStatusPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
+    await fsPromises.writeFile(latestStatusPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
   } catch (error) {
     console.warn(`[WARN] Failed to write latest status to ${latestStatusPath}:`, error.message);
   }
