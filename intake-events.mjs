@@ -201,6 +201,10 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
       serviceArea: optionalString(payload?.serviceArea)
     },
     vehicle,
+    earlyReleaseParticipation: {
+      storeEmail: optionalString(payload?.storeEmail),
+      consent: payload?.earlyTestingConsent === true
+    },
     provider: role === "PROVIDER" ? normalizeProviderPayload(payload) : null,
     subscriber: role === "SUBSCRIBER" ? normalizeSubscriberPayload(payload) : null,
     payment,
