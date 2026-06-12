@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>awroadside-fire | Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">awroadside-fire</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="identity-role">Guest</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-art">
+        <img src="assets/roadside-home.png" alt="awroadside-fire mobile concept"/>
+      </div>
+      <div class="sidebar-copy">
+        <p class="eyebrow">Roadside Help</p>
+        <h2>One secure place to request service and manage your account.</h2>
+        <p id="identity-state" class="muted">Sign in, continue as a guest, or choose the service path that matches your role.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link active" href="home.html">Home</a>
+        <a class="nav-link" href="customer.html">Customer Request</a>
+        <a class="nav-link" href="subscriber-access.html">Subscriber Access</a>
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="admin.html">Admin Access</a>
+      </nav>
+      <div class="sidebar-metrics">
+        <div class="metric-card">
+          <span>Service Line</span>
+          <strong id="api-port">24/7</strong>
+          <small id="backend-service">Checking availability</small>
+        </div>
+        <div class="metric-card">
+          <span>Dispatch Status</span>
+          <strong id="security-layer-state">Ready</strong>
+          <small id="security-layer-detail">Help is available when dispatch is online</small>
+        </div>
+        <div class="metric-card">
+          <span>Route</span>
+          <strong id="api-url">Roadside request center</strong>
+          <small id="api-status">Checking service availability...</small>
+        </div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="hero-grid">
+          <div class="hero-panel panel">
+            <p class="eyebrow">Regional Response</p>
+            <h2>Welcome to roadside help built for calm, clear decisions.</h2>
+            <p class="muted">Guest service, subscriber access, and provider sign-in all start here with pricing visibility, live dispatch status, and a service path that stays easy to follow under stress.</p>
+            <div class="cta-row">
+              <a class="glow-button" href="customer.html">Continue as Guest</a>
+              <a class="glow-button alt" href="subscriber-access.html">Subscriber Access</a>
+              <a class="glow-button danger" href="provider.html">Provider Access</a>
+            </div>
+            <div class="confidence-box">
+              <h3>Before you request service</h3>
+              <ul class="trust-list">
+                <li>Live roadside request tracking stays tied to your device for up to 48 hours.</li>
+                <li>Guest customers can review pricing and terms before continuing into payment.</li>
+                <li>Priority service remains optional and is presented only when the dispatch path is ready.</li>
+              </ul>
+            </div>
+          </div>
+          <div class="signin-panel panel">
+            <p class="eyebrow">Sign In</p>
+            <h3>Member access</h3>
+            <p class="muted">Subscriber and provider sign-in now route directly into their profile pages. New account setup continues through the matching sign-up screen.</p>
+            <form class="form-stack" id="signin-form">
+              <label>
+                <span>Username or Email</span>
+                <input class="field" name="identifier" placeholder="member or provider email" required/>
+              </label>
+              <label>
+                <span>Password</span>
+                <input class="field" name="password" type="password" placeholder="Password" required/>
+              </label>
+              <button class="glow-button wide" type="submit">Sign In</button>
+              <div class="button-pair">
+                <a class="glow-button alt compact" href="reset-password.html">Forgot Password</a>
+                <a class="glow-button alt compact" href="subscriber-access.html">Subscriber Sign Up</a>
+                <a class="glow-button danger compact" href="provider.html">Provider Sign Up</a>
+              </div>
+              <div class="feedback-box" id="signin-status" style="display:none"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="pricing-grid">
+          <article class="panel pricing-card">
+            <p class="eyebrow">Guest Service</p>
+            <h3 id="guest-service-price">Pricing available on request</h3>
+            <p class="muted">Base roadside service price for guest requests before provider-specific work details are finalized.</p>
+            <small>Guest dispatch review: <span id="guest-dispatch-fee">Included in request review</span></small>
+          </article>
+          <article class="panel pricing-card">
+            <p class="eyebrow">Priority Option</p>
+            <h3 id="priority-price">Available after request</h3>
+            <p class="muted">Optional skip-the-line service option when dispatch is configured and the request is eligible.</p>
+          </article>
+          <article class="panel pricing-card">
+            <p class="eyebrow">Subscriber Plan</p>
+            <h3 id="subscriber-monthly-price">pricing available on request</h3>
+            <p class="muted">Member billing visibility with saved vehicle details and faster repeat roadside entry.</p>
+          </article>
+          <article class="panel pricing-card">
+            <p class="eyebrow">Provider Access</p>
+            <h3 id="provider-monthly-price">approval-based pricing</h3>
+            <p class="muted">Provider onboarding, application review, and dispatch access managed through the provider sign directory.</p>
+          </article>
+        </div>
+
+        <div class="info-grid">
+          <div class="panel callout">
+            <p class="eyebrow">Guest Terms</p>
+            <h3>Service transparency up front</h3>
+            <p class="muted" id="guest-terms-policy">Guest customers review service pricing, dispatch handling, and payment terms before submitting a paid roadside request.</p>
+          </div>
+          <div class="panel callout">
+            <p class="eyebrow">Warm Welcome</p>
+            <h3>Confidence at the first screen</h3>
+            <p class="muted">Use guest service when you need immediate help, subscriber access when you want saved vehicle details, and provider access when you are ready to work the dispatch queue.</p>
+          </div>
+        </div>
+
+        <div class="directory-grid">
+          <article class="panel directory-card">
+            <p class="eyebrow">Guest Service</p>
+            <h3>Request help now</h3>
+            <p class="muted">Enter your vehicle, address, and cross street details, then continue into the live request flow.</p>
+            <a class="glow-button wide" href="customer.html">Open Guest Request</a>
+          </article>
+          <article class="panel directory-card">
+            <p class="eyebrow">Subscriber Directory</p>
+            <h3>Sign in or create a member account</h3>
+            <p class="muted">Save vehicle details, keep membership terms on file, and return to request service faster.</p>
+            <div class="button-pair">
+              <a class="glow-button alt compact" href="subscriber-access.html">Subscriber Sign In</a>
+              <a class="glow-button compact" href="subscriber-access.html">Subscriber Sign Up</a>
+            </div>
+          </article>
+          <article class="panel directory-card">
+            <p class="eyebrow">Provider Directory</p>
+            <h3>Sign in or apply for dispatch work</h3>
+            <p class="muted">Use provider access for sign-in, onboarding, approval status, and dispatch-facing tools.</p>
+            <div class="button-pair">
+              <a class="glow-button danger compact" href="provider.html">Provider Sign In</a>
+              <a class="glow-button compact" href="provider.html">Provider Sign Up</a>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  const currentOrigin = window.location.origin;
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(currentOrigin);
+  const backendOrigin = isLocalOrigin ? currentOrigin : "https://awroadside-fire-backend.onrender.com";
+  window.AWRoadsideConfig = Object.assign({
+    apiBaseUrl: backendOrigin + "/api/aw-roadside",
+    rawApiBaseUrl: backendOrigin + "/api",
+    adminApiBaseUrl: backendOrigin + "/api/admin",
+    uiBaseUrl: currentOrigin
+  }, window.AWRoadsideConfig || {});
+})();
+</script>
+<script type="module" src="frontend-index.mjs"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
