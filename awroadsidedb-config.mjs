@@ -81,7 +81,7 @@ export function createAwRoadsideDbConfig({
 } = {}) {
   // ARCHITECTURAL NOTE: This module is the central authority for Database Configuration.
   // It handles the transition from runtime-storage to internal-db (Postgres).
-  const client = normalizeString(env.DB_CLIENT || env.AW_DB_CLIENT || "postgres").toLowerCase();
+  const client = normalizeString(env.DB_CLIENT || env.AW_DB_CLIENT || env.DB_TYPE || "postgres").toLowerCase();
   const configuredHost = normalizeString(env.DB_HOST || env.AW_DB_HOST);
   const databaseId = normalizeString(env.db_id);
   const configuredDatabaseName = normalizeString(env.AW_DB_NAME);

@@ -1345,7 +1345,9 @@ const server = http.createServer(async (req, res) => {
     // Do NOT fallback to a shell html file for unknown paths to avoid stale state confusion.
     // Return a clear 404 for static files and unknown routes.
     sendNotFound(res, pathname);
+    await markInboundPayloadRejected(req, new Error("not-found"), { pathname, statusCode: 404 });
   } catch (error) {
+    await markInboundPayloadRejected(req, error, { statusCode: Number.isInteger(error?.statusCode) ? error.statusCode : 500 });
     if (res.headersSent) {
       res.end();
       return;
@@ -1651,6 +1653,11 @@ async function markInboundPayloadRejected(req, error, details = {}) {
 }
 
 async function readJsonBody(req) {
+  const method = typeof req?.method === "string" ? req.method.toUpperCase() : "";
+  if (method === "GET") {
+    // For GET requests, we don't have a body, but we still want a receipt if possible.
+    await retainInboundPayload(req, null);
+  }
   const rawBody = await readRawBody(req);
   if (!rawBody) {
     return {};
