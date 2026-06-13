@@ -56,6 +56,7 @@ export function createPaypalCaptureController(helpers) {
     createProviderRecurringPaymentRequest,
     createProviderSuspensionPaymentRequest,
     createPaypalOrder,
+    updatePaypalOrder,
     capturePaypalOrder,
     extractPaypalCapturedAmount,
     extractPaypalCaptureId,
@@ -68,6 +69,22 @@ export function createPaypalCaptureController(helpers) {
     activateProviderRecurringBillingByUserId,
     recordProviderSuspensionFeeCaptureByUserId,
     sendPaymentReceiptEmailForRequest,
+    getAuthorizedPayment,
+    captureAuthorizedPayment,
+    activateBillingPlan,
+    createBillingPlan,
+    createSubscription,
+    getSubscription,
+    patchSubscription,
+    reviseSubscription,
+    activateSubscription,
+    captureSubscription,
+    getSetupToken,
+    createPaymentToken,
+    deletePaymentToken,
+    searchTransactions,
+    listSubscriptionTransactions,
+    listBillingPlans,
     applyPaypalSubscriptionWebhook,
     applyPaypalProviderWebhook,
     applyPaypalPaymentWebhook
@@ -185,6 +202,10 @@ export function createPaypalCaptureController(helpers) {
       userId: isUserScopedPaymentKind(paymentKind) ? normalizedRequest.userId : null,
       request: normalizedRequest
     };
+  }
+
+  async function updateOrderForPayload({ id, payload = [] } = {}) {
+    return await updatePaypalOrder(id, payload);
   }
 
   async function captureOrderForPayload({ payload = {}, session = null, route = null } = {}) {
@@ -323,6 +344,112 @@ export function createPaypalCaptureController(helpers) {
     };
   }
 
+  async function getAuthorizedPaymentForPayload({ payload = {} } = {}) {
+    const authorizationId = optionalString(payload.authorizationId);
+    if (!authorizationId) {
+      const error = new Error("A PayPal authorizationId is required.");
+      error.statusCode = 400;
+      error.code = "authorization-id-required";
+      throw error;
+    }
+    return await getAuthorizedPayment(authorizationId);
+  }
+
+  async function captureAuthorizedPaymentForPayload({ payload = {} } = {}) {
+    const authorizationId = optionalString(payload.authorizationId);
+    if (!authorizationId) {
+      const error = new Error("A PayPal authorizationId is required.");
+      error.statusCode = 400;
+      error.code = "authorization-id-required";
+      throw error;
+    }
+    return await captureAuthorizedPayment(authorizationId, payload);
+  }
+
+  async function activateBillingPlanForPayload({ payload = {} } = {}) {
+    const planId = optionalString(payload.planId || payload.id);
+    if (!planId) {
+      const error = new Error("A PayPal planId is required.");
+      error.statusCode = 400;
+      error.code = "plan-id-required";
+      throw error;
+    }
+    return await activateBillingPlan(planId);
+  }
+
+  async function listBillingPlansForPayload({ payload = {} } = {}) {
+    return await listBillingPlans(payload);
+  }
+
+  async function createBillingPlanForPayload({ payload = {} } = {}) {
+    return await createBillingPlan(payload);
+  }
+
+  async function createSubscriptionForPayload({ payload = {} } = {}) {
+    return await createSubscription(payload);
+  }
+
+  async function getSubscriptionForPayload({ id, payload = {} } = {}) {
+    return await getSubscription(id, payload);
+  }
+
+  async function patchSubscriptionForPayload({ id, payload = [] } = {}) {
+    return await patchSubscription(id, payload);
+  }
+
+  async function reviseSubscriptionForPayload({ id, payload = {} } = {}) {
+    return await reviseSubscription(id, { body: payload });
+  }
+
+  async function listSubscriptionTransactionsForPayload({ id, payload = {} } = {}) {
+    return await listSubscriptionTransactions(id, payload);
+  }
+
+  async function activateSubscriptionForPayload({ id, payload = {} } = {}) {
+    const reason = payload.reason || "Activating subscription";
+    return await activateSubscription(id, reason);
+  }
+
+  async function captureSubscriptionForPayload({ id, payload = {}, paypalRequestId } = {}) {
+    return await captureSubscription(id, { body: payload, paypalRequestId });
+  }
+
+  async function getPaymentTokenForPayload({ id } = {}) {
+    return await getPaymentToken(id);
+  }
+
+  async function patchPaymentTokenForPayload({ id, payload } = {}) {
+    return await patchPaymentToken(id, payload);
+  }
+
+  async function listPaymentTokensForPayload({ customerId } = {}) {
+    return await listPaymentTokens(customerId);
+  }
+
+  async function createPaymentTokenForPayload({ payload = {}, paypalRequestId } = {}) {
+    return await createPaymentToken({ body: payload, paypalRequestId });
+  }
+
+  async function createSetupTokenForPayload({ payload = {}, paypalRequestId } = {}) {
+    return await createSetupToken({ body: payload, paypalRequestId });
+  }
+
+  async function deletePaymentTokenForPayload({ id } = {}) {
+    return await deletePaymentToken(id);
+  }
+
+  async function getSetupTokenForPayload({ id } = {}) {
+    return await getSetupToken(id);
+  }
+
+  async function searchTransactionsForPayload({ payload = {} } = {}) {
+    return await searchTransactions(payload);
+  }
+
+  async function getUserInfoForPayload({ schema } = {}) {
+    return await getUserInfo(schema);
+  }
+
   async function applyWebhookEvent(webhookEvent) {
     const eventType = readOptionalString(webhookEvent?.event_type).toUpperCase();
     if (!eventType) {
@@ -367,7 +494,29 @@ export function createPaypalCaptureController(helpers) {
     getPaymentCoverage,
     resolvePaymentKind,
     createOrderForPayload,
+    updateOrderForPayload,
     captureOrderForPayload,
+    getAuthorizedPaymentForPayload,
+    captureAuthorizedPaymentForPayload,
+    activateBillingPlanForPayload,
+    createBillingPlanForPayload,
+    createSubscriptionForPayload,
+    getSubscriptionForPayload,
+    patchSubscriptionForPayload,
+    reviseSubscriptionForPayload,
+    activateSubscriptionForPayload,
+    captureSubscriptionForPayload,
+    getSetupTokenForPayload,
+    createSetupTokenForPayload,
+    getPaymentTokenForPayload,
+    patchPaymentTokenForPayload,
+    listPaymentTokensForPayload,
+    createPaymentTokenForPayload,
+    deletePaymentTokenForPayload,
+    searchTransactionsForPayload,
+    getUserInfoForPayload,
+    listSubscriptionTransactionsForPayload,
+    listBillingPlansForPayload,
     applyWebhookEvent
   };
 }

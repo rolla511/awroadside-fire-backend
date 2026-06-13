@@ -1283,6 +1283,40 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/vault/payment-tokens`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before vaulting cards."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const paypalRequestId = req.headers["paypal-request-id"];
+        const result = await paypalCaptureController.createPaymentTokenForPayload({
+          payload,
+          paypalRequestId
+        });
+
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Vault Payment Token Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-vault-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     const requestActionMatch = pathname.match(/^\/api\/requests\/([^/]+)\/([^/]+)$/);
     if (requestActionMatch) {
       if (req.method !== "POST") {
@@ -3797,8 +3831,96 @@ async function createPaypalOrder(serviceRequest) {
   });
 }
 
+async function updatePaypalOrder(orderId, patches) {
+  return paypal.updateOrder(orderId, patches);
+}
+
 async function capturePaypalOrder(orderId) {
   return paypal.captureOrder(orderId);
+}
+
+async function getAuthorizedPayment(authorizationId) {
+  return paypal.getAuthorizedPayment(authorizationId);
+}
+
+async function captureAuthorizedPayment(authorizationId, captureDetails = {}) {
+  return paypal.captureAuthorizedPayment(authorizationId, captureDetails);
+}
+
+async function activateBillingPlan(planId) {
+  return paypal.activateBillingPlan(planId);
+}
+
+async function createBillingPlan(data) {
+  return paypal.createBillingPlan(data);
+}
+
+async function createSubscription(data) {
+  return paypal.createSubscription(data);
+}
+
+async function getSubscription(id, query) {
+  return paypal.getSubscription(id, query);
+}
+
+async function patchSubscription(id, patches) {
+  return paypal.patchSubscription(id, patches);
+}
+
+async function reviseSubscription(id, options) {
+  return paypal.reviseSubscription(id, options);
+}
+
+async function listSubscriptionTransactions(id, query) {
+  return paypal.listSubscriptionTransactions(id, query);
+}
+
+async function activateSubscription(id, reason) {
+  return paypal.activateSubscription(id, reason);
+}
+
+async function captureSubscription(id, options) {
+  return paypal.captureSubscription(id, options);
+}
+
+async function searchTransactions(query) {
+  return paypal.searchTransactions(query);
+}
+
+async function getUserInfo(schema) {
+  return paypal.getUserInfo(schema);
+}
+
+async function createPaymentToken(options) {
+  return paypal.createPaymentToken(options);
+}
+
+async function createSetupToken(data) {
+  return paypal.createSetupToken(data);
+}
+
+async function getSetupToken(id) {
+  return paypal.getSetupToken(id);
+}
+
+async function getPaymentToken(id) {
+  return paypal.getPaymentToken(id);
+}
+
+async function patchPaymentToken(id, payload) {
+  return paypal.patchPaymentToken(id, payload);
+}
+
+async function listPaymentTokens(customerId) {
+  return paypal.listPaymentTokens(customerId);
+}
+
+async function deletePaymentToken(id) {
+  return paypal.deletePaymentToken(id);
+}
+
+async function listBillingPlans(query = {}) {
+  return paypal.listBillingPlans(query);
 }
 
 function extractPaypalCapturedAmount(capture) {
@@ -3834,7 +3956,29 @@ const paypalCaptureController = createPaypalCaptureController({
   createProviderSuspensionPaymentRequest: (payload, session = null) =>
     createProviderSuspensionPaymentRequest(payload, session),
   createPaypalOrder,
+  updatePaypalOrder,
   capturePaypalOrder,
+  getAuthorizedPayment,
+  captureAuthorizedPayment,
+  activateBillingPlan,
+  createBillingPlan,
+  createSubscription,
+  getSubscription,
+  patchSubscription,
+  reviseSubscription,
+  activateSubscription,
+  captureSubscription,
+  getSetupToken,
+  getPaymentToken,
+  patchPaymentToken,
+  listPaymentTokens,
+  createSetupToken,
+  createPaymentToken,
+  deletePaymentToken,
+  searchTransactions,
+  getUserInfo,
+  listSubscriptionTransactions,
+  listBillingPlans,
   extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
   extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
   appendPaymentLog,
