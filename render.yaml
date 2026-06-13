@@ -27,7 +27,7 @@ services:
       - key: RUNTIME_ROOT
         value: app/runtime
       - key: PAYPAL_ENV
-        value: sandbox
+        value: live
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET

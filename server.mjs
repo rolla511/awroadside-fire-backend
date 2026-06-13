@@ -707,9 +707,37 @@ function normalizeYamlScalar(value) {
 function escapeRegExp(value) {
   return value.replace(/[|\\{}()[\]^$+?.]/g, "\\$&");
 }
+function readPaypalEnvValue(name) {
+  return (process.env[name] || "").trim();
+}
+
+function resolvePaypalClientIdForMode(mode) {
+  if (mode === "sandbox") {
+    return (
+      readPaypalEnvValue("PAYPAL_CLIENT_ID_SANDBOX") ||
+      readPaypalEnvValue("PAYPAL_CLIENT_ID_sandbox") ||
+      readPaypalEnvValue("PAYPAL_CLIENT_ID")
+    );
+  }
+  return readPaypalEnvValue("PAYPAL_CLIENT_ID");
+}
+
+function resolvePaypalClientSecretForMode(mode) {
+  if (mode === "sandbox") {
+    return (
+      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANDBOX") ||
+      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sandbox") ||
+      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANBOX") ||
+      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sanbox") ||
+      readPaypalEnvValue("PAYPAL_CLIENT_SECRET")
+    );
+  }
+  return readPaypalEnvValue("PAYPAL_CLIENT_SECRET");
+}
 const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
-const paypalClientId = process.env.PAYPAL_CLIENT_ID || "";
-const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET || "";
+const paypalClientId = resolvePaypalClientIdForMode(paypalMode);
+const paypalClientSecret = resolvePaypalClientSecretForMode(paypalMode);
+const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
 const PAYPAL_WEBHOOK_IDS = Object.freeze({
   live: "27268198X79844346",
@@ -1179,7 +1207,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+      if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
@@ -1213,13 +1241,66 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-subscription`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating subscriptions."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const planId = readOptionalString(payload?.planId || payload?.plan_id) || paypalSubscriberPlanId;
+        if (!planId) {
+          sendJson(res, 400, {
+            error: "paypal-plan-id-missing",
+            message: "Set PAYPAL_SUBSCRIBER_PLAN_ID (or provide planId) before creating subscriptions."
+          });
+          return;
+        }
+
+        const result = await paypalCaptureController.createSubscriptionForPayload({
+          payload: {
+            ...payload,
+            plan_id: planId
+          }
+        });
+        const links = Array.isArray(result?.links) ? result.links : [];
+        const approveLink = links.find((link) => readOptionalString(link?.rel).toLowerCase() === "approve") || null;
+
+        sendJson(res, 201, {
+          subscriptionId: result?.id || null,
+          status: result?.status || null,
+          pendingStatus: "PENDING_ACTIVATION",
+          pendingActivation: true,
+          planId,
+          approveHref: approveLink?.href || null
+        });
+      } catch (error) {
+        console.error("[ERROR] Create Subscription Route Failed:", error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-create-subscription-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/capture-order`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
         return;
       }
 
-      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+      if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
@@ -1289,7 +1370,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) {
+      if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
           message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before vaulting cards."
@@ -2499,6 +2580,9 @@ async function getPaymentConfigPayload() {
     webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
+    subscriptionEnabled: Boolean(paypalClientId && paypalClientSecret && paypalSubscriberPlanId),
+    subscriberPlanId: paypalSubscriberPlanId || null,
+    subscriberActivationMode: "PENDING_ACTIVATION",
     mode: paypalMode,
     priorityServicePrice,
     guestServicePrice,
