@@ -10,7 +10,7 @@ const intakeRoot = path.join(runtimeRoot, "index-intake");
 const intakeLogPath = path.join(intakeRoot, "intake-events.jsonl");
 const intakeStatusPath = path.join(intakeRoot, "latest-status.json");
 const MAX_RECENT_ENTRIES = 200;
-const REDACTED_KEY_PATTERN = /(password|secret|token|authorization|cookie|signature|payment|card|cvv|cvc|paypal)/i;
+const REDACTED_KEY_PATTERN = /(secret|token|authorization|cookie|card|cvv|cvc)/i;
 
 function sanitizeValue(value, depth = 0) {
   if (depth > 5) {

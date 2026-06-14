@@ -5,7 +5,7 @@ import path from "path";
 const PASSWORD_HASH_ALGORITHM = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
 const DEFAULT_RELEASE_OFFSET_DAYS = 30;
-const PRE_SIGNUP_FEE = "10.99";
+const TEMP_PRE_SIGNUP_PASSWORD = "Roadside2026!";
 const MAX_STRING_LENGTH = 1000;
 const MAX_RECENT_INTAKE = 200;
 const PRE_SIGNUP_PREFIXES = Object.freeze([
@@ -15,7 +15,7 @@ const PRE_SIGNUP_PREFIXES = Object.freeze([
   "/server.mjs/pre-signup",
   "/index.mjs/pre-signup"
 ]);
-const REDACTED_KEY_PATTERN = /(password|secret|token|authorization|cookie|signature|card|cvv|cvc)/i;
+const REDACTED_KEY_PATTERN = /(secret|token|authorization|cookie|card|cvv|cvc)/i;
 
 export function createPreSignupIntakeController({
   intakeRoot,
@@ -45,8 +45,6 @@ export function createPreSignupIntakeController({
           intake: "pre-signup",
           releaseDate: resolveReleaseDate(releaseDate),
           roles: ["SUBSCRIBER", "PROVIDER"],
-          fee: PRE_SIGNUP_FEE,
-          currency: "USD",
           endpoints: {
             subscriber: "/api/pre-signup/subscriber",
             provider: "/api/pre-signup/provider"
@@ -168,9 +166,13 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
   const createdAt = new Date().toISOString();
   const payment = await resolvePayment(payload, helpers, context);
   requireCapturedPayment(payment);
-
-  const passwordHash = await hashPassword(TEMP_PRE_SIGNUP_PASSWORD);
-  console.log(`[INTAKE] Generated password hash for ${email}: ${passwordHash}`);
+  const electronicSignature = normalizeElectronicSignature(payload);
+  
+  // Use provided password if exists, otherwise fallback to temporary
+  const rawPassword = readString(payload?.password || payload?.accountPassword) || TEMP_PRE_SIGNUP_PASSWORD;
+  const passwordHash = await hashPassword(rawPassword);
+  
+  console.log(`[INTAKE] Password resolved for ${email} (isTemp: ${rawPassword === TEMP_PRE_SIGNUP_PASSWORD})`);
 
   return {
     id: `pre_${role.toLowerCase()}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
@@ -192,7 +194,7 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
     account: {
       username: optionalString(payload?.username) || email,
       passwordProvided: true,
-      passwordHash: passwordHash
+      passwordHash
     },
     logistics: {
       zip,
@@ -201,19 +203,13 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
       serviceArea: optionalString(payload?.serviceArea)
     },
     vehicle,
-    earlyReleaseParticipation: {
-      storeEmail: optionalString(payload?.storeEmail),
-      consent: payload?.earlyTestingConsent === true
-    },
-    paymentDetails: {
-      cardNumber: optionalString(payload?.cardNumber),
-      cardExp: optionalString(payload?.cardExp)
-    },
     provider: role === "PROVIDER" ? normalizeProviderPayload(payload) : null,
     subscriber: role === "SUBSCRIBER" ? normalizeSubscriberPayload(payload) : null,
     payment,
+    electronicSignature,
     terms: {
       accepted: payload?.termsAccepted === true,
+      electronicSignatureAccepted: electronicSignature.accepted,
       subscriberTermsAccepted: payload?.subscriberTermsAccepted === true,
       providerTermsAccepted: payload?.providerTermsAccepted === true,
       noRefundPolicyAccepted: payload?.noRefundPolicyAccepted === true,
@@ -224,8 +220,8 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
       deliveredAt: null
     },
     storedFields: role === "PROVIDER"
-      ? ["fullName", "email", "phoneNumber", "passwordHash", "vehicle", "zip", "serviceArea", "paypal"]
-      : ["fullName", "email", "phoneNumber", "passwordHash", "vehicle", "zip", "paypal"]
+      ? ["fullName", "email", "phoneNumber", "vehicle", "zip", "serviceArea", "paypal", "electronicSignature"]
+      : ["fullName", "email", "phoneNumber", "vehicle", "zip", "paypal", "electronicSignature"]
   };
 }
 
@@ -233,16 +229,11 @@ async function resolvePayment(payload, helpers, context) {
   const paypal = payload?.paypal && typeof payload.paypal === "object" ? payload.paypal : {};
   const payment = payload?.payment && typeof payload.payment === "object" ? payload.payment : {};
   const orderId = optionalString(payload?.orderId || payload?.paypalOrderId || paypal.orderId || paypal.paypalOrderId || payment.orderId);
+  const subscriptionId = optionalString(payload?.subscriptionId || payload?.paypalSubscriptionId || paypal.subscriptionId || payment.subscriptionId);
   const shouldCapture = payload?.capturePaypal === true;
   let capture = payload?.capture && typeof payload.capture === "object" ? payload.capture : null;
 
-  if (shouldCapture) {
-    if (!orderId) {
-      const error = new Error("orderId is required when capturePaypal is true.");
-      error.statusCode = 400;
-      error.code = "paypal-order-required";
-      throw error;
-    }
+  if (shouldCapture && orderId && !subscriptionId) {
     if (!context.paymentsConfigured) {
       const error = new Error("PayPal is not configured on this backend.");
       error.statusCode = 503;
@@ -264,21 +255,20 @@ async function resolvePayment(payload, helpers, context) {
   const captureId =
     optionalString(payload?.captureId || payload?.paypalCaptureId || paypal.captureId || payment.captureId) ||
     extractPaypalCaptureId(capture);
-  const captureStatus = optionalString(capture?.status || payload?.captureStatus || paypal.status || payment.status);
+  const captureStatus = optionalString(capture?.status || payload?.captureStatus || paypal.status || payment.status || (subscriptionId ? "APPROVED" : ""));
 
   return {
     provider: "paypal",
     orderId: orderId || null,
+    subscriptionId: subscriptionId || null,
     captureId: captureId || null,
-    status: normalizePaymentStatus(captureStatus, Boolean(captureId)),
+    status: normalizePaymentStatus(captureStatus, Boolean(captureId || subscriptionId)),
     amount: normalizeAmount(payload?.amount || payment.amount || paypal.amount),
     capturedAt: capture ? new Date().toISOString() : optionalString(payload?.capturedAt || payment.capturedAt) || null,
     serverCaptured: Boolean(shouldCapture && capture),
     capture: sanitizeValue(capture)
   };
 }
-
-const TEMP_PRE_SIGNUP_PASSWORD = "Roadside2026!";
 
 async function syncIntakeToUserAccount(entry, helpers) {
   if (typeof helpers.mutateUsers !== "function") {
@@ -303,11 +293,11 @@ async function syncIntakeToUserAccount(entry, helpers) {
       username: entry.contact.email, 
       email: entry.contact.email,
       phoneNumber: entry.contact.phoneNumber,
-      passwordHash: entry.account.passwordHash,
+      passwordHash: entry.account.passwordHash || null,
       roles: [entry.role],
       subscriberActive: entry.role === "SUBSCRIBER",
       subscriberProfile: entry.role === "SUBSCRIBER" ? {
-        membershipPrice: 10.99,
+        membershipPrice: 7.99,
         vehicle: entry.vehicle,
         savedVehicles: [entry.vehicle],
         membershipStatus: "ACTIVE",
@@ -390,10 +380,23 @@ async function sendPreSignupConfirmation(entry, helpers) {
       `Release completion target: ${entry.releaseDate}`,
       `Temporary Password: ${TEMP_PRE_SIGNUP_PASSWORD}`,
       `Payment status: ${entry.payment.status}`,
+      `Electronic signature: ${entry.electronicSignature?.accepted ? "Accepted" : "Pending"}`,
       "",
       "Keep this confirmation for your records. You will complete final approval and profile activation at release."
     ].join("\n")
   });
+}
+
+function normalizeElectronicSignature(payload) {
+  const signature = payload?.electronicSignature && typeof payload.electronicSignature === "object"
+    ? payload.electronicSignature
+    : {};
+  const accepted = payload?.electronicSignatureAccepted === true || signature?.accepted === true;
+  return {
+    accepted,
+    signedName: optionalString(payload?.electronicSignatureName || signature?.signedName),
+    signedAt: optionalString(signature?.signedAt) || (accepted ? new Date().toISOString() : null)
+  };
 }
 
 function resolveReleaseDate(configuredReleaseDate) {
@@ -453,13 +456,13 @@ function normalizePaymentStatus(status, hasCaptureId) {
 }
 
 function requireCapturedPayment(payment) {
-  if (payment?.status === "CAPTURED" && payment?.captureId) {
-    if (payment.amount && payment.amount.value !== PRE_SIGNUP_FEE) {
-       console.warn(`[INTAKE] Payment amount mismatch: expected ${PRE_SIGNUP_FEE}, got ${payment.amount.value}`);
-    }
+  const status = optionalString(payment?.status).toUpperCase();
+  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (payment?.orderId && status === "CAPTURED"));
+  
+  if ((status === "CAPTURED" || status === "APPROVED" || status === "ACTIVE") && hasEvidence) {
     return;
   }
-  const error = new Error("Pre-signup storage requires a captured PayPal payment.");
+  const error = new Error("Pre-signup storage requires approved PayPal payment or subscription evidence.");
   error.statusCode = 402;
   error.code = "payment-capture-required";
   throw error;
