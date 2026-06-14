@@ -1219,7 +1219,15 @@ const server = http.createServer(async (req, res) => {
         const payload = await readJsonBody(req);
         const session = resolveUserSession(req);
         const result = await paypalCaptureController.createOrderForPayload({
-          payload,
+          payload: {
+            ...payload,
+            application_context: {
+              brand_name: payload.brand_name || "AW Roadside",
+              shipping_preference: "NO_SHIPPING",
+              user_action: "PAY_NOW",
+              ...payload.application_context
+            }
+          },
           session,
           route: RAW_API_BASE_PATH
         });
@@ -1269,7 +1277,13 @@ const server = http.createServer(async (req, res) => {
         const result = await paypalCaptureController.createSubscriptionForPayload({
           payload: {
             ...payload,
-            plan_id: planId
+            plan_id: planId,
+            application_context: {
+              brand_name: payload.brand_name || "AW Roadside",
+              shipping_preference: "NO_SHIPPING",
+              user_action: "SUBSCRIBE_NOW",
+              ...payload.application_context
+            }
           }
         });
         const links = Array.isArray(result?.links) ? result.links : [];

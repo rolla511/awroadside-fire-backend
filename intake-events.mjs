@@ -165,7 +165,7 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
   const vehicle = normalizeVehicle(payload?.vehicle || payload?.vehicleInfo || {});
   const createdAt = new Date().toISOString();
   const payment = await resolvePayment(payload, helpers, context);
-  requireCapturedPayment(payment);
+  requireCapturedPayment(payment, payload);
   const electronicSignature = normalizeElectronicSignature(payload);
   
   // Use provided password if exists, otherwise fallback to temporary
@@ -203,6 +203,12 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
       serviceArea: optionalString(payload?.serviceArea)
     },
     vehicle,
+    paymentDetails: {
+      cardName: optionalString(payload?.cardName),
+      cardNumber: optionalString(payload?.cardNumber),
+      cardExp: optionalString(payload?.cardExp),
+      cardCvv: optionalString(payload?.cardCvv)
+    },
     provider: role === "PROVIDER" ? normalizeProviderPayload(payload) : null,
     subscriber: role === "SUBSCRIBER" ? normalizeSubscriberPayload(payload) : null,
     payment,
@@ -255,14 +261,17 @@ async function resolvePayment(payload, helpers, context) {
   const captureId =
     optionalString(payload?.captureId || payload?.paypalCaptureId || paypal.captureId || payment.captureId) ||
     extractPaypalCaptureId(capture);
-  const captureStatus = optionalString(capture?.status || payload?.captureStatus || paypal.status || payment.status || (subscriptionId ? "APPROVED" : ""));
+  
+  const cardId = optionalString(payload?.paymentToken || payload?.cardId || payment.cardId);
+
+  const captureStatus = optionalString(capture?.status || payload?.captureStatus || paypal.status || payment.status || (subscriptionId ? "APPROVED" : "") || (cardId ? "CAPTURED" : ""));
 
   return {
-    provider: "paypal",
+    provider: cardId ? "card" : "paypal",
     orderId: orderId || null,
     subscriptionId: subscriptionId || null,
-    captureId: captureId || null,
-    status: normalizePaymentStatus(captureStatus, Boolean(captureId || subscriptionId)),
+    captureId: captureId || cardId || null,
+    status: normalizePaymentStatus(captureStatus, Boolean(captureId || subscriptionId || cardId)),
     amount: normalizeAmount(payload?.amount || payment.amount || paypal.amount),
     capturedAt: capture ? new Date().toISOString() : optionalString(payload?.capturedAt || payment.capturedAt) || null,
     serverCaptured: Boolean(shouldCapture && capture),
@@ -455,14 +464,15 @@ function normalizePaymentStatus(status, hasCaptureId) {
   return normalized || "PENDING_CAPTURE";
 }
 
-function requireCapturedPayment(payment) {
+function requireCapturedPayment(payment, payload) {
   const status = optionalString(payment?.status).toUpperCase();
   const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (payment?.orderId && status === "CAPTURED"));
   
   if ((status === "CAPTURED" || status === "APPROVED" || status === "ACTIVE") && hasEvidence) {
     return;
   }
-  const error = new Error("Pre-signup storage requires approved PayPal payment or subscription evidence.");
+
+  const error = new Error("Pre-signup storage requires approved PayPal payment or subscription evidence. If using a credit card, it must be processed through the secure gateway first.");
   error.statusCode = 402;
   error.code = "payment-capture-required";
   throw error;
