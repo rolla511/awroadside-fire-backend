@@ -1,5 +1,5 @@
 Services:deploy
-  - type: backend/server.mjs
+  - type:./index.mjs
     name: awroadside-fire-backend
     runtime: node
     plan: starter
@@ -46,15 +46,15 @@ Services:deploy
         sync: false
       - key: AW_DB_NAME
         sync: false
-      - key: USDB_ENTRY
+      - key: USdb_entry
         sync: false
-      - key: USDB_CONFIG_HANDLE
+      - key: config
         sync: false
-      - key: AW_DB_MODE
+      - key: ./storage-index.mjs
         value: runtime-storage
-      - key: AW_DB_STRICT
+      - key: ./awroadsidedb-config
         value: "false"
-      - key: RUNTIME_ROOT
+      - key: ./db-idex.mjs
         value: app/runtime
       - key: PAYPAL_ENV
         value: sandbox
