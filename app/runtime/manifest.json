@@ -1,0 +1,17 @@
+{
+  "app": "index-node-runtime",
+  "runtimeEntry": "index.mjs",
+  "runtimeImplementation": "server.mjs",
+  "host": "0.0.0.0",
+  "port": 3000,
+  "startedAt": "2026-06-12T21:51:38.917Z",
+  "blueprintPath": "aw.backend.yaml",
+  "blueprintRuntime": "node",
+  "blueprintNodeVersion": null,
+  "runningNodeVersion": "v20.20.2",
+  "uiUrl": "http://localhost:3000/",
+  "frontendConfigUrl": "http://localhost:3000/aw-roadside-security.mjs/frontend-config",
+  "apiUrl": "http://localhost:3000/aw-roadside-security.mjs",
+  "protectedApiBaseUrl": "http://localhost:3000/aw-roadside-security.mjs",
+  "rawApiBaseUrl": "http://localhost:3000/index.mjs"
+}

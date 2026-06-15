@@ -1,0 +1,56 @@
+{
+  "updatedAt": "2026-05-15T17:56:17.763Z",
+  "manifest": {
+    "projectId": "awroadside-fire",
+    "activeVariantId": "awroadside-fire-backend",
+    "mode": "active",
+    "authority": "server.mjs",
+    "releaseStrategy": "acknowledge-before-write",
+    "generatedAt": "2026-05-03T13:46:21.235Z"
+  },
+  "records": {
+    "manifest": {
+      "capability": "manifest",
+      "method": "GET",
+      "path": "/api/compat/manifest",
+      "authority": "server.mjs",
+      "cacheAllowed": true,
+      "legacyFallback": false,
+      "staleAfterMs": 60000,
+      "requestCount": 1,
+      "successCount": 1,
+      "failureCount": 0,
+      "lastRequestedAt": "2026-05-03T13:46:26.032Z",
+      "lastServedAt": "2026-05-03T13:46:26.032Z",
+      "lastStatus": "success",
+      "lastSource": "compatibility-gateway",
+      "lastRequester": "curl/8.7.1",
+      "lastNote": "gateway-manifest",
+      "lastError": null,
+      "staleAt": "2026-05-03T13:47:26.032Z",
+      "lastUpdatedAt": "2026-05-03T13:46:26.032Z"
+    },
+    "gatewayStatus": {
+      "capability": "gatewayStatus",
+      "method": "GET",
+      "path": "/api/compat/status",
+      "authority": "server.mjs",
+      "cacheAllowed": true,
+      "legacyFallback": false,
+      "staleAfterMs": 60000,
+      "requestCount": 1,
+      "successCount": 1,
+      "failureCount": 0,
+      "lastRequestedAt": "2026-05-15T17:56:17.763Z",
+      "lastServedAt": "2026-05-15T17:56:17.763Z",
+      "lastStatus": "success",
+      "lastSource": "compatibility-gateway",
+      "lastRequester": "curl/8.7.1",
+      "lastNote": "gateway-status",
+      "lastError": null,
+      "staleAt": "2026-05-15T17:57:17.764Z",
+      "lastUpdatedAt": "2026-05-15T17:56:17.763Z"
+    }
+  },
+  "acknowledgedVariants": []
+}

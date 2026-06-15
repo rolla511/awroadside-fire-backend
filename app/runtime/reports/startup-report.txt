@@ -1,0 +1,18 @@
+Public Runtime Startup Report
+Started: 6/12/2026, 5:51:38 PM
+Runtime Entry: index.mjs
+Runtime Implementation: server.mjs
+Blueprint: aw.backend.yaml
+Blueprint Runtime: node
+Blueprint Node Version: not set
+Running Node Version: v20.20.2
+UI: http://localhost:3000/
+Frontend Config: http://localhost:3000/aw-roadside-security.mjs/frontend-config
+API: http://localhost:3000/aw-roadside-security.mjs
+Raw API: http://localhost:3000/index.mjs
+Protected API: http://localhost:3000/aw-roadside-security.mjs
+Runtime Folder: app/runtime
+Watchdog Status: app/runtime/security/latest-status.json
+PayPal Mode: sandbox
+PayPal Configured: yes
+PayPal Webhook: http://localhost:3000/paypal-webhooks.mjs

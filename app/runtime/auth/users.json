@@ -1,0 +1,4962 @@
+[
+  {
+    "id": 1,
+    "fullName": "Test Subscriber",
+    "username": "subtest1",
+    "email": "subtest1@example.com",
+    "passwordHash": "scrypt$67f9627fe6435fdae6919550467bfc06$e3d7b94c36b824d445e3ccf411d22770f889a9b0df4e6ebfc869c4a4f3dceecc39a061d0a5cad8958b5a23e0a61222aa59b568a2d741d25cb15677bc83b0f409",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "****1111"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T19:32:34.972Z"
+  },
+  {
+    "id": 2,
+    "fullName": "Test Provider",
+    "username": "provtest1",
+    "email": "provtest1@example.com",
+    "passwordHash": "scrypt$7e249e12aefbeb77016add90ef3cb778$07de45ce30695efe7dbc5922678c80beb0fc4e9e3618788ad76dac4301a4bf68d88231d86fb2c414cd6b0eea82662fca01fdbdedeaddba3124a81b17e581f351",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2021",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "2 years",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T19:32:35.150Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 3,
+    "fullName": "Jump Start Member",
+    "username": "jumpmember",
+    "email": "jumpmember@example.com",
+    "passwordHash": "scrypt$6e6ab07dba25d24ae5fdedd5c2a66c66$6fe1addd0e4dac7f93f235a74694e2513a6d848b0cd71df780ee30e56d23f3b5c0e49cdb2e5e204ab14ece395d06b3f073e0c077e3a2daf5104b8baecbb9ace2",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Camry",
+        "year": "2019",
+        "color": "Silver"
+      },
+      "paymentMethodMasked": "****2222"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T19:39:41.479Z"
+  },
+  {
+    "id": 4,
+    "fullName": "Jump Start Member Two",
+    "username": "jumpmember2",
+    "email": "jumpmember2@example.com",
+    "passwordHash": "scrypt$2ac2a0f0946e4208358002f8944e453e$ce324c8d2fbb63c7d3609a20f2807f2fafb554066b915bbca2b15d6cc273e7350572b6028c7868a85a2e39ab26862645890886189be3bf2523fe4e90cd450711",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Camry",
+        "year": "2021",
+        "color": "Black"
+      },
+      "paymentMethodMasked": "****3333"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T19:42:28.451Z"
+  },
+  {
+    "id": 5,
+    "fullName": "Jump Start Member Three",
+    "username": "jumpmember3",
+    "email": "jumpmember3@example.com",
+    "passwordHash": "scrypt$9eeebaae49953c62b11a8c17a8136836$e1664b3de111c3a95b897b1107e0506e1996920f3cfa4d657a002f75f5c2c6115a2fab6ed039dc078e4d2ad06da58b6cfbae2c2c0c7291e2f8b02c5b806b76d7",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Nissan",
+        "model": "Altima",
+        "year": "2018",
+        "color": "Gray"
+      },
+      "paymentMethodMasked": "****4444"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T19:52:21.104Z"
+  },
+  {
+    "id": 6,
+    "fullName": "Jump Start Member Four",
+    "username": "jumpmember4",
+    "email": "jumpmember4@example.com",
+    "passwordHash": "scrypt$505ef3ade8f5ad42cbff79b7df56bb60$400dd7c2bc7fedb0c85e4af8693da37151593b123f025f9df73767d9053ea2e998d8d0062c88124c87539ae7de81322223b170617a006b625485152ca8064b5e",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Hyundai",
+        "model": "Elantra",
+        "year": "2017",
+        "color": "White"
+      },
+      "paymentMethodMasked": "****5555"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T19:54:08.170Z"
+  },
+  {
+    "id": 7,
+    "fullName": "Roadside Real Backend Member",
+    "username": "realbackend1",
+    "email": "realbackend1@example.com",
+    "passwordHash": "scrypt$da17c2594e8e9be0e1cecae11390b2c6$d3370695b1bbfa441707e4e5e0fcc5bac5e82f03a2ac3aed1db4c88fae1e660763f43f470540f972380ae17439e11d9235d421daa26a8c2e7f4ce0830d6bac97",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Kia",
+        "model": "Soul",
+        "year": "2016",
+        "color": "Green"
+      },
+      "paymentMethodMasked": "****6666"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T20:02:51.399Z"
+  },
+  {
+    "id": 8,
+    "fullName": "VIP Provider",
+    "username": "vipprovider",
+    "email": "vipprovider@example.com",
+    "passwordHash": "scrypt$56421f0823915c11cd52fd223992c1f6$2cb20908c6937dfef8c858e559137a7f411be56db36bade2036dc9112017113139f9c1c227c9a842eb455b3f60cce1873041d58f4aaaa5aa08a4ea658f87c069",
+    "roles": [
+      "PROVIDER",
+      "ADMIN"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Chevrolet",
+        "model": "Silverado",
+        "year": "2020",
+        "color": "Black"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": true
+      },
+      "experience": "Seeded manual test provider account",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START",
+      "TIRE_CHANGE"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-02T20:15:00.000Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 9,
+    "fullName": "Pilot Subscriber",
+    "username": "sub3022017836",
+    "email": "sub3022017836@example.com",
+    "passwordHash": "scrypt$1504edf9fedc3097920bb47a4afff4e6$59d503e157f40ce1ccd4cb236f31eeeff132d146262efcf352302c90a55ac2545d479c45d58827c70cc604fa98c978ce5daf87083a17a8800dc79a972fb78c55",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2019",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "manual-test-mode"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-03T02:20:18.757Z"
+  },
+  {
+    "id": 10,
+    "fullName": "Pilot Provider",
+    "username": "prov3022017836",
+    "email": "prov3022017836@example.com",
+    "passwordHash": "scrypt$286ad613ccfb798d023ed2183e63d21b$f1a9d9f499676ce6edebddb7b71f35bb0a090ec3676bf3b4d3af65341cbbf032cd39c430420304423233b3c44ffa3beebae3ba8a7a170cc173606dfd3ad8d291",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F-150",
+        "year": "2018",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": true
+      },
+      "experience": "Pilot runtime simulation",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START",
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-03T02:20:18.953Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 11,
+    "fullName": "Pilot Subscriber",
+    "username": "sub3022306195",
+    "email": "sub3022306195@example.com",
+    "passwordHash": "scrypt$2aa4ee624a097bcbca4ccd2a640175a8$9e0e81b0036067fbec80e9ff5e123d55c23469e2d5ef64e7f4fc3ed7428c0e8529a74e9109e24b4356537a5b822a9fc2710afc92ddfb8abf38f056103eb08d21",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2019",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "manual-test-mode"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-03T02:23:07.013Z"
+  },
+  {
+    "id": 12,
+    "fullName": "Pilot Provider",
+    "username": "prov3022306195",
+    "email": "prov3022306195@example.com",
+    "passwordHash": "scrypt$78fca5ba1a3967f68bada273e6a4935c$a3d932fa562a6ca7006565c29659b0b46830545e43e9715849cb59ca70ed69e577426f8de143ed9136de607bd0aa3b65af999f69d367710da98a413e01b9db4f",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F-150",
+        "year": "2018",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": true
+      },
+      "experience": "Pilot runtime simulation",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START",
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-03T02:23:07.209Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 13,
+    "fullName": "Frontend Subscriber",
+    "username": "fsub84876978",
+    "email": "fsub84876978@example.com",
+    "passwordHash": "scrypt$2eee204b661226ad46301675a75d8498$8b99ae523e8e808483d7b5f20f587b64ed7e53b013c44aac9df8ce1018e4f48228836f97ca53247a72f9e73e3fe637a6947deb9395e0c21963266650036efff4",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Corolla",
+        "year": "2020",
+        "color": "Silver"
+      },
+      "paymentMethodMasked": "manual-test-mode"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-03T02:54:37.568Z"
+  },
+  {
+    "id": 14,
+    "fullName": "Frontend Provider",
+    "username": "fprov84876978",
+    "email": "fprov84876978@example.com",
+    "passwordHash": "scrypt$2d12f383bdea303e07fa614c7dc7a7cb$20c9ea159afceda4d8a4a54de3b88ee561216db82ca3e7829fc2835be4cffa3ff9477f19ad55eff5a44640075d2b84fe407a553c9c380c1966f65ba92d27da6f",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F-150",
+        "year": "2018",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": true
+      },
+      "experience": "frontend-only provider sim",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START",
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-03T02:54:37.781Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 15,
+    "fullName": "Review User",
+    "username": "reviewer_1775262486746",
+    "email": "reviewer_1775262486746@example.com",
+    "passwordHash": "scrypt$96d5f217403c3023993012b8d10d802f$9847498572297567df632facf9ac855ae627c85d2c89f8baefc952fba8a7e0e1bd482dc4c4f78ff126116592df4d792a5ea0f7b4b5a899ac5a3b6be89f714c28",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2022",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "manual-test-mode"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-04T00:28:07.524Z"
+  },
+  {
+    "id": 16,
+    "fullName": "Subscriber Manual",
+    "username": "sub1775344726995",
+    "email": "sub1775344726995@example.com",
+    "passwordHash": "scrypt$4d2a919c515724087360b91a3be02019$0b3e8219c70b51d6df0ce49d1810924da5c8758ee4941174f9aa166e16bee36ccfc96058c42c905ff59e68f484d69c115da44543fed740e5ce4290d2fde8ff70",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "****1111"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-04T23:18:47.994Z"
+  },
+  {
+    "id": 17,
+    "fullName": "Provider Manual",
+    "username": "provider1775344726995",
+    "email": "provider1775344726995@example.com",
+    "passwordHash": "scrypt$f42d3ab393bacb0620ea4ac454fca222$2298c9e16fcfea55e9988f111d81870f38e51e6329fd5b62892c1317271c1410b8c266da82035ee69dd1de099e99814cf0bc513bd45fe2532b46e184599ae837",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2022",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "5 years",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-04T23:18:48.238Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 18,
+    "fullName": "Subscriber Manual",
+    "username": "sub1775345125582",
+    "email": "sub1775345125582@example.com",
+    "passwordHash": "scrypt$9d268aac27809034cd294027fb718634$2eb5ec9736c656cdbbc6c0706bd8ce167b9951d437bb54ef90d077f500be0584a8a54c7c89249aa9ca40d6f3380abeebfc21be62e76af843647db0fef65691a2",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "****1111"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-04T23:25:26.487Z"
+  },
+  {
+    "id": 19,
+    "fullName": "Provider Manual",
+    "username": "provider1775345125582",
+    "email": "provider1775345125582@example.com",
+    "passwordHash": "scrypt$d12cedd11e532904677735ab742f6b16$7f509d24e100370e9f29a76b3e8bfae9aafc896c4a57c5ce15272383db27e69d2eb0bb9f6dc7b70364415edb7d7407bed814558fe43655e2759b4230f89f668d",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2022",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "5 years",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-04T23:25:26.684Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 20,
+    "fullName": "Smoke Subscriber",
+    "username": "smokesub_1775579646825",
+    "email": "smokesub_1775579646825@example.com",
+    "passwordHash": "scrypt$d5e069590af98e45693ccef446f45548$578bd1e29bcefc58f61c9822e1715f6ec280ed18899ee9fd540f9b5fbea454fd6df86e67c3dbc546dc0e3cb812d4018f66adbc2613e1e6796f542ee50b147a30",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Camry",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "paymentMethodMasked": "****1111"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T16:34:08.476Z"
+  },
+  {
+    "id": 21,
+    "fullName": "Smoke Provider",
+    "username": "smokepro_1775579646825",
+    "email": "smokepro_1775579646825@example.com",
+    "passwordHash": "scrypt$3b8b526d8e448b57de73cb9bb5f033cb$a922a75348585d4f06372d74f92e190d05a05d0a4492865779f9642c2de196a718677a770ddfece1a397674a9d3f9380f9cc027798d577ad6826f108a08bf6d4",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F-150",
+        "year": "2021",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "smoke test",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T16:34:08.654Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 22,
+    "fullName": "Subscriber Diagnostic",
+    "username": "sub1775587213058721",
+    "email": "sub1775587213058721@example.test",
+    "passwordHash": "scrypt$b72b127b0b879c0968d0c524b4d3a7c3$2485f50084abb92901de41d62361c1de9e363d33702df4a59ff17a2a108f4079069cc66722fb90c9884bbb947077285e2fb9289824b1ce6da55ff92092436e4d",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Camry",
+        "year": "2018",
+        "color": "Black"
+      },
+      "paymentMethodMasked": "diagnostic-card"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T18:40:14.451Z"
+  },
+  {
+    "id": 23,
+    "fullName": "Provider Diagnostic",
+    "username": "prov1775587213058721",
+    "email": "prov1775587213058721@example.test",
+    "passwordHash": "scrypt$a1366b5263815da50071a20b996a52ff$4ccf4faae2c9dcf4399e881da9ddb0388e4ce3e936635dbff7882710389ef23ffcdd041bab88c6907249f2b6838d4d39aa8345f36710980d3c537978bb90d637",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "diagnostic",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START",
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T18:40:14.626Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 24,
+    "fullName": "Subscriber Full Flow",
+    "username": "subflow1775588070728",
+    "email": "subflow1775588070728@example.test",
+    "passwordHash": "scrypt$0e20a6a3f98137e101587dc4b4570369$c23d3dcf9aecd44ff96c5171c1d239e00264afe0ed925943a7a6b08acb211fdf6c9440656f8ea7a84a5d4b12f5e8bcade22d0fe236238c70a26969d062dd2126",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Accord",
+        "year": "2019",
+        "color": "Silver"
+      },
+      "paymentMethodMasked": "test-reference"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T18:54:32.080Z"
+  },
+  {
+    "id": 25,
+    "fullName": "Provider Full Flow",
+    "username": "provflow1775588070728",
+    "email": "provflow1775588070728@example.test",
+    "passwordHash": "scrypt$b980bed1adf7732d859091feef9d4441$721ddff7f124df4a88bd51deecfd084d23f172a81763987ee3ed1a9bca6d21e5f1a0577362bafc907fbb3018bb2428286c7f903f2f6d9dac097bc71f5a1a27c6",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ram",
+        "model": "1500",
+        "year": "2021",
+        "color": "White"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "Full-flow diagnostic",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START",
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T18:54:32.245Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 26,
+    "fullName": "Action Provider",
+    "username": "actionprov1775591750139",
+    "email": "actionprov1775591750139@example.test",
+    "passwordHash": "scrypt$6fcd53d0d0b5a9f9d0a111a432557812$76b7101427fec2e55fcd5ab5f1f06caa0458389a3adaf5d3b1065e1849adda354c92ec7ab6f7d994da7b752f0ec84d8bdd0109619f80c432bd974d90bd74d3de",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2022",
+        "color": "Red"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "route verification",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T19:55:51.391Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 27,
+    "fullName": "Action Provider B",
+    "username": "actionprovb1775591784418",
+    "email": "actionprovb1775591784418@example.test",
+    "passwordHash": "scrypt$56ca3c807b46963a75e807e133571b9d$2441b9c68c60de685386f757be8f6d9ba91953bd7db9fa7dbabd80ad26103a8f4ce56b731b8ac65461ae3427253e2b7794e1bdd2ac75edf2c8350f6bd96dd499",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2022",
+        "color": "Red"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "route verification",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T19:56:25.106Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 28,
+    "fullName": "Payment Rule Provider",
+    "username": "payprov1775595375618",
+    "email": "payprov1775595375618@example.test",
+    "passwordHash": "scrypt$d8734fd58f340dfc27057db2b7553e0b$d8edc4d71c27c66afc5582b37a4cc92b72a4d51ce4e4ba23a1f857a5c94f169eea2d1510c8db4167cef7c547cf6482f57d196e88ccbcf4e67c98a16fe436c634",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "vehicleInfo": {
+        "make": "Chevy",
+        "model": "Express",
+        "year": "2024",
+        "color": "Blue"
+      },
+      "documents": {
+        "license": true,
+        "registration": true,
+        "insurance": true,
+        "helperId": false
+      },
+      "experience": "payment rule test",
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "createdAt": "2026-04-07T20:56:16.674Z",
+    "providerMonthly": 5.99
+  },
+  {
+    "id": 29,
+    "fullName": "Bridge Test User",
+    "username": "bridge_test_user",
+    "email": "bridge_test_user@example.com",
+    "phoneNumber": "555-0101",
+    "passwordHash": "scrypt$5892ad5a4b28943fc1c9ffd11a811e4e$792f6c8a3629355454f6b6846d1b69f3ff27583910b0ab2de7969abd7e01c9b9b13ee6ba61e008a76521af7ca7f3632b6c9b97521b9800938dc3b98fbd03a44c",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-14T02:06:10.953Z",
+    "createdAt": "2026-04-14T02:06:10.953Z",
+    "signUpDate": "2026-04-14T02:06:10.953Z"
+  },
+  {
+    "id": 30,
+    "fullName": "Bridge Provider",
+    "username": "bridge_provider",
+    "email": "bridge_provider@example.com",
+    "phoneNumber": "555-0111",
+    "passwordHash": "scrypt$38c3a584b4d35f50cc7e5a06050d283d$8de0978f93613266c684c43215716666ac5f0fddecbc823d93891527e009a8513417c59ceed629fcdd327c36da268eccf51dc8d8eef6e3fba02e548b0afd1464",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "DRAFT",
+    "providerProfile": {
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-14T18:59:04.334Z",
+    "signUpDate": "2026-04-14T18:59:04.334Z"
+  },
+  {
+    "id": 31,
+    "fullName": "Bridge Member",
+    "username": "bridge_member",
+    "email": "bridge_member@example.com",
+    "phoneNumber": "555-0222",
+    "passwordHash": "scrypt$056549e448be14b9d13e6858cb80ff8c$4bd68a0c7e8306e974f100714edc3a222e9c3853c22454ca60c6b7305906220715d1949940f78aaf7c1c13fde2d3dff88fcf9963f781c0559ab2633edafa56aa",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "savedVehicles": [
+        {
+          "make": "Ford",
+          "model": "F150",
+          "year": "2020",
+          "color": "Blue"
+        }
+      ],
+      "paymentMethodMasked": "****1111"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-14T19:00:31.266Z",
+    "createdAt": "2026-04-14T19:00:31.266Z",
+    "signUpDate": "2026-04-14T19:00:31.266Z"
+  },
+  {
+    "id": 32,
+    "fullName": "Subscriber Test",
+    "username": "subtest1776267877765",
+    "email": "sub1776267877765@example.com",
+    "phoneNumber": "555-2000",
+    "passwordHash": "scrypt$d2c089f5222a0e068de1b1bcf30ea6cf$4049a6c0dea4f2c6848047d33afe08c074044fc0a2c0eb8c671f00d7bc8ee7e85591cc799f9182921895b2a28efe09bad7ef8525b5b19afd9a1187344647bf1d",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Ford",
+        "model": "Escape",
+        "year": "2022",
+        "color": "Blue"
+      },
+      "savedVehicles": [
+        {
+          "make": "Ford",
+          "model": "Escape",
+          "year": "2022",
+          "color": "Blue"
+        }
+      ],
+      "paymentMethodMasked": "****1111"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-15T15:44:37.886Z",
+    "createdAt": "2026-04-15T15:44:37.886Z",
+    "signUpDate": "2026-04-15T15:44:37.886Z"
+  },
+  {
+    "id": 33,
+    "fullName": "Sub Tester",
+    "username": "subtester_audit",
+    "email": "subtester_audit@example.com",
+    "phoneNumber": "555-0001",
+    "passwordHash": "scrypt$7b456d63ecbf417f3149bde4543cb949$a008e095621659e7bbf9ca201f0f4cb6344a756b7735035575c3d79182f1f1a86f13ea33ce1abe38311d1f8b13bd51e3ad1a759164113e57accb8d8381fc1ce1",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-18T01:36:11.168Z",
+    "createdAt": "2026-04-18T01:36:11.168Z",
+    "signUpDate": "2026-04-18T01:36:11.168Z"
+  },
+  {
+    "id": 34,
+    "fullName": "Scenario Subscriber 1776899712438",
+    "username": "scensub_1776899712438",
+    "email": "scensub_1776899712438@example.test",
+    "phoneNumber": "555-3000",
+    "passwordHash": "scrypt$f436505341a825abc85a77ee62799d48$962adfb4a02416c39fa0ac02dc6f9ed7df95f573f09657b4fcc9f39ddcbc0e6b47db6ac837ca0214c57ab0de79f0503fa742eebb0e090b3583a8b04900687298",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Toyota",
+        "model": "Camry",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "savedVehicles": [
+        {
+          "make": "Toyota",
+          "model": "Camry",
+          "year": "2020",
+          "color": "Blue"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-04-22T23:15:13.283Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:15:13.283Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-22T23:15:12.869Z",
+    "createdAt": "2026-04-22T23:15:12.869Z",
+    "signUpDate": "2026-04-22T23:15:12.869Z"
+  },
+  {
+    "id": 35,
+    "fullName": "Scenario Provider 1776899712438",
+    "username": "scenpro_1776899712438",
+    "email": "scenpro_1776899712438@example.test",
+    "phoneNumber": "555-4000",
+    "passwordHash": "scrypt$80ab51294dd86b6a3bf595985db2ef98$a4b36fb955c1444e62f76ef1aac9154cc9281dd483e26eed4d259b4771fc70ed3fbafc15974d742c3d4c8a3e7c512b0af613f3b82e1652f5134765a5df1efc5f",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Scenario Provider 1776899712438",
+        "phoneNumber": "555-4000",
+        "email": "scenpro_1776899712438@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2019",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:15:13.598Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:15:13.598Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:15:13.598Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "Scenario test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect cables safely and verify polarity.",
+          "jackPlacement": "Use the manufacturer jack point.",
+          "specialtyVehicleJack": "Use the correct specialty jack or pad adapter.",
+          "spoolDefinition": "A jack pad or lift point adapter/spool.",
+          "frozenLugNut": "Use penetrating oil and controlled leverage.",
+          "lockoutTools": "Air wedge, long reach tool, and protective tools.",
+          "lockoutDamagePrevention": "Protect seals and trim and work slowly.",
+          "incorrectLockoutDamage": "Broken glass, bent frame, scratched paint, damaged weather seals.",
+          "tirePlugKnowledge": "Yes, when safe and within policy.",
+          "severeDamageDecision": "Inform the customer of possible damage and do not complete the unsafe service."
+        },
+        "evaluatedAt": "2026-04-22T23:15:13.599Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-17:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Test Metro",
+      "currentLocation": "",
+      "equipment": [
+        "jack",
+        "air wedge"
+      ],
+      "profileSubmittedAt": "2026-04-22T23:15:13.600Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:15:13.600Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START",
+      "TIRE_CHANGE"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:15:13.289Z",
+    "signUpDate": "2026-04-22T23:15:13.289Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:15:13.610Z",
+    "approvalNote": "scenario approval"
+  },
+  {
+    "id": 36,
+    "fullName": "P T",
+    "username": "ptestx1776899768343",
+    "email": "ptestx1776899768343@e.test",
+    "phoneNumber": "555",
+    "passwordHash": "scrypt$1f7fb86de34184a6ec0ec464528aca52$6e63f8f473d735896f2b5a13cd9828b5c365e4b7b19bbb1ed7bb405f146c630dff14434e1f5b05289b33b04f262cff6ce5c661695be7ee3c0c7340feea09c059",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "P T",
+        "phoneNumber": "555",
+        "email": "ptestx1776899768343@e.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F150",
+        "year": "2020",
+        "color": "Black"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:16:08.550Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:16:08.550Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:16:08.550Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "x",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "a",
+          "jackPlacement": "a",
+          "specialtyVehicleJack": "a",
+          "spoolDefinition": "a",
+          "frozenLugNut": "a",
+          "lockoutTools": "a",
+          "lockoutDamagePrevention": "a",
+          "incorrectLockoutDamage": "a",
+          "tirePlugKnowledge": "a",
+          "severeDamageDecision": "inform customer of possible damage and do not complete unsafe service"
+        },
+        "evaluatedAt": "2026-04-22T23:16:08.550Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "9-5"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Metro",
+      "currentLocation": "",
+      "equipment": [],
+      "profileSubmittedAt": "2026-04-22T23:16:08.560Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:16:08.560Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:16:08.390Z",
+    "signUpDate": "2026-04-22T23:16:08.390Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:16:08.619Z",
+    "approvalNote": null
+  },
+  {
+    "id": 37,
+    "fullName": "Audit Subscriber 1776899833922",
+    "username": "audsub_1776899833922",
+    "email": "audsub_1776899833922@example.test",
+    "phoneNumber": "555-2100",
+    "passwordHash": "scrypt$fb30416325de63b14df7a07b3082e5e3$58d0c2e1ee8fb29f1ff9182989850c9d7ae3baa7d7536c1e68e748aa45d43f5998a63841ceac8dfba7e92e952b63603b70b13279112ed3b204eda1d56e2ebbcd",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2021",
+        "color": "Gray"
+      },
+      "savedVehicles": [
+        {
+          "make": "Honda",
+          "model": "Civic",
+          "year": "2021",
+          "color": "Gray"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-04-22T23:17:14.437Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:17:14.437Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-22T23:17:14.069Z",
+    "createdAt": "2026-04-22T23:17:14.069Z",
+    "signUpDate": "2026-04-22T23:17:14.069Z"
+  },
+  {
+    "id": 38,
+    "fullName": "Audit Provider 1776899833922",
+    "username": "audpro_1776899833922",
+    "email": "audpro_1776899833922@example.test",
+    "phoneNumber": "555-2200",
+    "passwordHash": "scrypt$30d3bed629660062f64d8d4e19a24ef4$23bbdd24134874cf1072a16922ceba0c6c5c38806ca7a8a2dbc9f48b9ad6459d8bd9a27b002f38d8ec387bfd94e98e566413d360bb5992ce0717bbbef490f983",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Audit Provider 1776899833922",
+        "phoneNumber": "555-2200",
+        "email": "audpro_1776899833922@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2018",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:17:14.767Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:17:14.767Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:17:14.767Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "audit provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "safe",
+          "jackPlacement": "jack point",
+          "specialtyVehicleJack": "correct jack",
+          "spoolDefinition": "jack pad",
+          "frozenLugNut": "penetrating oil",
+          "lockoutTools": "air wedge",
+          "lockoutDamagePrevention": "protect trim",
+          "incorrectLockoutDamage": "damage trim",
+          "tirePlugKnowledge": "yes",
+          "severeDamageDecision": "inform customer of possible damage and do not complete unsafe service"
+        },
+        "evaluatedAt": "2026-04-22T23:17:14.767Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-17:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Metro",
+      "currentLocation": "",
+      "equipment": [],
+      "profileSubmittedAt": "2026-04-22T23:17:14.768Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:17:14.768Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:17:14.442Z",
+    "signUpDate": "2026-04-22T23:17:14.442Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:17:14.775Z",
+    "approvalNote": "audit approval"
+  },
+  {
+    "id": 39,
+    "fullName": "Internal Subscriber 1776900979008",
+    "username": "intsub_1776900979008",
+    "email": "intsub_1776900979008@example.test",
+    "phoneNumber": "555-4100",
+    "passwordHash": "scrypt$a1b757895cefa67b2cc6060d6f90dcde$8d8477ba012f1d0cef6ced7304fbb85b414df103180d6fbbc178e3a8be8eb2168adc51d484117379a7e7e8586e497476c79dc2a3583f9ce4497e11f80e02e2f5",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 5,
+      "vehicle": {
+        "make": "Nissan",
+        "model": "Altima",
+        "year": "2022",
+        "color": "Silver"
+      },
+      "savedVehicles": [
+        {
+          "make": "Nissan",
+          "model": "Altima",
+          "year": "2022",
+          "color": "Silver"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-04-22T23:36:20.218Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:36:20.218Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-05-22T23:36:19.653Z",
+    "createdAt": "2026-04-22T23:36:19.653Z",
+    "signUpDate": "2026-04-22T23:36:19.653Z"
+  },
+  {
+    "id": 40,
+    "fullName": "Internal Provider 1776900979008",
+    "username": "intpro_1776900979008",
+    "email": "intpro_1776900979008@example.test",
+    "phoneNumber": "555-4200",
+    "passwordHash": "scrypt$3132164559f87f8300f15d2ccdaf88e8$46646de41e117d80688e8bf2829f207e6b84a59ed36e3c5450099d45729aa7cf4454a20cf48dc32f2d6787123c1e3158e6e2fb42fe1c37822baaa107b7eac4b6",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Internal Provider 1776900979008",
+        "phoneNumber": "555-4200",
+        "email": "intpro_1776900979008@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:36:20.693Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:36:20.693Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-04-22T23:36:20.693Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "internal test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "safe",
+          "jackPlacement": "jack point",
+          "specialtyVehicleJack": "correct jack",
+          "spoolDefinition": "jack pad",
+          "frozenLugNut": "penetrating oil",
+          "lockoutTools": "air wedge",
+          "lockoutDamagePrevention": "protect trim",
+          "incorrectLockoutDamage": "damage trim",
+          "tirePlugKnowledge": "yes",
+          "severeDamageDecision": "inform customer of possible damage and do not complete unsafe service"
+        },
+        "evaluatedAt": "2026-04-22T23:36:20.693Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-17:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Metro",
+      "currentLocation": "",
+      "equipment": [],
+      "profileSubmittedAt": "2026-04-22T23:36:20.696Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-04-22T23:36:20.697Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-22T23:36:20.224Z",
+    "signUpDate": "2026-04-22T23:36:20.224Z",
+    "providerMonthly": 5.99,
+    "approvedAt": "2026-04-22T23:36:20.709Z",
+    "approvalNote": "internal approval"
+  },
+  {
+    "id": 41,
+    "fullName": "Bypass Provider",
+    "username": "bypass1777061120858",
+    "email": "bypass1777061120858@example.com",
+    "phoneNumber": "5559990000",
+    "passwordHash": "scrypt$360d117a1adc07c8062db8411d6bced5$5b3fdb158c4487ac29452f9d13fa3736e7b29eb25bb60ffe4325d0ada7d9a3350ac1259d6341c7d91a091bcffc81cf988b7b525fb13945b5a0f605011c8fb635",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "DRAFT",
+    "providerProfile": {
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "acceptedAt": "2026-04-24T20:05:20.862Z",
+        "accepted": true,
+        "termsVersion": "test",
+        "liabilityAccepted": false,
+        "holdHarmlessAccepted": false,
+        "liabilityStatement": "independent"
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-04-24T20:05:20.862Z",
+    "signUpDate": "2026-04-24T20:05:20.862Z"
+  },
+  {
+    "id": 42,
+    "fullName": "Mobile Subscriber 1778091587881",
+    "username": "mobsub1778091587881",
+    "email": "mobsub1778091587881@example.com",
+    "phoneNumber": "6095550001",
+    "passwordHash": "scrypt$3b8b3341d145522d5409b029d299fccd$242073150406dc79421a8e8b7465dff8f55c09412b524da422fabaaf76e1ced680caa364b53fdcb8becaeeb368ebaec7a5f06bfd373e9b096adccc1fa945fb4c",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 7.99,
+      "vehicle": {
+        "make": "Honda",
+        "model": "Civic",
+        "year": "2020",
+        "color": "Blue"
+      },
+      "savedVehicles": [
+        {
+          "make": "Honda",
+          "model": "Civic",
+          "year": "2020",
+          "color": "Blue"
+        }
+      ],
+      "paymentMethodMasked": "****1111",
+      "paymentInfo": {
+        "paymentMethodMasked": "****1111",
+        "billingZip": "08618",
+        "paymentProvider": "manual-test-mode"
+      },
+      "termsAcceptedAt": "2026-05-06T18:19:49.084Z",
+      "termsVersion": "subscriber-2026-04-18",
+      "confirmation": {
+        "status": "CONFIRMED",
+        "confirmedAt": "2026-05-06T18:19:49.084Z",
+        "recipientEmail": "mobsub1778091587881@example.com",
+        "subject": "AW Roadside subscription confirmed",
+        "body": "Hello Mobile Subscriber 1778091587881,\n\nYour AW Roadside subscription is now active.\nMembership price: $7.99/month\nVehicle on file: 2020 Honda Civic Blue\nConfirmation date: 2026-05-06T18:19:49.084Z\n\nKeep this confirmation for your records.",
+        "deliveryStatus": "stored-no-transport",
+        "deliveredAt": null,
+        "transport": "smtp-not-configured",
+        "message": "SMTP mail transport is not configured."
+      }
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-05-06T18:19:49.084Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": null,
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-06-05T18:19:48.775Z",
+    "createdAt": "2026-05-06T18:19:48.775Z",
+    "signUpDate": "2026-05-06T18:19:48.775Z"
+  },
+  {
+    "id": 43,
+    "fullName": "Mobile Provider 1778091587881",
+    "username": "mobprov1778091587881",
+    "email": "mobprov1778091587881@example.com",
+    "phoneNumber": "6095550002",
+    "passwordHash": "scrypt$0e7924380f1979ca453fd216e4a169e0$b7c14a83a46cc1ba5fb53fa7655c0aedcbb20edcf5e3cbbbe53f8762d1329495fe6524fbfec985458f871f65aa6cdbf0b931d2b8f56e2f565f87d607c9617623",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "PENDING_APPROVAL",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Mobile Provider 1778091587881",
+        "phoneNumber": "6095550002",
+        "email": "mobprov1778091587881@example.com",
+        "companyName": "Mobile Provider Co",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "F-150",
+        "year": "2021",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-06T18:19:49.366Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-06T18:19:49.366Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-06T18:19:49.366Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "3 years roadside service",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Use approved cables and follow manufacturer-safe polarity steps.",
+          "jackPlacement": "Use the manufacturer lift points on level ground.",
+          "specialtyVehicleJack": "Use the correct low-profile or specialty jack for the platform.",
+          "spoolDefinition": "A spool is a lift-point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, the right socket, and controlled leverage.",
+          "lockoutTools": "Air wedge, long-reach tool, and protective sleeve.",
+          "lockoutDamagePrevention": "Protect trim and glass and control tool pressure.",
+          "incorrectLockoutDamage": "It can damage seals, trim, glass, and locks.",
+          "tirePlugKnowledge": "I inspect the tire and plug only safe repair zones.",
+          "severeDamageDecision": "I inform the customer of possible damage and do not complete unsafe work."
+        },
+        "evaluatedAt": "2026-05-06T18:19:49.367Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "24/7",
+          "tuesday": "24/7",
+          "wednesday": "24/7",
+          "thursday": "24/7",
+          "friday": "24/7",
+          "saturday": "24/7",
+          "sunday": "24/7"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Mercer County, NJ",
+      "currentLocation": "Trenton, NJ",
+      "serviceRadiusMiles": 20,
+      "currentLocationCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "currentLocationGeocodeSource": "mapbox-forward-geocode",
+      "currentLocationGeocodedAt": "2026-05-06T18:19:49.503Z",
+      "currentLocationMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "serviceAreaCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "serviceAreaGeocodeSource": "mapbox-forward-geocode",
+      "serviceAreaGeocodedAt": "2026-05-06T18:19:49.650Z",
+      "serviceAreaMapboxId": "dXJuOm1ieHBsYzo3V2Jz",
+      "equipment": [],
+      "profileSubmittedAt": "2026-05-06T18:19:49.653Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-05-06T18:19:49.653Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "LOCKOUT",
+      "JUMP_START"
+    ],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-06T18:19:49.098Z",
+    "signUpDate": "2026-05-06T18:19:49.098Z",
+    "providerMonthly": 6
+  },
+  {
+    "id": 44,
+    "fullName": "DispatchAlpha 1778356901329",
+    "username": "dispatchalpha_1778356901329",
+    "email": "dispatchalpha_1778356901329@example.test",
+    "phoneNumber": "6095550000",
+    "passwordHash": "scrypt$48eda11bc837949719302b50c4e1d0d4$9317d40a13e09cf463dbfe2a4a7141a0fa29835348fa4b733f7a4ef27f9a0e1c48484dd5f1addb75935fa19021487e95ae1a0a288ee6d87b73740b96d6809c6a",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "DispatchAlpha 1778356901329",
+        "phoneNumber": "6095550000",
+        "email": "dispatchalpha_1778356901329@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:01:41.950Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:01:41.951Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:01:41.951Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "3 years",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift/jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, correct socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and verified manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after checking whether the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-05-09T20:01:41.951Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-18:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Trenton, NJ",
+      "currentLocation": "Trenton, NJ",
+      "serviceRadiusMiles": 20,
+      "currentLocationCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "currentLocationGeocodeSource": "mapbox-forward-geocode",
+      "currentLocationGeocodedAt": "2026-05-09T20:01:42.717Z",
+      "currentLocationMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "serviceAreaCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "serviceAreaGeocodeSource": "mapbox-forward-geocode",
+      "serviceAreaGeocodedAt": "2026-05-09T20:01:42.749Z",
+      "serviceAreaMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "equipment": [],
+      "profileSubmittedAt": "2026-05-09T20:01:42.755Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-05-09T20:01:42.755Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "JUMP_START"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-09T20:01:41.600Z",
+    "signUpDate": "2026-05-09T20:01:41.600Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-09T20:01:42.996Z",
+    "approvalNote": "dispatch validation"
+  },
+  {
+    "id": 45,
+    "fullName": "DispatchBeta 1778356901329",
+    "username": "dispatchbeta_1778356901329",
+    "email": "dispatchbeta_1778356901329@example.test",
+    "phoneNumber": "6095550000",
+    "passwordHash": "scrypt$986fb8e7f3fa8fabd0ec62b2da9dec3a$9ffbac6954a35840c8fa840978bb60efbba4b7b4af5afe30cd3c4a73054abdf1c7709232f988c1917db53f37aa1c3179bc2aa04b36801ea10464d50f4df61e37",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "DispatchBeta 1778356901329",
+        "phoneNumber": "6095550000",
+        "email": "dispatchbeta_1778356901329@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:01:42.912Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:01:42.912Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:01:42.912Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "3 years",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift/jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, correct socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and verified manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after checking whether the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-05-09T20:01:42.912Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-18:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Trenton, NJ",
+      "currentLocation": "Trenton, NJ",
+      "serviceRadiusMiles": 20,
+      "currentLocationCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "currentLocationGeocodeSource": "mapbox-forward-geocode",
+      "currentLocationGeocodedAt": "2026-05-09T20:01:42.940Z",
+      "currentLocationMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "serviceAreaCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "serviceAreaGeocodeSource": "mapbox-forward-geocode",
+      "serviceAreaGeocodedAt": "2026-05-09T20:01:42.965Z",
+      "serviceAreaMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "equipment": [],
+      "profileSubmittedAt": "2026-05-09T20:01:42.973Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-05-09T20:01:42.973Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "JUMP_START"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-09T20:01:42.777Z",
+    "signUpDate": "2026-05-09T20:01:42.777Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-09T20:01:43.021Z",
+    "approvalNote": "dispatch validation"
+  },
+  {
+    "id": 46,
+    "fullName": "DispatchGamma 1778356985931",
+    "username": "dispatchgamma_1778356985931",
+    "email": "dispatchgamma_1778356985931@example.test",
+    "phoneNumber": "6095550000",
+    "passwordHash": "scrypt$ac7687b56f4b8b4579c121501114c471$a8741b6a4b0c6b120ddcd6d5343b06a6abe0bce60097115511cbcbb2f87409205df79edbd7b210185f9178e6fac6019ee74bcee0488fc9bb6321e8067aeed5a3",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "DispatchGamma 1778356985931",
+        "phoneNumber": "6095550000",
+        "email": "dispatchgamma_1778356985931@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:03:06.456Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:03:06.456Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:03:06.456Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "3 years",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift/jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, correct socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and verified manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after checking whether the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-05-09T20:03:06.456Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-18:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Trenton, NJ",
+      "currentLocation": "Trenton, NJ",
+      "serviceRadiusMiles": 20,
+      "currentLocationCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "currentLocationGeocodeSource": "mapbox-forward-geocode",
+      "currentLocationGeocodedAt": "2026-05-09T20:03:07.531Z",
+      "currentLocationMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "serviceAreaCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "serviceAreaGeocodeSource": "mapbox-forward-geocode",
+      "serviceAreaGeocodedAt": "2026-05-09T20:03:07.799Z",
+      "serviceAreaMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "equipment": [],
+      "profileSubmittedAt": "2026-05-09T20:03:07.809Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-05-09T20:03:07.809Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "JUMP_START"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-09T20:03:06.156Z",
+    "signUpDate": "2026-05-09T20:03:06.156Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-09T20:03:08.373Z",
+    "approvalNote": "dispatch validation"
+  },
+  {
+    "id": 47,
+    "fullName": "DispatchDelta 1778356985931",
+    "username": "dispatchdelta_1778356985931",
+    "email": "dispatchdelta_1778356985931@example.test",
+    "phoneNumber": "6095550000",
+    "passwordHash": "scrypt$11490f090906d78dff137c1d7d1a1234$fe5c3dca5d4e3c1b6c88929ad51e7dc11127e06741eb7cd03fc7ecc6e9788aad9f99eca562b32e43e1b6a311599e5c54693ded77d0d3007c4fe66cd6a2b43d8a",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "DispatchDelta 1778356985931",
+        "phoneNumber": "6095550000",
+        "email": "dispatchdelta_1778356985931@example.test",
+        "companyName": "",
+        "w9Name": "",
+        "taxIdLast4": ""
+      },
+      "vehicleInfo": {
+        "make": "Ford",
+        "model": "Transit",
+        "year": "2020",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:03:08.008Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:03:08.008Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-05-09T20:03:08.008Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "3 years",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift/jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, correct socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and verified manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after checking whether the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-05-09T20:03:08.008Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "08:00-18:00"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Trenton, NJ",
+      "currentLocation": "Trenton, NJ",
+      "serviceRadiusMiles": 20,
+      "currentLocationCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "currentLocationGeocodeSource": "mapbox-forward-geocode",
+      "currentLocationGeocodedAt": "2026-05-09T20:03:08.260Z",
+      "currentLocationMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "serviceAreaCoordinates": {
+        "longitude": 0,
+        "latitude": 0
+      },
+      "serviceAreaGeocodeSource": "mapbox-forward-geocode",
+      "serviceAreaGeocodedAt": "2026-05-09T20:03:08.337Z",
+      "serviceAreaMapboxId": "dXJuOm1ieHBsYzpFN0RJN0E",
+      "equipment": [],
+      "profileSubmittedAt": "2026-05-09T20:03:08.342Z",
+      "profileSubmissionStatus": "SUBMITTED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-05-09T20:03:08.344Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": null,
+    "services": [
+      "JUMP_START"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-09T20:03:07.825Z",
+    "signUpDate": "2026-05-09T20:03:07.825Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-09T20:03:08.420Z",
+    "approvalNote": "dispatch validation"
+  },
+  {
+    "id": 48,
+    "fullName": "Sandbox Subscriber Trenton One",
+    "username": "sandbox.trenton.sub1",
+    "email": "sandbox.trenton.sub1@awroadside.test",
+    "phoneNumber": "6095551101",
+    "passwordHash": "scrypt$c4e066ac1332761cd6b24fe5912a54e9$4629c4a127f427de11da0ab4b19b30b8e0085f46f12c6af2228b9c179d31d9bf9259f683334a984c035a1b4046375bc3127193baee09b97f29dfc1413f4e81ba",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 7.99,
+      "vehicle": {
+        "year": "2022",
+        "make": "Toyota",
+        "model": "Camry",
+        "color": "Blue"
+      },
+      "savedVehicles": [
+        {
+          "year": "2022",
+          "make": "Toyota",
+          "model": "Camry",
+          "color": "Blue"
+        }
+      ],
+      "paymentMethodMasked": "SANDBOX-VISA-1101",
+      "paymentInfo": {
+        "paymentMethodMasked": "SANDBOX-VISA-1101",
+        "billingZip": "08608",
+        "paymentProvider": "paypal-sandbox"
+      },
+      "termsAcceptedAt": "2026-06-12T21:51:39.061Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-06-12T21:51:39.061Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": {
+      "type": "sandbox-city",
+      "label": "Trenton, NJ"
+    },
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-06-18T17:48:19.462Z",
+    "createdAt": "2026-05-19T17:48:19.461Z",
+    "signUpDate": "2026-05-19T17:48:19.461Z",
+    "sandboxProfile": {
+      "key": "sandbox_subscriber_trenton_1",
+      "city": "Trenton, NJ",
+      "role": "SUBSCRIBER",
+      "seededBy": "server.mjs",
+      "seededAt": "2026-06-12T21:51:39.061Z"
+    }
+  },
+  {
+    "id": 49,
+    "fullName": "Sandbox Subscriber Trenton Two",
+    "username": "sandbox.trenton.sub2",
+    "email": "sandbox.trenton.sub2@awroadside.test",
+    "phoneNumber": "6095551102",
+    "passwordHash": "scrypt$1058e76f20c62ab1e9bedb5c70dc0d3f$080eba92cb3ef74a95c2cca9517feb43deb3e27833c68e118283577323966a15798894282cf36511a17a1438967eab4f2dd93297ae5db4996f4d9b8349747847",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 7.99,
+      "vehicle": {
+        "year": "2021",
+        "make": "Honda",
+        "model": "Accord",
+        "color": "Silver"
+      },
+      "savedVehicles": [
+        {
+          "year": "2021",
+          "make": "Honda",
+          "model": "Accord",
+          "color": "Silver"
+        }
+      ],
+      "paymentMethodMasked": "SANDBOX-VISA-1102",
+      "paymentInfo": {
+        "paymentMethodMasked": "SANDBOX-VISA-1102",
+        "billingZip": "08618",
+        "paymentProvider": "paypal-sandbox"
+      },
+      "termsAcceptedAt": "2026-06-12T21:51:39.061Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-06-12T21:51:39.061Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": {
+      "type": "sandbox-city",
+      "label": "Trenton, NJ"
+    },
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-06-18T17:48:19.462Z",
+    "createdAt": "2026-05-19T17:48:19.462Z",
+    "signUpDate": "2026-05-19T17:48:19.462Z",
+    "sandboxProfile": {
+      "key": "sandbox_subscriber_trenton_2",
+      "city": "Trenton, NJ",
+      "role": "SUBSCRIBER",
+      "seededBy": "server.mjs",
+      "seededAt": "2026-06-12T21:51:39.061Z"
+    }
+  },
+  {
+    "id": 50,
+    "fullName": "Sandbox Subscriber Philadelphia One",
+    "username": "sandbox.philly.sub1",
+    "email": "sandbox.philly.sub1@awroadside.test",
+    "phoneNumber": "2155551103",
+    "passwordHash": "scrypt$609850dfb4fe77cc367ac077d55f257b$a69fcde8f1f748942634a92dbd84f75dd40999496bc063e5547842b47195dba5b85739180480cbaa4cb641fec0bf31ba162a858da99647042a1a73438aa4bf1a",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 7.99,
+      "vehicle": {
+        "year": "2020",
+        "make": "Nissan",
+        "model": "Altima",
+        "color": "Black"
+      },
+      "savedVehicles": [
+        {
+          "year": "2020",
+          "make": "Nissan",
+          "model": "Altima",
+          "color": "Black"
+        }
+      ],
+      "paymentMethodMasked": "SANDBOX-VISA-1103",
+      "paymentInfo": {
+        "paymentMethodMasked": "SANDBOX-VISA-1103",
+        "billingZip": "19107",
+        "paymentProvider": "paypal-sandbox"
+      },
+      "termsAcceptedAt": "2026-06-12T21:51:39.062Z",
+      "termsVersion": "subscriber-2026-04-18"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "terms": {
+      "subscriber": {
+        "accepted": true,
+        "acceptedAt": "2026-06-12T21:51:39.062Z",
+        "termsVersion": "subscriber-2026-04-18",
+        "dispatchOnlyLiabilityAccepted": true,
+        "noRefundPolicyAccepted": true,
+        "platformLiability": "The platform is liable for dispatch coordination only.",
+        "providerLiability": "Independent providers are responsible for civil or criminal damages resulting from their services."
+      }
+    },
+    "trustedZone": {
+      "type": "sandbox-city",
+      "label": "Philadelphia, PA"
+    },
+    "services": [],
+    "available": false,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": "2026-06-18T17:48:19.462Z",
+    "createdAt": "2026-05-19T17:48:19.462Z",
+    "signUpDate": "2026-05-19T17:48:19.462Z",
+    "sandboxProfile": {
+      "key": "sandbox_subscriber_philadelphia_1",
+      "city": "Philadelphia, PA",
+      "role": "SUBSCRIBER",
+      "seededBy": "server.mjs",
+      "seededAt": "2026-06-12T21:51:39.062Z"
+    }
+  },
+  {
+    "id": 51,
+    "fullName": "Sandbox Provider Trenton One",
+    "username": "sandbox.trenton.prov1",
+    "email": "sandbox.trenton.prov1@awroadside.test",
+    "phoneNumber": "6095552101",
+    "passwordHash": "scrypt$b822ab6d7ff07a0fd2342ad1c51df220$abf89bbbccf70136e0a9a2493b26bb71851fbb1c6437bdd993f69f3b52cf19816ee2d2cb5d8bdde89d94c18417fa4ae0acfaa31e7d60537b842778d443ee8503",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Sandbox Provider Trenton One",
+        "phoneNumber": "6095552101",
+        "email": "sandbox.trenton.prov1@awroadside.test",
+        "companyName": "AW Roadside Sandbox Network",
+        "w9Name": "Sandbox Provider",
+        "taxIdLast4": "0000"
+      },
+      "vehicleInfo": {
+        "year": "2020",
+        "make": "Ford",
+        "model": "Transit",
+        "color": "White"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "profilePhoto": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "proofOfAddress": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "Sandbox manual test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift or jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, proper socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after confirming the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-06-12T21:51:39.062Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "00:00-23:59",
+          "tuesday": "00:00-23:59",
+          "wednesday": "00:00-23:59",
+          "thursday": "00:00-23:59",
+          "friday": "00:00-23:59",
+          "saturday": "00:00-23:59",
+          "sunday": "00:00-23:59"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Trenton, NJ",
+      "currentLocation": "Trenton, NJ",
+      "equipment": [
+        "Jump pack",
+        "Lockout kit",
+        "Hydraulic jack",
+        "Fuel can"
+      ],
+      "profileSubmittedAt": "2026-05-19T17:48:19.463Z",
+      "profileSubmissionStatus": "APPROVED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "paypal": {
+        "providerAccountId": "SBX-PROV-TRENTON-1",
+        "accountId": null,
+        "trackingId": null,
+        "payerId": null,
+        "email": "sandbox.trenton.prov1-biz@awroadside.test",
+        "onboardingStatus": "COMPLETED",
+        "consentStatus": "GRANTED",
+        "accountLifecycleStatus": "ACTIVE",
+        "accountLimits": {},
+        "capabilities": {},
+        "requirements": {},
+        "bankAccounts": {},
+        "stakeholders": {},
+        "partnerBalance": {},
+        "lastPartnerFinancialDebit": {},
+        "payouts": {
+          "lastStatus": "COMPLETED",
+          "lastEventType": "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+          "lastEventId": "sandbox-payout-sandbox_provider_trenton_1",
+          "lastEventAt": "2026-05-19T17:48:19.463Z",
+          "lastRequestId": null,
+          "lastBatchId": "sandbox-batch-sandbox_provider_trenton_1",
+          "lastItemId": "sandbox-item-sandbox_provider_trenton_1",
+          "lastCustomerPayoutId": "sandbox-customer-payout-sandbox_provider_trenton_1",
+          "succeededCount": 1,
+          "failedCount": 0,
+          "heldCount": 0
+        },
+        "recentEvents": [],
+        "lastWebhookEventId": "sandbox-payout-sandbox_provider_trenton_1",
+        "lastWebhookEventType": "PAYMENT.PAYOUTS-ITEM.SUCCEEDED",
+        "lastWebhookAt": "2026-05-19T17:48:19.463Z",
+        "onboardingCompletedAt": "2026-05-19T17:48:19.463Z",
+        "partnerConsentRevokedAt": null,
+        "accountCreatedAt": "2026-05-19T17:48:19.463Z",
+        "lastAccountUpdateAt": "2026-05-19T17:48:19.463Z",
+        "lastAccountLimitEventAt": null,
+        "lastCapabilityUpdateAt": null,
+        "lastRequirementsUpdateAt": null
+      },
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-06-12T21:51:39.062Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": {
+      "type": "sandbox-city",
+      "label": "Trenton, NJ"
+    },
+    "services": [
+      "JUMP_START",
+      "LOCKOUT",
+      "TIRE_CHANGE",
+      "GAS_DELIVERY",
+      "BATTERY_INSTALL"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-19T17:48:19.463Z",
+    "signUpDate": "2026-05-19T17:48:19.463Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-19T17:48:19.463Z",
+    "approvalNote": "sandbox manual test profile",
+    "sandboxProfile": {
+      "key": "sandbox_provider_trenton_1",
+      "city": "Trenton, NJ",
+      "role": "PROVIDER",
+      "seededBy": "server.mjs",
+      "seededAt": "2026-06-12T21:51:39.062Z"
+    }
+  },
+  {
+    "id": 52,
+    "fullName": "Sandbox Provider Trenton Two",
+    "username": "sandbox.trenton.prov2",
+    "email": "sandbox.trenton.prov2@awroadside.test",
+    "phoneNumber": "6095552102",
+    "passwordHash": "scrypt$67c55b687f6fe77db39a6c097a03f1db$85050d3d5b88d8a835fa9d3dac6116fe5fb3f5916e189493cee1bcb2b0005b7e3fba5ee2c03328808c5af09517a83e66748eb23f989bb2dadb255128d34ed8f5",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Sandbox Provider Trenton Two",
+        "phoneNumber": "6095552102",
+        "email": "sandbox.trenton.prov2@awroadside.test",
+        "companyName": "AW Roadside Sandbox Network",
+        "w9Name": "Sandbox Provider",
+        "taxIdLast4": "0000"
+      },
+      "vehicleInfo": {
+        "year": "2019",
+        "make": "Chevrolet",
+        "model": "Silverado",
+        "color": "Black"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "profilePhoto": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "proofOfAddress": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.062Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "Sandbox manual test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift or jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, proper socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after confirming the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-06-12T21:51:39.062Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "00:00-23:59",
+          "tuesday": "00:00-23:59",
+          "wednesday": "00:00-23:59",
+          "thursday": "00:00-23:59",
+          "friday": "00:00-23:59",
+          "saturday": "00:00-23:59",
+          "sunday": "00:00-23:59"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Trenton, NJ",
+      "currentLocation": "Trenton, NJ",
+      "equipment": [
+        "Jump pack",
+        "Lockout kit",
+        "Hydraulic jack",
+        "Fuel can"
+      ],
+      "profileSubmittedAt": "2026-05-19T17:48:19.464Z",
+      "profileSubmissionStatus": "APPROVED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "paypal": {
+        "providerAccountId": "SBX-PROV-TRENTON-2",
+        "accountId": null,
+        "trackingId": null,
+        "payerId": null,
+        "email": "sandbox.trenton.prov2-biz@awroadside.test",
+        "onboardingStatus": "COMPLETED",
+        "consentStatus": "GRANTED",
+        "accountLifecycleStatus": "ACTIVE",
+        "accountLimits": {},
+        "capabilities": {},
+        "requirements": {},
+        "bankAccounts": {},
+        "stakeholders": {},
+        "partnerBalance": {},
+        "lastPartnerFinancialDebit": {},
+        "payouts": {
+          "lastStatus": "PENDING",
+          "lastEventType": "PAYMENT.PAYOUTSBATCH.PROCESSING",
+          "lastEventId": "sandbox-payout-sandbox_provider_trenton_2",
+          "lastEventAt": "2026-05-19T17:48:19.464Z",
+          "lastRequestId": null,
+          "lastBatchId": "sandbox-batch-sandbox_provider_trenton_2",
+          "lastItemId": "sandbox-item-sandbox_provider_trenton_2",
+          "lastCustomerPayoutId": "sandbox-customer-payout-sandbox_provider_trenton_2",
+          "succeededCount": 0,
+          "failedCount": 0,
+          "heldCount": 0
+        },
+        "recentEvents": [],
+        "lastWebhookEventId": "sandbox-payout-sandbox_provider_trenton_2",
+        "lastWebhookEventType": "PAYMENT.PAYOUTSBATCH.PROCESSING",
+        "lastWebhookAt": "2026-05-19T17:48:19.464Z",
+        "onboardingCompletedAt": "2026-05-19T17:48:19.464Z",
+        "partnerConsentRevokedAt": null,
+        "accountCreatedAt": "2026-05-19T17:48:19.464Z",
+        "lastAccountUpdateAt": "2026-05-19T17:48:19.464Z",
+        "lastAccountLimitEventAt": null,
+        "lastCapabilityUpdateAt": null,
+        "lastRequirementsUpdateAt": null
+      },
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-06-12T21:51:39.062Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": {
+      "type": "sandbox-city",
+      "label": "Trenton, NJ"
+    },
+    "services": [
+      "JUMP_START",
+      "LOCKOUT",
+      "TIRE_CHANGE",
+      "GAS_DELIVERY",
+      "BATTERY_INSTALL"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-19T17:48:19.464Z",
+    "signUpDate": "2026-05-19T17:48:19.464Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-19T17:48:19.464Z",
+    "approvalNote": "sandbox manual test profile",
+    "sandboxProfile": {
+      "key": "sandbox_provider_trenton_2",
+      "city": "Trenton, NJ",
+      "role": "PROVIDER",
+      "seededBy": "server.mjs",
+      "seededAt": "2026-06-12T21:51:39.062Z"
+    }
+  },
+  {
+    "id": 53,
+    "fullName": "Sandbox Provider Philadelphia One",
+    "username": "sandbox.philly.prov1",
+    "email": "sandbox.philly.prov1@awroadside.test",
+    "phoneNumber": "2155552103",
+    "passwordHash": "scrypt$5f22220413580fa71ec89258abed57e9$8ea516871fb3ad01df7e9033abd4b358641af1e101718e28250c64f6d0bc5fdc5a849cf2d8de201e2f9763f42d4b5996505f7225a2fab92e771babef8f95faca",
+    "roles": [
+      "PROVIDER"
+    ],
+    "subscriberActive": false,
+    "subscriberProfile": null,
+    "providerStatus": "APPROVED",
+    "providerProfile": {
+      "providerInfo": {
+        "legalName": "Sandbox Provider Philadelphia One",
+        "phoneNumber": "2155552103",
+        "email": "sandbox.philly.prov1@awroadside.test",
+        "companyName": "AW Roadside Sandbox Network",
+        "w9Name": "Sandbox Provider",
+        "taxIdLast4": "0000"
+      },
+      "vehicleInfo": {
+        "year": "2021",
+        "make": "Ram",
+        "model": "ProMaster",
+        "color": "Gray"
+      },
+      "documents": {
+        "license": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.063Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "registration": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.063Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "insurance": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.063Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "profilePhoto": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.063Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "proofOfAddress": {
+          "submitted": true,
+          "verified": false,
+          "uploadedAt": "2026-06-12T21:51:39.063Z",
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        },
+        "helperId": {
+          "submitted": false,
+          "verified": false,
+          "uploadedAt": null,
+          "fileName": null,
+          "contentType": null,
+          "sizeBytes": 0,
+          "storagePath": null,
+          "sourceUrl": null,
+          "documentNumber": null,
+          "expiresAt": null,
+          "note": null
+        }
+      },
+      "documentStatus": {
+        "required": [
+          "license",
+          "registration",
+          "insurance"
+        ],
+        "submittedCount": 3,
+        "missing": [],
+        "meetsMinimumRequirements": true
+      },
+      "experience": "Sandbox manual test provider",
+      "assessment": {
+        "complete": true,
+        "passed": true,
+        "missing": [],
+        "answers": {
+          "jumpstartProcedure": "Connect positive to positive, negative to ground, start donor, then disabled vehicle.",
+          "jackPlacement": "Use the manufacturer jack points on the pinch weld or frame support.",
+          "specialtyVehicleJack": "Use the vehicle-specific pad or low-profile jack that matches the lift points.",
+          "spoolDefinition": "A spool is a lift or jack support point adapter used on some vehicles.",
+          "frozenLugNut": "Use penetrating oil, proper socket fit, leverage, and controlled heat only when appropriate.",
+          "lockoutTools": "Air wedge, long reach tool, protective sleeve, and manufacturer-safe entry tools.",
+          "lockoutDamagePrevention": "Protect seals and paint, control tool angles, and follow the least-invasive entry method.",
+          "incorrectLockoutDamage": "Weather-strip damage, scratched trim, broken glass, bent frame sections, and airbag risk.",
+          "tirePlugKnowledge": "Yes, after confirming the puncture is repairable and not sidewall damage.",
+          "severeDamageDecision": "Inform the customer of the possible damage and do not complete the service."
+        },
+        "evaluatedAt": "2026-06-12T21:51:39.063Z",
+        "safeDamageDecision": true
+      },
+      "hoursOfService": {
+        "timezone": "America/New_York",
+        "days": {
+          "monday": "00:00-23:59",
+          "tuesday": "00:00-23:59",
+          "wednesday": "00:00-23:59",
+          "thursday": "00:00-23:59",
+          "friday": "00:00-23:59",
+          "saturday": "00:00-23:59",
+          "sunday": "00:00-23:59"
+        },
+        "hasHours": true
+      },
+      "serviceArea": "Philadelphia, PA",
+      "currentLocation": "Philadelphia, PA",
+      "equipment": [
+        "Jump pack",
+        "Lockout kit",
+        "Hydraulic jack",
+        "Fuel can"
+      ],
+      "profileSubmittedAt": "2026-05-19T17:48:19.465Z",
+      "profileSubmissionStatus": "APPROVED",
+      "rates": {
+        "ratingTotal": 0,
+        "ratingCount": 0,
+        "averageRating": 0
+      },
+      "noteExchangeEnabled": true,
+      "paypal": {
+        "providerAccountId": "SBX-PROV-PHILLY-1",
+        "accountId": null,
+        "trackingId": null,
+        "payerId": null,
+        "email": "sandbox.philly.prov1-biz@awroadside.test",
+        "onboardingStatus": "COMPLETED",
+        "consentStatus": "GRANTED",
+        "accountLifecycleStatus": "ACTIVE",
+        "accountLimits": {},
+        "capabilities": {},
+        "requirements": {},
+        "bankAccounts": {},
+        "stakeholders": {},
+        "partnerBalance": {},
+        "lastPartnerFinancialDebit": {},
+        "payouts": {
+          "lastStatus": "ON_HOLD",
+          "lastEventType": "PAYMENT.PAYOUTS-ITEM.HELD",
+          "lastEventId": "sandbox-payout-sandbox_provider_philadelphia_1",
+          "lastEventAt": "2026-05-19T17:48:19.465Z",
+          "lastRequestId": null,
+          "lastBatchId": "sandbox-batch-sandbox_provider_philadelphia_1",
+          "lastItemId": "sandbox-item-sandbox_provider_philadelphia_1",
+          "lastCustomerPayoutId": "sandbox-customer-payout-sandbox_provider_philadelphia_1",
+          "succeededCount": 0,
+          "failedCount": 0,
+          "heldCount": 1
+        },
+        "recentEvents": [],
+        "lastWebhookEventId": "sandbox-payout-sandbox_provider_philadelphia_1",
+        "lastWebhookEventType": "PAYMENT.PAYOUTS-ITEM.HELD",
+        "lastWebhookAt": "2026-05-19T17:48:19.465Z",
+        "onboardingCompletedAt": "2026-05-19T17:48:19.465Z",
+        "partnerConsentRevokedAt": null,
+        "accountCreatedAt": "2026-05-19T17:48:19.465Z",
+        "lastAccountUpdateAt": "2026-05-19T17:48:19.465Z",
+        "lastAccountLimitEventAt": null,
+        "lastCapabilityUpdateAt": null,
+        "lastRequirementsUpdateAt": null
+      },
+      "discipline": {
+        "policyVersion": "2026-04-27",
+        "strikeCount": 0,
+        "lowRatingEvents": [],
+        "suspensionHistory": [],
+        "currentSuspension": {
+          "suspensionId": null,
+          "active": false,
+          "level": 0,
+          "startedAt": null,
+          "endsAt": null,
+          "indefinite": false,
+          "feeAmountDue": 100,
+          "previousProviderStatus": "APPROVED"
+        },
+        "training": {
+          "status": "NOT_REQUIRED",
+          "required": false,
+          "scheduledFor": null,
+          "enrolledAt": null,
+          "completedAt": null,
+          "note": null,
+          "updatedAt": null,
+          "updatedBy": null
+        },
+        "probation": {
+          "active": false,
+          "reinstatedAt": null,
+          "endsAt": null,
+          "clearedAt": null,
+          "sourceSuspensionId": null
+        },
+        "restriction": {
+          "active": false,
+          "flaggedAt": null,
+          "reason": null,
+          "sourceProbationId": null,
+          "note": null
+        },
+        "clearedAt": null
+      }
+    },
+    "termsAccepted": true,
+    "terms": {
+      "provider": {
+        "accepted": true,
+        "acceptedAt": "2026-06-12T21:51:39.063Z",
+        "termsVersion": "provider-2026-04-18",
+        "liabilityAccepted": true,
+        "liabilityStatement": "Independent providers are responsible for civil or criminal damages resulting from their services.",
+        "holdHarmlessAccepted": true
+      }
+    },
+    "trustedZone": {
+      "type": "sandbox-city",
+      "label": "Philadelphia, PA"
+    },
+    "services": [
+      "JUMP_START",
+      "LOCKOUT",
+      "TIRE_CHANGE",
+      "GAS_DELIVERY",
+      "BATTERY_INSTALL"
+    ],
+    "available": true,
+    "activeShiftId": null,
+    "accountState": "ACTIVE",
+    "nextBillingDate": null,
+    "createdAt": "2026-05-19T17:48:19.465Z",
+    "signUpDate": "2026-05-19T17:48:19.465Z",
+    "providerMonthly": 6,
+    "approvedAt": "2026-05-19T17:48:19.465Z",
+    "approvalNote": "sandbox manual test profile",
+    "sandboxProfile": {
+      "key": "sandbox_provider_philadelphia_1",
+      "city": "Philadelphia, PA",
+      "role": "PROVIDER",
+      "seededBy": "server.mjs",
+      "seededAt": "2026-06-12T21:51:39.063Z"
+    }
+  },
+  {
+    "id": 54,
+    "fullName": "Token Test User",
+    "username": "token_test_1781226631527@example.com",
+    "email": "token_test_1781226631527@example.com",
+    "phoneNumber": "555-0000",
+    "passwordHash": "scrypt$a7868186ee79bb5c75be30f711f85833$8d6f2973552c222a5eb019b3601598bec71dda0ff8eb145e2486729625543b4dfb8efd4e325bc200521258fa08d494cad201b2b10cc77e809008641010eab35f",
+    "roles": [
+      "SUBSCRIBER"
+    ],
+    "subscriberActive": true,
+    "subscriberProfile": {
+      "membershipPrice": 7.99,
+      "vehicle": {
+        "year": "2024",
+        "make": "Lucid",
+        "model": "Air",
+        "color": "Dream"
+      },
+      "savedVehicles": [
+        {
+          "year": "2024",
+          "make": "Lucid",
+          "model": "Air",
+          "color": "Dream"
+        }
+      ],
+      "membershipStatus": "ACTIVE",
+      "paymentInfo": {
+        "paymentProvider": "paypal",
+        "paypalOrderId": null,
+        "paypalCaptureId": "CAP_TOKEN_1781226631527",
+        "status": "CAPTURED"
+      },
+      "updatedAt": "2026-06-12T01:10:31.728Z"
+    },
+    "providerStatus": null,
+    "providerProfile": null,
+    "termsAccepted": true,
+    "accountState": "PENDING_APPROVAL",
+    "subscriptionStatus": "ACTIVE",
+    "preSignupIntakeId": "pre_subscriber_1781226631716_9902a06d",
+    "createdAt": "2026-06-12T01:10:31.728Z",
+    "signUpDate": "2026-06-12T01:10:31.728Z",
+    "updatedAt": "2026-06-12T01:10:31.728Z"
+  }
+]

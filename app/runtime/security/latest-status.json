@@ -1,0 +1,342 @@
+{
+  "layer": "aw-roadside-watchdog",
+  "active": true,
+  "logMode": "retained-runtime-log",
+  "retainedStorage": "app-runtime-security",
+  "retentionBusinessDays": 14,
+  "refreshedAt": "2026-06-13T10:26:42.294Z",
+  "eventCount": 506,
+  "lastRecordedAt": "2026-06-12T21:51:39.078Z",
+  "oldestRetainedAt": "2026-05-26T18:00:32.060Z",
+  "recentEvents": [
+    {
+      "event": "server-started",
+      "runtimeEntry": "index.mjs",
+      "port": 3000,
+      "nodeVersion": "v20.20.2",
+      "dataAuthority": "runtime-storage",
+      "databaseConfigured": true,
+      "storageEnabled": false,
+      "storageEvent": "storage-authority-runtime-storage",
+      "lastError": null,
+      "databaseId": null,
+      "databaseName": null,
+      "timestamp": "2026-06-12T21:51:39.078Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T21:51:39.044Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T21:51:39.020Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T21:51:39.005Z"
+    },
+    {
+      "event": "server-started",
+      "runtimeEntry": "index.mjs",
+      "port": 3000,
+      "nodeVersion": "v20.20.2",
+      "dataAuthority": "runtime-storage",
+      "databaseConfigured": true,
+      "storageEnabled": false,
+      "storageEvent": "storage-authority-runtime-storage",
+      "lastError": null,
+      "databaseId": null,
+      "databaseName": null,
+      "timestamp": "2026-06-12T21:51:06.418Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T21:51:06.353Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T21:51:06.337Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T21:51:06.288Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T15:36:30.763Z"
+    },
+    {
+      "event": "server-started",
+      "runtimeEntry": "index.mjs",
+      "port": 3000,
+      "nodeVersion": "v20.20.2",
+      "dataAuthority": "runtime-storage",
+      "databaseConfigured": true,
+      "storageEnabled": false,
+      "storageEvent": "storage-authority-runtime-storage",
+      "lastError": null,
+      "databaseId": null,
+      "databaseName": null,
+      "timestamp": "2026-06-12T15:13:53.157Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:13:53.126Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:13:53.116Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T15:13:53.100Z"
+    },
+    {
+      "event": "server-started",
+      "runtimeEntry": "index.mjs",
+      "port": 3000,
+      "nodeVersion": "v20.20.2",
+      "dataAuthority": "runtime-storage",
+      "databaseConfigured": true,
+      "storageEnabled": false,
+      "storageEvent": "storage-authority-runtime-storage",
+      "lastError": null,
+      "databaseId": null,
+      "databaseName": null,
+      "timestamp": "2026-06-12T15:12:43.781Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:12:43.730Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:12:43.721Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T15:12:43.708Z"
+    },
+    {
+      "event": "server-started",
+      "runtimeEntry": "index.mjs",
+      "port": 3000,
+      "nodeVersion": "v20.20.2",
+      "dataAuthority": "runtime-storage",
+      "databaseConfigured": true,
+      "storageEnabled": false,
+      "storageEvent": "storage-authority-runtime-storage",
+      "lastError": null,
+      "databaseId": null,
+      "databaseName": null,
+      "timestamp": "2026-06-12T15:12:24.468Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:12:24.439Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:12:24.431Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T15:12:24.418Z"
+    },
+    {
+      "event": "server-started",
+      "runtimeEntry": "index.mjs",
+      "port": 3000,
+      "nodeVersion": "v20.20.2",
+      "dataAuthority": "runtime-storage",
+      "databaseConfigured": true,
+      "storageEnabled": false,
+      "storageEvent": "storage-authority-runtime-storage",
+      "lastError": null,
+      "databaseId": null,
+      "databaseName": null,
+      "timestamp": "2026-06-12T15:11:24.685Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-storage",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:11:24.654Z"
+    },
+    {
+      "event": "storage-authority-runtime-storage",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "repositories": [
+        "users",
+        "requests",
+        "payments",
+        "preSignupIntake",
+        "providerWallet",
+        "providerHistory"
+      ],
+      "timestamp": "2026-06-12T15:11:24.647Z"
+    },
+    {
+      "event": "awroadsidedb-config-initialized",
+      "layer": "awroadside-db-handoff",
+      "backendEntry": "server.mjs",
+      "applicationName": "awroadside-fire-backend",
+      "mode": "runtime-storage",
+      "configured": true,
+      "client": "postgres",
+      "strict": false,
+      "timestamp": "2026-06-12T15:11:24.633Z"
+    }
+  ]
+}
