@@ -19,7 +19,6 @@ Services:deploy
         - scripts/**/*.mjs
         - scripts/**/*.js
         - package.json
-        - src/**
         - aw.backend.yaml
         - render.yaml
         - .node-version
