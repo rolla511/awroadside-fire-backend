@@ -16,9 +16,9 @@ services:
         sync: false
       - key: internal_db_url
         sync: false
-      - key: USDB_ENTRY
+      - key: USdb_entry
         sync: false
-      - key: USDB_CONFIG_HANDLE
+      - key: config
         sync: false
       - key: AW_DB_MODE
         value: internal-db
