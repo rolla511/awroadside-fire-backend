@@ -8,5 +8,5 @@
   "scripts": {
     "start": "node index.mjs",
     "server": "node server.mjs"
-"data base": "awroadsidedb-config.mjs"  }
+"data base": "storage-index.mjs"  }
 }
