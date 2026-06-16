@@ -8,5 +8,6 @@
   "scripts": {
     "start": "node index.mjs",
     "server": "node server.mjs"
-"data base": "node awroadsidedb-config.mjs"  }
+"data base": "node db-index.mjs" 
+  }
 }
