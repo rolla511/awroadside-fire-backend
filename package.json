@@ -7,7 +7,5 @@
   "main": "index.mjs",
   "scripts": {
     "start": "node index.mjs",
-    "server": "node server.mjs"
-"data base": "node db-index.mjs" 
-  }
+    "server": "node server.mjs" }
 }
