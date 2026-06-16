@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>awroadside-fire | Provider Info</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Provider Info</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="provider-identity-role">None</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-copy">
+        <p class="eyebrow">Provider Profile</p>
+        <h2>Provider status, services, vehicle, and documents.</h2>
+        <p id="identity-state" class="muted">This page is for provider account state and document handling.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link active" href="provider-info.html">Provider Info</a>
+        <a class="nav-link" href="provider-work.html">Provider Work</a>
+        <a class="nav-link" href="provider-wallet.html">Provider Wallet</a>
+      </nav>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="provider-grid">
+          <div class="panel detail-panel">
+            <p class="eyebrow">Provider State</p>
+            <h3>Secure provider flow</h3>
+            <p class="muted" id="provider-identity-state">Use Provider Access to sign in first.</p>
+            <p class="muted" id="provider-admin-status">Provider status will appear after sign-in.</p>
+            <p class="muted" id="provider-service-list">Services will appear after provider access is confirmed.</p>
+            <p class="muted" id="provider-vehicle-summary">Vehicle profile will appear after account details are loaded.</p>
+            <p class="muted" id="provider-hours-summary">Hours of service will appear after provider account details are loaded.</p>
+            <p class="muted" id="provider-document-policy">License, registration, insurance, profile photo, and proof of address are required. Helper ID stays optional and temporary.</p>
+            <p class="muted" id="provider-payout-terms-status">Provider payout terms status will appear after sign-in.</p>
+            <p class="muted" id="provider-payout-dispute-policy">Payout disputes must be raised before payout is received.</p>
+          </div>
+          <div class="panel detail-panel" id="provider-documents-panel" hidden>
+            <p class="eyebrow">Verification</p>
+            <h3>Required Documents</h3>
+            <p class="muted">Upload the required provider documents for verification. Mobile devices can use the camera directly for document capture. The provider profile photo should show the provider only. Proof of address is uploaded separately as a JPEG image of a utility bill or recent mail that supports the license address. Helper ID remains optional and is intended only for active helper coverage during current hours of service.</p>
+            <form id="provider-documents-form" class="form-stack">
+              <label>
+                <span>Valid License</span>
+                <input class="field" name="license" type="file" accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.txt,text/plain,application/pdf" capture="environment" required/>
+              </label>
+              <label>
+                <span>Insurance Card</span>
+                <input class="field" name="insurance" type="file" accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.txt,text/plain,application/pdf" capture="environment" required/>
+              </label>
+              <label>
+                <span>Registration Card</span>
+                <input class="field" name="registration" type="file" accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.txt,text/plain,application/pdf" capture="environment" required/>
+              </label>
+              <label>
+                <span>Provider Profile Photo</span>
+                <input class="field" name="profilePhoto" type="file" accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp" capture="environment" required/>
+              </label>
+              <label>
+                <span>Proof of Address</span>
+                <input class="field" name="proofOfAddress" type="file" accept=".jpg,.jpeg,image/jpeg" capture="environment" required/>
+              </label>
+              <label>
+                <span>Helper ID (optional)</span>
+                <input class="field" name="helperId" type="file" accept="image/*,.jpg,.jpeg,.png,.heic,.heif,.webp,.pdf,.txt,text/plain,application/pdf" capture="environment"/>
+              </label>
+              <button class="glow-button wide" type="submit">Upload Documents</button>
+            </form>
+            <div class="feedback-box" id="provider-documents-status" style="display:none"></div>
+          </div>
+        </div>
+
+        <div class="panel detail-panel">
+          <p class="eyebrow">Payout Terms</p>
+          <h3>Provider payout release and dispute timing</h3>
+          <p class="muted" id="provider-payout-terms-summary">Accept payout terms before any payout can be released from safe mode.</p>
+          <form id="provider-payout-terms-form" class="form-stack">
+            <label class="toggle full-span">
+              <input id="provider-payout-terms-accepted" type="checkbox" name="providerPayoutTermsAccepted" required/>
+              <span>I accept the provider payout terms before payout release.</span>
+            </label>
+            <label class="toggle full-span">
+              <input id="provider-payout-dispute-window-accepted" type="checkbox" name="providerPayoutDisputeWindowAccepted" required/>
+              <span>I understand payout disputes must be filed before payout is received.</span>
+            </label>
+            <label class="toggle full-span">
+              <input id="provider-payout-no-post-receipt-dispute-accepted" type="checkbox" name="providerPayoutNoPostReceiptDisputeAccepted" required/>
+              <span>I understand completed payouts cannot be disputed through the platform record after receipt.</span>
+            </label>
+            <button class="glow-button wide" id="provider-payout-terms-submit" type="submit">Accept Payout Terms</button>
+          </form>
+          <div class="feedback-box" id="provider-payout-terms-form-status" style="display:none"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+<script>
+(function () {
+  const currentOrigin = window.location.origin;
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(currentOrigin);
+  const backendOrigin = isLocalOrigin ? currentOrigin : "https://awroadside-fire-backend.onrender.com";
+  window.AWRoadsideConfig = Object.assign({
+    apiBaseUrl: backendOrigin + "/api/aw-roadside",
+    rawApiBaseUrl: backendOrigin + "/api",
+    adminApiBaseUrl: backendOrigin + "/api/admin",
+    uiBaseUrl: currentOrigin
+  }, window.AWRoadsideConfig || {});
+})();
+</script>
+<script type="module" src="frontend-index.mjs"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

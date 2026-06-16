@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>awroadside-fire | Subscriber Access</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="page-shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">AW Roadside</p>
+      <h1 class="brand-title">Subscriber Access</h1>
+    </div>
+    <div class="status-cluster">
+      <div class="status-chip">
+        <span class="status-label">Dispatch</span>
+        <strong id="backend-status">...</strong>
+      </div>
+      <div class="status-chip">
+        <span class="status-label">Account</span>
+        <strong id="identity-role">Guest</strong>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar panel">
+      <div class="sidebar-art">
+        <img src="assets/roadside-subscriber.png" alt="Subscriber onboarding concept"/>
+      </div>
+      <div class="sidebar-copy">
+        <p class="eyebrow">Membership</p>
+        <h2>Subscriber sign in and sign up.</h2>
+        <p id="identity-state" class="muted">Create a subscriber account or sign in to load member state and saved vehicle information.</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link" href="home.html">Home</a>
+        <a class="nav-link" href="customer.html">Customer Request</a>
+        <a class="nav-link active" href="subscriber-access.html">Subscriber Access</a>
+        <a class="nav-link" href="provider.html">Provider Access</a>
+        <a class="nav-link" href="admin.html">Admin Access</a>
+      </nav>
+      <div class="sidebar-metrics">
+        <div class="metric-card">
+          <span>Service Line</span>
+          <strong id="api-port">24/7</strong>
+          <small id="backend-service">Checking availability</small>
+        </div>
+        <div class="metric-card">
+          <span>Dispatch Status</span>
+          <strong id="security-layer-state">Ready</strong>
+          <small id="security-layer-detail">Help is available when dispatch is online</small>
+        </div>
+        <div class="metric-card">
+          <span>Route</span>
+          <strong id="api-url">Subscriber center</strong>
+          <small id="api-status">Checking service availability...</small>
+        </div>
+      </div>
+    </aside>
+
+    <section class="stage">
+      <section class="screen active-screen">
+        <div class="hero-grid">
+          <div class="hero-panel panel">
+            <p class="eyebrow">Subscriber Priority</p>
+            <h2>Save your vehicle and keep roadside access ready.</h2>
+            <p class="muted">Use the member sign-in form for an existing account or open the subscriber setup flow to create a new one.</p>
+            <div class="cta-row">
+              <button class="glow-button alt" id="member-signup-open" type="button">Create Subscriber Account</button>
+              <a class="glow-button" href="customer.html">Continue To Request</a>
+            </div>
+          </div>
+          <div class="signin-panel panel">
+            <p class="eyebrow">Subscriber Sign In</p>
+            <h3>Member access</h3>
+            <form class="form-stack" id="signin-form">
+              <label>
+                <span>Username or Email</span>
+                <input class="field" name="identifier" placeholder="vipsubscriber or email" required/>
+              </label>
+              <label>
+                <span>Password</span>
+                <input class="field" name="password" type="password" placeholder="Password" required/>
+              </label>
+              <button class="glow-button wide" type="submit">Sign In</button>
+              <div class="button-pair">
+                <a class="glow-button alt compact" href="reset-password.html">Forgot Password</a>
+              </div>
+              <div class="feedback-box" id="signin-status" style="display:none"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="info-grid">
+          <div class="panel callout">
+            <p class="eyebrow">Account State</p>
+            <h3 id="customer-identity-role">Guest</h3>
+            <p class="muted" id="customer-identity-state">Subscriber state will appear after sign-in or signup.</p>
+            <div class="button-pair">
+              <a class="glow-button compact" href="customer.html">Request Service</a>
+              <a class="glow-button alt compact" href="subscriber-access.html">Stay On Profile</a>
+            </div>
+          </div>
+          <div class="panel callout">
+            <p class="eyebrow">Member Pricing</p>
+            <h3>Membership flow</h3>
+            <p class="muted">Review your plan details, accept the account terms, and keep your vehicle information ready for the next service call.</p>
+            <p class="muted">Subscriber monthly: <strong id="subscriber-monthly-price">pricing available on request</strong></p>
+            <p class="muted">Subscriber service entry: <strong id="subscriber-service-price">Pricing available on request</strong></p>
+          </div>
+        </div>
+
+        <div class="customer-grid">
+          <div class="panel detail-panel">
+            <p class="eyebrow">Subscriber Profile</p>
+            <h3>Vehicle, payment, and address on file</h3>
+            <p class="muted" id="subscriber-profile-summary">Sign in or create a subscriber account to keep vehicle and billing details ready.</p>
+            <p class="muted" id="subscriber-profile-vehicle">Vehicle details will appear here after subscriber setup is completed.</p>
+            <p class="muted" id="subscriber-profile-address">Address details will appear here after subscriber setup is completed.</p>
+            <p class="muted" id="subscriber-profile-payment">Payment record will appear here after subscriber setup.</p>
+            <p class="muted" id="subscriber-profile-membership">Subscriber profile is not active on this device yet.</p>
+          </div>
+          <form class="panel form-grid" id="subscriber-profile-form">
+            <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+            <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+            <label><span>Email</span><input class="field" name="email" placeholder="Email" required/></label>
+            <label><span>Vehicle Year</span><input class="field" name="year" placeholder="Vehicle Year" required/></label>
+            <label><span>Vehicle Make</span><input class="field" name="make" placeholder="Vehicle Make" required/></label>
+            <label><span>Vehicle Model</span><input class="field" name="model" placeholder="Vehicle Model" required/></label>
+            <label><span>Vehicle Color</span><input class="field" name="color" placeholder="Vehicle Color" required/></label>
+            <label><span>Street Address</span><input class="field" name="addressLine" placeholder="Street Address" required/></label>
+            <label><span>Address Line 2</span><input class="field" name="addressLineTwo" placeholder="Apartment, suite, gate code"/></label>
+            <label><span>City</span><input class="field" name="city" placeholder="City" required/></label>
+            <label><span>State</span><input class="field" name="stateRegion" placeholder="State" required/></label>
+            <label><span>Postal Code</span><input class="field" name="postalCode" placeholder="Postal Code"/></label>
+            <label><span>Cross Street</span><input class="field" name="crossStreet" placeholder="Nearest cross street"/></label>
+            <label><span>Payment Method</span><input class="field" name="paymentMethodMasked" placeholder="Masked payment method" required/></label>
+            <label><span>Payment Provider</span><input class="field" name="paymentProvider" placeholder="paypal or manual"/></label>
+            <label><span>Billing Zip</span><input class="field" name="billingZip" placeholder="Billing Zip"/></label>
+            <button class="glow-button wide full-span" type="submit">Save Subscriber Profile</button>
+            <div class="feedback-box full-span" id="subscriber-profile-status" style="display:none"></div>
+          </form>
+        </div>
+
+        <div class="customer-grid">
+          <form class="panel form-grid" id="subscriber-request-form">
+            <div class="full-span">
+              <p class="eyebrow">Subscriber Request</p>
+              <h3>Submit roadside service with subscriber pricing</h3>
+              <p class="muted" id="subscriber-request-terms">Subscriber request terms follow the dispatch liability and non-refundable service payment rules once the service payment step is accepted.</p>
+            </div>
+            <label>
+              <span>Service Type</span>
+              <select class="field" name="serviceType">
+                <option>Jump Start</option>
+                <option>Lockout</option>
+                <option>Tire Change</option>
+                <option>Gas Delivery</option>
+                <option>Battery Install</option>
+              </select>
+            </label>
+            <label><span>Street Address</span><input class="field" name="addressLine" placeholder="Street Address" required/></label>
+            <label><span>City</span><input class="field" name="city" placeholder="City" required/></label>
+            <label><span>State</span><input class="field" name="stateRegion" placeholder="State" required/></label>
+            <label><span>Cross Street</span><input class="field" name="crossStreet" placeholder="Cross Street if available"/></label>
+            <div class="feedback-box full-span" id="subscriber-location-status" style="display:none"></div>
+            <label class="full-span"><span>Additional Details</span><textarea class="field area" name="notes" placeholder="Add any issue details, access notes, or urgency context"></textarea></label>
+            <button class="glow-button wide full-span" type="submit">Submit Subscriber Request</button>
+            <div class="feedback-box full-span" id="subscriber-request-status" style="display:none"></div>
+          </form>
+
+          <div class="customer-side">
+            <div class="panel detail-panel">
+              <p class="eyebrow">Service Status</p>
+              <h3>Subscriber dispatch release</h3>
+              <p class="muted" id="subscriber-service-status-headline">Submit or reopen a subscriber request to load staged dispatch status.</p>
+              <p class="muted" id="subscriber-service-status-disclosure">Location and callback release remain staged until dispatch confirms the correct ETA and payment state.</p>
+              <p class="muted" id="subscriber-service-status-payment">Service payment remains locked until the approved platform prompt is released.</p>
+              <p class="muted" id="subscriber-service-status-safety">Ignore outside payment requests that do not come from the approved platform flow.</p>
+              <div id="subscriber-request-actions"></div>
+              <div class="feedback-box" id="subscriber-request-action-status" style="display:none"></div>
+              <div class="provider-release-card" id="subscriber-service-provider-photo-card" hidden>
+                <img class="provider-release-photo" id="subscriber-service-provider-photo" alt="Assigned provider profile photo"/>
+                <div>
+                  <div class="value" id="subscriber-service-provider-name">Provider details locked</div>
+                  <div class="muted" id="subscriber-service-provider-note">Assigned provider details will appear after hard ETA is confirmed and payment is received.</div>
+                </div>
+              </div>
+              <div class="ledger-list" id="subscriber-service-status-timeline"></div>
+            </div>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Service Terms</p>
+              <h3>Dispatch and payment rules</h3>
+              <ul class="trust-list">
+                <li>Service request intake can be submitted immediately through subscriber dispatch.</li>
+                <li>Contact and detailed release still follow dispatch status and ETA handling rules.</li>
+                <li>Roadside payment is non-refundable once the service payment step is accepted.</li>
+              </ul>
+            </div>
+            <form class="panel form-stack" id="subscriber-password-form">
+              <p class="eyebrow">Password Change</p>
+              <h3>Update account password</h3>
+              <label><span>Current Password</span><input class="field" name="currentPassword" type="password" placeholder="Current Password" required/></label>
+              <label><span>New Password</span><input class="field" name="newPassword" type="password" placeholder="New Password" required/></label>
+              <label><span>Confirm New Password</span><input class="field" name="confirmPassword" type="password" placeholder="Confirm New Password" required/></label>
+              <button class="glow-button wide" type="submit">Change Password</button>
+              <div class="feedback-box" id="subscriber-password-status" style="display:none"></div>
+            </form>
+            <div class="panel detail-panel">
+              <p class="eyebrow">Membership Control</p>
+              <h3>Subscriber cancel option</h3>
+              <p class="muted">Cancelling membership stops the active subscriber state and clears the next billing date while keeping the account record for support review.</p>
+              <button class="glow-button danger wide" id="subscriber-cancel-button" type="button">Cancel Subscriber Membership</button>
+              <div class="feedback-box" id="subscriber-cancel-status" style="display:none"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+</div>
+
+<div class="modal-shell" id="member-signup-modal" hidden>
+  <div class="modal-card">
+    <div class="modal-top">
+      <div>
+        <p class="eyebrow">Subscriber Setup</p>
+        <h3>Member Sign Up</h3>
+      </div>
+      <button class="modal-close" id="member-signup-close" type="button">Close</button>
+    </div>
+    <form class="form-grid" id="member-signup-form">
+      <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+      <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+      <label><span>Username</span><input class="field" name="username" placeholder="Username" required/></label>
+      <label><span>Email</span><input class="field" name="email" placeholder="Email" required/></label>
+      <label><span>Password</span><input class="field" name="password" type="password" placeholder="Password" required/></label>
+      <label><span>Confirm Password</span><input class="field" name="confirmPassword" type="password" placeholder="Confirm Password" required/></label>
+      <label><span>Vehicle Year</span><input class="field" name="year" placeholder="Vehicle Year" required/></label>
+      <label><span>Vehicle Make</span><input class="field" name="make" placeholder="Vehicle Make" required/></label>
+      <label><span>Vehicle Model</span><input class="field" name="model" placeholder="Vehicle Model" required/></label>
+      <label><span>Vehicle Color</span><input class="field" name="color" placeholder="Vehicle Color" required/></label>
+      <label><span>Street Address</span><input class="field" name="addressLine" placeholder="Street Address" required/></label>
+      <label><span>Address Line 2</span><input class="field" name="addressLineTwo" placeholder="Apartment, suite, gate code"/></label>
+      <label><span>City</span><input class="field" name="city" placeholder="City" required/></label>
+      <label><span>State</span><input class="field" name="stateRegion" placeholder="State" required/></label>
+      <label><span>Postal Code</span><input class="field" name="postalCode" placeholder="Postal Code"/></label>
+      <label><span>Cross Street</span><input class="field" name="crossStreet" placeholder="Nearest cross street"/></label>
+      <label><span>Payment Type</span>
+        <select class="field" name="paymentMethodType" id="member-payment-method" required>
+          <option value="CARD" selected>Card</option>
+          <option value="UPI">UPI</option>
+          <option value="MANUAL">Manual</option>
+        </select>
+      </label>
+      <label><span>Payment Reference</span><input class="field" name="paymentMethodMasked" id="member-payment-masked" placeholder="Masked Card or Note" value="****1111" required/></label>
+      <label class="full-span"><span>UPI ID</span><input class="field" name="paymentUpiId" id="member-payment-upi" placeholder="UPI ID (example@bank)" style="display:none"/></label>
+      <label class="toggle full-span"><input type="checkbox" name="subscriberTermsAccepted" required/><span>I accept the subscriber membership terms.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="dispatchOnlyLiabilityAccepted" required/><span>I understand the service platform coordinates dispatch and service delivery remains with the assigned provider.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="noRefundPolicyAccepted" required/><span>I understand the stated payment policy for roadside service and membership activity.</span></label>
+      <button class="glow-button wide full-span" type="submit">Create Member Account</button>
+      <div class="feedback-box full-span" id="member-signup-status" style="display:none"></div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function () {
+  const currentOrigin = window.location.origin;
+  const isLocalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(currentOrigin);
+  const backendOrigin = isLocalOrigin ? currentOrigin : "https://awroadside-fire-backend.onrender.com";
+  window.AWRoadsideConfig = Object.assign({
+    apiBaseUrl: backendOrigin + "/api/aw-roadside",
+    rawApiBaseUrl: backendOrigin + "/api",
+    adminApiBaseUrl: backendOrigin + "/api/admin",
+    uiBaseUrl: currentOrigin
+  }, window.AWRoadsideConfig || {});
+})();
+</script>
+<script type="module" src="frontend-index.mjs"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>

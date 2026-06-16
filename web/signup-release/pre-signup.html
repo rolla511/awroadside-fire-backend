@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AW Roadside | Pre-Signup Screening</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="../../Aw-styles.css"/>
+<style>
+  .pre-signup-container { max-width: 800px; margin: 40px auto; }
+  .role-selector { display: flex; gap: 20px; margin-bottom: 30px; }
+  .role-option { flex: 1; padding: 20px; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; text-align: center; background: #222; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+  .role-option.active { border-color: var(--red); background: #331111; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(255, 62, 62, 0.2); }
+  .role-option h3 { margin-top: 0; color: #fff; font-family: 'Rajdhani', sans-serif; font-size: 1.5rem; }
+  
+  /* Fix for black on black text boxes */
+  .field { 
+    font-size: 14px !important; 
+    min-height: 48px; 
+    background: #f5f5f5 !important; 
+    border: 2px solid #ddd !important; 
+    color: #111 !important; 
+    transition: all 0.2s;
+  }
+  .field:focus {
+    background: #ffffff !important;
+    border-color: var(--red) !important;
+    box-shadow: 0 0 0 4px rgba(255, 62, 62, 0.1);
+  }
+  .field::placeholder { color: #888; }
+  
+  .hidden { display: none; }
+  .screening-info { background: rgba(255, 62, 62, 0.1); border: 1px solid var(--red); border-left: 8px solid var(--red); padding: 20px; margin-bottom: 25px; font-size: 1em; border-radius: 8px; color: #fff; }
+  
+  /* Arched Header Styles */
+  .header-container { text-align: center; margin-bottom: 40px; position: relative; padding-top: 20px; }
+  .arched-title { 
+    width: 100%; 
+    height: 120px; 
+    margin: 0 auto;
+  }
+  .arched-title text {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 800;
+    font-size: 64px;
+    fill: var(--red);
+    text-transform: uppercase;
+    letter-spacing: 4px;
+  }
+  .slogan-slanted {
+    font-family: 'Sora', sans-serif;
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: var(--yellow);
+    transform: rotate(-5deg);
+    display: inline-block;
+    margin-top: -30px;
+    margin-left: 20%;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  }
+  
+  h4 { color: var(--yellow); border-bottom: 1px solid #333; padding-bottom: 8px; margin-bottom: 16px; font-family: 'Rajdhani', sans-serif; text-transform: uppercase; letter-spacing: 1px; }
+  .panel { border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333; background: #111; }
+  .muted { color: #fff; font-weight: 500; line-height: 1.5; }
+  label span { display: block; margin-bottom: 8px; color: var(--yellow); font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.5px; }
+  
+  .confirmation-screen {
+    text-align: center;
+    padding: 40px 20px;
+    background: #111;
+    border-radius: 16px;
+    border: 1px solid var(--red);
+    box-shadow: 0 0 30px rgba(255, 62, 62, 0.2);
+  }
+  .confirmation-screen h2 { color: var(--red); font-family: 'Rajdhani', sans-serif; font-size: 2.5rem; margin-bottom: 20px; }
+  .confirmation-screen p { color: #fff; font-size: 1.1rem; margin-bottom: 30px; line-height: 1.6; }
+  .id-badge { display: inline-block; padding: 10px 20px; background: #222; border: 1px solid #444; border-radius: 8px; font-family: monospace; color: var(--yellow); font-size: 1.2rem; margin-bottom: 20px; }
+  
+  /* Feedback Box Styles */
+  .feedback-box {
+    display: none;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 20px;
+    font-weight: 600;
+    text-align: center;
+    border: 1px solid transparent;
+    animation: fadeIn 0.3s ease-out;
+  }
+  .feedback-box.loading {
+    display: block;
+    background: rgba(255, 204, 0, 0.1);
+    color: var(--yellow);
+    border-color: rgba(255, 204, 0, 0.3);
+  }
+  .feedback-box.success {
+    display: block;
+    background: rgba(0, 255, 100, 0.1);
+    color: #00ff64;
+    border-color: rgba(0, 255, 100, 0.3);
+  }
+  .feedback-box.error {
+    display: block;
+    background: rgba(255, 62, 62, 0.1);
+    color: var(--red);
+    border-color: rgba(255, 62, 62, 0.3);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .loading-spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255, 204, 0, 0.3);
+    border-radius: 50%;
+    border-top-color: var(--yellow);
+    animation: spin 1s ease-in-out infinite;
+    vertical-align: middle;
+    margin-right: 10px;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .glow-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    filter: grayscale(0.5);
+  }
+
+</style>
+</head>
+<body>
+<div class="page-shell">
+  <div class="header-container">
+    <svg class="arched-title" viewBox="0 0 800 150">
+      <path id="curve" d="M 100,120 Q 400,20 700,120" fill="transparent" />
+      <text width="800">
+        <textPath xlink:href="#curve" startOffset="50%" text-anchor="middle">AW ROADSIDE</textPath>
+      </text>
+    </svg>
+    <div class="slogan-slanted">BE A STEP AHEAD • DON'T BE STUCK IN LINE</div>
+  </div>
+
+  <main class="pre-signup-container">
+    <div class="screening-info">
+      <p><strong>Logistics Screening:</strong> We are currently screening for service areas and logistics. Please select your role to continue. Access to the full application is restricted during the testing phase.</p>
+    </div>
+
+    <div class="role-selector">
+      <div class="role-option" id="role-subscriber" onclick="selectRole('SUBSCRIBER')">
+        <h3>Subscriber</h3>
+        <p class="muted">Looking for roadside service in your area.</p>
+      </div>
+      <div class="role-option" id="role-provider" onclick="selectRole('PROVIDER')">
+        <h3>Provider</h3>
+        <p class="muted">Ready to provide roadside assistance.</p>
+      </div>
+    </div>
+
+    <div id="confirmation-view" class="hidden">
+       <div class="confirmation-screen">
+         <div style="font-size: 4rem; margin-bottom: 20px;">✅</div>
+         <h2>Pre-Signup Received</h2>
+         <p>Thank you for joining AW Roadside. Your intake has been successfully processed.</p>
+         <div class="id-badge" id="display-intake-id"></div>
+         <p style="font-size: 0.9rem; color: #aaa;">Check your email for your confirmation details. You will be redirected shortly.</p>
+         <button class="glow-button" onclick="window.location.reload()">Finish</button>
+       </div>
+    </div>
+
+    <form class="panel form-grid" id="pre-signup-form">
+      <input type="hidden" name="role" id="input-role" value="SUBSCRIBER"/>
+      <input type="hidden" name="amount" value="10.99"/>
+      <input type="hidden" name="currency" value="USD"/>
+      
+      <div class="full-span">
+        <h3 id="form-title">Subscriber Information</h3>
+      </div>
+
+      <label><span>Full Name</span><input class="field" name="fullName" placeholder="Full Name" required/></label>
+      <label><span>Email</span><input class="field" name="email" type="email" placeholder="email@example.com" required/></label>
+      <label><span>Phone Number</span><input class="field" name="phoneNumber" placeholder="Phone Number" required/></label>
+      <label><span>ZIP Code</span><input class="field" name="zip" placeholder="ZIP Code" required/></label>
+      <div style="font-size: 0.85em; color: var(--yellow); margin: 10px 0; font-weight: 600;">No password is required at pre-signup. Final account activation happens after full signup approval.</div>
+      
+      <!-- Vehicle Section -->
+      <div class="full-span"><h4>Vehicle Information</h4></div>
+      <label><span>Year</span><input class="field" name="vehicleYear" placeholder="2020"/></label>
+      <label><span>Make</span><input class="field" name="vehicleMake" placeholder="Toyota"/></label>
+      <label><span>Model</span><input class="field" name="vehicleModel" placeholder="Corolla"/></label>
+      <label><span>Color</span><input class="field" name="vehicleColor" placeholder="Red"/></label>
+
+      <!-- Provider Specific Section -->
+      <div id="provider-fields" class="full-span hidden">
+        <div class="full-span"><h4>Provider Logistics</h4></div>
+        <label class="full-span"><span>Service Area Description</span><input class="field" name="serviceArea" placeholder="e.g. North Atlanta, Fulton County"/></label>
+        <label class="full-span"><span>Services Offered (comma separated)</span><input class="field" name="services" placeholder="Lockout, Tire Change, etc."/></label>
+      </div>
+
+      <!-- Payment / Order Section -->
+      <div class="full-span">
+        <h4>Payment Verification</h4>
+        <p class="muted">Pre-signup screening requires PayPal approval or a captured transaction. Billing and activation remain pending until full signup is complete.</p>
+        <div style="font-size: 0.85em; color: var(--yellow); margin-bottom: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px;">
+          <strong>Card Users:</strong> Direct card entry below is for screening purposes. Please ensure your card supports secure online authorization.
+        </div>
+        <div id="paypal-payment-status" class="muted" style="margin-top: 8px;">Loading PayPal payment options…</div>
+        <div id="paypal-button-container" style="margin-top: 12px;"></div>
+      </div>
+
+      <div class="full-span" style="margin-top: 20px;">
+        <h4 style="font-size: 1rem; color: #fff; margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 6px;">Credit Card Details (Secured via PayPal Guest Checkout)</h4>
+      </div>
+      <label class="full-span"><span>Name on Card</span><input class="field" name="cardName" placeholder="As it appears on card"/></label>
+      <label class="full-span"><span>Credit Card Number</span><input class="field" name="cardNumber" placeholder="0000 0000 0000 0000"/></label>
+      <div class="full-span form-grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+        <label><span>Expiration Date</span><input class="field" name="cardExp" placeholder="MM/YY"/></label>
+        <label><span>CVV</span><input class="field" name="cardCvv" placeholder="123"/></label>
+      </div>
+
+      <label class="full-span"><span>PayPal Approval / Subscription ID (Optional)</span><input class="field" name="orderId" placeholder="Filled automatically after PayPal approval"/></label>
+      <label class="toggle full-span"><input type="checkbox" name="capturePaypal" checked/><span>Process payment on submission</span></label>
+
+      <div class="full-span" style="border-top: 1px solid #333; margin-top: 10px; padding-top: 10px;">
+        <h4>Early Release App Testing</h4>
+        <p class="muted">Would you like to participate in early app testing? Your feedback helps us speed up the release!</p>
+      </div>
+      <label class="toggle full-span">
+        <span>Participate in testing?</span>
+        <select class="field" name="earlyTestingConsent" style="width: auto; display: inline-block; margin-left: 10px;">
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </label>
+      <div id="testing-email-container" class="full-span hidden">
+        <label><span>Play Store / App Store Email</span><input class="field" name="storeEmail" type="email" placeholder="email@example.com"/></label>
+      </div>
+
+      <label class="full-span"><span>Digital Signature (Type Full Name)</span><input class="field" name="electronicSignatureName" placeholder="Type your legal full name" required/></label>
+      <label class="toggle full-span"><input type="checkbox" name="electronicSignatureAccepted" required/><span>I Agree and confirm this typed name is my electronic signature.</span></label>
+      <label class="toggle full-span"><input type="checkbox" name="termsAccepted" required/><span>I accept the pre-signup terms and logistics screening policy.</span></label>
+      
+      <button class="glow-button wide full-span" type="submit">Submit Pre-Signup</button>
+      <div class="feedback-box full-span" id="feedback" style="display:none; font-weight: 600; font-size: 1.1em; text-align: center;"></div>
+    </form>
+  </main>
+</div>
+
+<script>
+  const PAYPAL_SCREENING_AMOUNT = "10.99";
+  const paypalState = {
+    configured: false,
+    enabled: false,
+    orderId: "",
+    subscriptionId: "",
+    captureId: "",
+    captured: false,
+    status: "",
+    activationStatus: ""
+  };
+
+  function selectRole(role) {
+    document.getElementById('input-role').value = role;
+    document.getElementById('role-subscriber').classList.toggle('active', role === 'SUBSCRIBER');
+    document.getElementById('role-provider').classList.toggle('active', role === 'PROVIDER');
+    document.getElementById('form-title').innerText = role === 'SUBSCRIBER' ? 'Subscriber Information' : 'Provider Information';
+    document.getElementById('provider-fields').classList.toggle('hidden', role === 'SUBSCRIBER');
+  }
+
+  document.getElementById('pre-signup-form').querySelector('[name="earlyTestingConsent"]').addEventListener('change', function(e) {
+    document.getElementById('testing-email-container').classList.toggle('hidden', e.target.value !== 'yes');
+  });
+
+  function getBackendBaseUrl() {
+    const currentOrigin = window.location.origin;
+    const currentHost = (window.location.hostname || '').toLowerCase();
+    const isLocal = currentHost === 'localhost' || currentHost === '127.0.0.1';
+    
+    // If we are already on the backend domain, use it directly
+    if (currentHost === 'awroadside-fire-backend.onrender.com' || currentHost.endsWith('.awroadside-fire-backend.onrender.com')) {
+      return currentOrigin;
+    }
+
+    // Force production backend for known deployment domains
+    if (currentHost === 'aw-roadside.onrender.com' || currentHost.endsWith('.aw-roadside.onrender.com')) {
+      return 'https://awroadside-fire-backend.onrender.com';
+    }
+
+    // Fallback for local testing or other domains
+    return isLocal ? currentOrigin : 'https://awroadside-fire-backend.onrender.com';
+  }
+
+  async function fetchJsonWithFallback(paths, options = {}) {
+    let lastError = null;
+    for (const path of paths) {
+      try {
+        const response = await fetch(path, options);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const message = payload?.message || payload?.error || `Request failed (${response.status})`;
+          throw new Error(message);
+        }
+        return payload;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error('Request failed');
+  }
+
+  function setPaypalStatus(message) {
+    const paypalStatus = document.getElementById('paypal-payment-status');
+    if (paypalStatus) {
+      paypalStatus.innerText = message;
+    }
+  }
+
+  async function ensurePaypalSdk(clientId, currency = 'USD') {
+    if (window.paypal && window.paypal.Buttons) {
+      return;
+    }
+
+    await new Promise((resolve, reject) => {
+      const existing = document.querySelector('script[data-paypal-sdk="true"]');
+      if (existing) {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', () => reject(new Error('Failed to load PayPal SDK.')), { once: true });
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(clientId)}&currency=${encodeURIComponent(currency)}&intent=subscription&vault=true`;
+      script.async = true;
+      script.dataset.paypalSdk = 'true';
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Failed to load PayPal SDK.'));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function initializePaypalForPreSignup() {
+    const backendBase = getBackendBaseUrl();
+    const createSubscriptionPath = `${backendBase}/index.mjs/payments/create-subscription`;
+
+    try {
+      const paymentConfig = await fetchJsonWithFallback([
+        `${backendBase}/index.mjs/payments/config`,
+        `${backendBase}/api/payments/config`
+      ]);
+
+      paypalState.configured = Boolean(paymentConfig?.enabled && paymentConfig?.clientId);
+      paypalState.enabled = paypalState.configured;
+
+      if (!paypalState.configured) {
+        setPaypalStatus('PayPal is currently unavailable. You can still submit and receive a payment status response.');
+        return;
+      }
+
+      await ensurePaypalSdk(paymentConfig.clientId, paymentConfig.currency || 'USD');
+
+      if (!window.paypal || !window.paypal.Buttons) {
+        setPaypalStatus('PayPal SDK failed to initialize. Please try again later.');
+        return;
+      }
+
+      setPaypalStatus('Complete PayPal approval first. Your subscription will remain pending activation until full signup is completed.');
+      window.paypal.Buttons({
+        style: { shape: 'pill', layout: 'vertical', label: 'pay' },
+        async createOrder() {
+          const role = document.getElementById('input-role').value || 'SUBSCRIBER';
+          if (role === 'SUBSCRIBER') return; // Handled by createSubscription
+
+          const createOrderPath = `${backendBase}/index.mjs/payments/create-order`;
+          const payload = {
+            paymentKind: role === 'PROVIDER' ? 'provider-membership' : 'priority',
+            brand_name: 'AW Roadside',
+            description: `AW Roadside Pre-Signup Screening - ${role}`,
+            application_context: {
+              brand_name: 'AW Roadside',
+              shipping_preference: 'NO_SHIPPING',
+              user_action: 'PAY_NOW'
+            }
+          };
+
+          const order = await fetchJsonWithFallback([createOrderPath], {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+
+          if (!order?.orderId) {
+            throw new Error('Unable to create PayPal order.');
+          }
+          paypalState.orderId = order.orderId;
+          paypalState.status = order.status || 'CREATED';
+          return order.orderId;
+        },
+        async createSubscription() {
+          const role = document.getElementById('input-role').value || 'SUBSCRIBER';
+          if (role !== 'SUBSCRIBER') {
+            setPaypalStatus('Provider pre-signup still uses one-time payment capture. Switch role to subscriber for subscription flow.');
+            throw new Error('Subscription payment is only configured for subscriber pre-signup.');
+          }
+
+          const planId = paymentConfig?.subscriberPlanId || null;
+          if (!planId) {
+            throw new Error('Subscriber plan is not configured. Set PAYPAL_SUBSCRIBER_PLAN_ID on the backend.');
+          }
+
+          const payload = {
+            paymentKind: 'membership',
+            planId,
+            custom_id: `presignup-${Date.now()}`,
+            brand_name: 'AW Roadside',
+            description: `AW Roadside Pre-Signup Screening - ${role}`,
+            subscriber: {
+              name: {
+                given_name: document.querySelector('[name="fullName"]').value.split(' ')[0],
+                surname: document.querySelector('[name="fullName"]').value.split(' ').slice(1).join(' ') || 'User'
+              },
+              email_address: document.querySelector('[name="email"]').value
+            },
+            application_context: {
+              brand_name: 'AW Roadside',
+              shipping_preference: 'NO_SHIPPING',
+              user_action: 'SUBSCRIBE_NOW'
+            }
+          };
+          const subscription = await fetchJsonWithFallback([createSubscriptionPath], {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!subscription?.subscriptionId) {
+            throw new Error('Unable to create PayPal subscription.');
+          }
+          paypalState.subscriptionId = subscription.subscriptionId;
+          paypalState.orderId = subscription.subscriptionId;
+          paypalState.captured = false;
+          paypalState.captureId = '';
+          paypalState.status = subscription.status || 'APPROVAL_PENDING';
+          paypalState.activationStatus = subscription.pendingStatus || 'PENDING_ACTIVATION';
+          setPaypalStatus(`PayPal subscription ${subscription.subscriptionId} created. Approve in popup to continue (activation remains pending).`);
+          return subscription.subscriptionId;
+        },
+        async onApprove(data) {
+          if (data.orderID && !data.subscriptionID) {
+            // This is a createOrder flow (Provider)
+            const captureOrderPath = `${backendBase}/index.mjs/payments/capture-order`;
+            const capture = await fetchJsonWithFallback([captureOrderPath], {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: data.orderID })
+            });
+            
+            if (capture.status === 'COMPLETED' || capture.status === 'APPROVED' || capture.status === 'CAPTURED') {
+              paypalState.captured = true;
+              paypalState.orderId = data.orderID;
+              paypalState.captureId = capture.capture?.id || data.orderID;
+              paypalState.status = capture.status;
+              document.querySelector('[name="orderId"]').value = paypalState.orderId;
+              setPaypalStatus('Payment captured successfully. You can now submit your pre-signup details.');
+            } else {
+              throw new Error('Payment capture did not complete: ' + (capture.message || capture.status));
+            }
+            return;
+          }
+
+          paypalState.subscriptionId = data?.subscriptionID || paypalState.subscriptionId;
+          paypalState.orderId = paypalState.subscriptionId || paypalState.orderId;
+          paypalState.captureId = paypalState.subscriptionId || '';
+          paypalState.status = 'APPROVED';
+          paypalState.activationStatus = 'PENDING_ACTIVATION';
+          paypalState.captured = Boolean(paypalState.subscriptionId);
+          if (!paypalState.captured) {
+            throw new Error('Subscription approval did not complete.');
+          }
+          document.querySelector('[name="orderId"]').value = paypalState.orderId;
+          setPaypalStatus('Subscription approved and stored as pending activation. Complete full signup to activate billing/access.');
+        },
+        onCancel() {
+          paypalState.captured = false;
+          setPaypalStatus('Subscription approval was canceled. You can try again before submitting.');
+        },
+        onError(error) {
+          paypalState.captured = false;
+          setPaypalStatus(`PayPal subscription failed: ${error?.message || 'Unknown error'}`);
+        }
+      }).render('#paypal-button-container');
+    } catch (error) {
+      setPaypalStatus(`Unable to initialize PayPal: ${error.message}`);
+    }
+  }
+
+  initializePaypalForPreSignup();
+
+  const form = document.getElementById('pre-signup-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const feedback = document.getElementById('feedback');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    
+    feedback.style.display = 'block';
+    feedback.className = 'feedback-box loading';
+    feedback.innerHTML = '<div class="loading-spinner"></div> Processing Submission...';
+    submitBtn.disabled = true;
+
+    const formData = new FormData(form);
+    const role = formData.get('role');
+    const data = {
+      role: role,
+      fullName: formData.get('fullName'),
+      email: formData.get('email'),
+      phoneNumber: formData.get('phoneNumber'),
+      zip: formData.get('zip'),
+      vehicle: {
+        year: formData.get('vehicleYear'),
+        make: formData.get('vehicleMake'),
+        model: formData.get('vehicleModel'),
+        color: formData.get('vehicleColor')
+      },
+      orderId: paypalState.orderId || formData.get('orderId') || '',
+      cardName: formData.get('cardName'),
+      cardNumber: formData.get('cardNumber'),
+      cardExp: formData.get('cardExp'),
+      cardCvv: formData.get('cardCvv'),
+      electronicSignature: {
+        accepted: formData.get('electronicSignatureAccepted') === 'on',
+        signedName: (formData.get('electronicSignatureName') || '').trim() || null,
+        signedAt: new Date().toISOString()
+      },
+      capturePaypal: (formData.get('capturePaypal') === 'on') && !paypalState.captured,
+      captureId: paypalState.captureId || paypalState.subscriptionId || null,
+      captureStatus: paypalState.status || null,
+      subscriptionActivationStatus: paypalState.activationStatus || null,
+      subscriptionPendingActivation: paypalState.captured,
+      subscriptionId: paypalState.subscriptionId || null,
+      capture: paypalState.captured ? {
+        id: paypalState.captureId || paypalState.subscriptionId || null,
+        status: paypalState.status || 'APPROVED'
+      } : null,
+      amount: formData.get('amount'),
+      currency: formData.get('currency'),
+      termsAccepted: formData.get('termsAccepted') === 'on',
+      storeEmail: formData.get('storeEmail'),
+      earlyTestingConsent: formData.get('earlyTestingConsent') === 'yes'
+    };
+
+    if (role === 'PROVIDER') {
+      data.serviceArea = formData.get('serviceArea');
+      data.services = formData.get('services').split(',').map(s => s.trim()).filter(Boolean);
+    }
+
+    const endpoint = role === 'SUBSCRIBER' ? '/api/pre-signup/subscriber' : '/api/pre-signup/provider';
+    const backendUrl = getBackendBaseUrl();
+
+    if ((formData.get('capturePaypal') === 'on') && !paypalState.captured && !data.orderId) {
+      // If card info is provided but no PayPal orderId/subscriptionId, 
+      // we need to tell the user they must still use the PayPal button or a real captured source.
+      if (!data.cardNumber) {
+        submitBtn.disabled = false;
+        feedback.className = 'feedback-box error';
+        feedback.innerText = 'Please complete PayPal approval first.';
+        return;
+      } else {
+        // Card data is present but we haven't implemented backend capture for raw cards yet.
+        // The user's goal is to NOT allow just card details to count as capture.
+        submitBtn.disabled = false;
+        feedback.className = 'feedback-box error';
+        feedback.innerText = 'Direct card processing is currently handled via the PayPal button "Debit or Credit Card" option. Please use that for immediate capture.';
+        return;
+      }
+    }
+
+    // In some environments, we might be serving from a subpath or different origin
+    // but the API is expected to be at /api or /index.mjs/api
+    try {
+      let response;
+      try {
+        response = await fetch(backendUrl + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+      } catch (e) {
+        // Fallback to /index.mjs prefix if direct /api fails (common in some proxy setups)
+        response = await fetch(backendUrl + '/index.mjs' + endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+      }
+
+      const result = await response.json();
+      if (response.ok) {
+        feedback.className = 'feedback-box success';
+        feedback.innerText = 'Pre-signup submitted. Subscription is approved but pending activation until full signup is complete. Redirecting...';
+        
+        // Show confirmation screen
+        document.getElementById('pre-signup-form').classList.add('hidden');
+        document.querySelector('.role-selector').classList.add('hidden');
+        document.querySelector('.screening-info').classList.add('hidden');
+        document.getElementById('display-intake-id').innerText = result.intakeId;
+        document.getElementById('confirmation-view').classList.remove('hidden');
+
+        if (result.session && result.session.token) {
+          localStorage.setItem('aw_auth_token', result.session.token);
+          localStorage.setItem('aw_user_id', result.session.userId);
+          localStorage.setItem('aw_user_roles', JSON.stringify(result.session.roles));
+          
+          // Redirect to profile or home after a longer delay to let them see confirmation
+          setTimeout(() => {
+             const target = result.role === 'PROVIDER' ? 'provider.html' : 'subscriber-access.html';
+             window.location.href = target;
+          }, 5000);
+        }
+      } else {
+        submitBtn.disabled = false;
+        feedback.className = 'feedback-box error';
+        feedback.innerText = 'Payment or submission was not accepted: ' + (result.message || result.error || 'Unknown error') + '. Please try again.';
+      }
+    } catch (err) {
+      submitBtn.disabled = false;
+      feedback.className = 'feedback-box error';
+      feedback.innerText = 'Submission failed before payment confirmation: ' + err.message + '. Please try again later.';
+    }
+  });
+</script>
+</body>
+</html>
