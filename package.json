@@ -8,5 +8,5 @@
   "scripts": {
     "start": "node index.mjs",
     "server": "node server.mjs"
-  }
+"data base": "awroadside_db"  }
 }
