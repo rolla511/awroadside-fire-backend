@@ -14,6 +14,9 @@ const PAYPAL_WEBHOOK_ID = readEnv("PAYPAL_WEBHOOK_ID") || PAYPAL_WEBHOOK_IDS[PAY
 const PAYPAL_BRAND_NAME = readEnv("PAYPAL_BRAND_NAME") || "AW Roadside";
 const PAYPAL_SOFT_DESCRIPTOR = toSoftDescriptor(readEnv("PAYPAL_SOFT_DESCRIPTOR") || "AWROADSIDE");
 const PAYPAL_PARTNER_ATTRIBUTION_ID = readEnv("PAYPAL_PARTNER_ATTRIBUTION_ID");
+const PAYPAL_PROXY_URL = readEnv("PAYPAL_PROXY_URL");
+const PAYPAL_PROXY_USERNAME = readEnv("PAYPAL_PROXY_USERNAME");
+const PAYPAL_PROXY_PASSWORD = readEnv("PAYPAL_PROXY_PASSWORD");
 
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -27,7 +30,7 @@ export async function getAccessToken() {
   }
 
   console.log("[DEBUG_LOG] PayPal token expired or missing. Fetching new one...");
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token`, {
+  const options = {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -38,7 +41,8 @@ export async function getAccessToken() {
     body: new URLSearchParams({
       grant_type: "client_credentials"
     }).toString()
-  });
+  };
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token`, options);
 
   const payload = await readJsonPayload(response);
   if (!response.ok) {
@@ -61,7 +65,7 @@ export async function getAccessToken() {
 
 export async function introspectToken(token, tokenTypeHint = "access_token") {
   requireCredentials();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/introspect`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/introspect`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -84,7 +88,7 @@ export async function introspectToken(token, tokenTypeHint = "access_token") {
 
 export async function revokeToken(token, tokenTypeHint = "access_token") {
   requireCredentials();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/terminate`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/terminate`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -113,14 +117,16 @@ export async function revokeToken(token, tokenTypeHint = "access_token") {
   return payload || { success: true };
 }
 
+
 export async function createOrder(orderDetails = {}) {
   const token = await getAccessToken();
   const requestBody = buildOrderRequest(orderDetails);
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders`, {
+  const requestId = orderDetails.requestId || orderDetails.PayPalRequestId || crypto.randomUUID();
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
       Prefer: "return=representation",
-      "PayPal-Request-Id": crypto.randomUUID()
+      "PayPal-Request-Id": requestId
     }),
     body: JSON.stringify(requestBody)
   });
@@ -133,15 +139,16 @@ export async function createOrder(orderDetails = {}) {
   return payload;
 }
 
-export async function captureOrder(orderId) {
+export async function captureOrder(orderId, captureDetails = {}) {
   const normalizedOrderId = readRequiredString(orderId, "orderId");
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/capture`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/capture`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
       Prefer: "return=representation",
-      "PayPal-Request-Id": crypto.randomUUID()
-    })
+      "PayPal-Request-Id": captureDetails.requestId || captureDetails.PayPalRequestId || crypto.randomUUID()
+    }),
+    body: captureDetails.body ? JSON.stringify(captureDetails.body) : undefined
   });
 
   const payload = await readJsonPayload(response);
@@ -152,15 +159,16 @@ export async function captureOrder(orderId) {
   return payload;
 }
 
-export async function authorizeOrder(orderId) {
+export async function authorizeOrder(orderId, authorizationDetails = {}) {
   const normalizedOrderId = readRequiredString(orderId, "orderId");
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/authorize`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/authorize`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
       Prefer: "return=representation",
-      "PayPal-Request-Id": crypto.randomUUID()
-    })
+      "PayPal-Request-Id": authorizationDetails.requestId || authorizationDetails.PayPalRequestId || crypto.randomUUID()
+    }),
+    body: authorizationDetails.body ? JSON.stringify(authorizationDetails.body) : undefined
   });
 
   const payload = await readJsonPayload(response);
@@ -171,15 +179,16 @@ export async function authorizeOrder(orderId) {
   return payload;
 }
 
-export async function confirmOrder(orderId) {
+export async function confirmOrder(orderId, confirmationDetails = {}) {
   const normalizedOrderId = readRequiredString(orderId, "orderId");
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/confirm-payment-source`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/confirm-payment-source`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
       Prefer: "return=representation",
-      "PayPal-Request-Id": crypto.randomUUID()
-    })
+      "PayPal-Request-Id": confirmationDetails.requestId || confirmationDetails.PayPalRequestId || crypto.randomUUID()
+    }),
+    body: JSON.stringify(confirmationDetails.body || confirmationDetails)
   });
 
   const payload = await readJsonPayload(response);
@@ -193,12 +202,12 @@ export async function confirmOrder(orderId) {
 export async function createOrderTracking(orderId, trackingDetails = {}) {
   const normalizedOrderId = readRequiredString(orderId, "orderId");
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/track`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/track`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
-      "PayPal-Request-Id": crypto.randomUUID()
+      "PayPal-Request-Id": trackingDetails.requestId || trackingDetails.PayPalRequestId || crypto.randomUUID()
     }),
-    body: JSON.stringify(trackingDetails)
+    body: JSON.stringify(trackingDetails.body || trackingDetails)
   });
 
   const payload = await readJsonPayload(response);
@@ -262,6 +271,48 @@ export async function getAuthorizedPayment(authorizationId) {
   return payload;
 }
 
+export async function voidAuthorizedPayment(authorizationId) {
+  const normalizedAuthId = readRequiredString(authorizationId, "authorizationId");
+  const token = await getAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/payments/authorizations/${encodeURIComponent(normalizedAuthId)}/void`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      "PayPal-Request-Id": crypto.randomUUID()
+    })
+  });
+
+  if (!response.ok) {
+    const payload = await readJsonPayload(response);
+    throw createPaypalError("void-authorized-payment-failed", response.status, payload);
+  }
+
+  // Void returns 204 No Content on success
+  return {
+    success: true,
+    statusCode: response.status
+  };
+}
+
+export async function reauthorizeAuthorizedPayment(authorizationId, reauthorizeDetails = {}) {
+  const normalizedAuthId = readRequiredString(authorizationId, "authorizationId");
+  const token = await getAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/payments/authorizations/${encodeURIComponent(normalizedAuthId)}/reauthorize`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      Prefer: "return=representation",
+      "PayPal-Request-Id": crypto.randomUUID()
+    }),
+    body: reauthorizeDetails.body ? JSON.stringify(reauthorizeDetails.body) : undefined
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("reauthorize-authorized-payment-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
 export async function captureAuthorizedPayment(authorizationId, captureDetails = {}) {
   const normalizedAuthId = readRequiredString(authorizationId, "authorizationId");
   const token = await getAccessToken();
@@ -305,7 +356,7 @@ export async function activateBillingPlan(planId) {
 
 export async function createBillingPlan(data = {}) {
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/billing/plans`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/billing/plans`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
       Prefer: data.prefer || "return=representation",
@@ -338,7 +389,7 @@ export async function createSubscription(data = {}) {
     if (data.application_context) Object.assign(body.application_context, data.application_context);
   }
 
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/billing/subscriptions`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/billing/subscriptions`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
       Prefer: data.prefer || "return=representation",
@@ -362,7 +413,7 @@ export async function getSubscription(id, query = {}) {
   
   if (query.fields) url.searchParams.append("fields", query.fields);
 
-  const response = await fetch(url.toString(), {
+  const response = await paypalFetch(url.toString(), {
     method: "GET",
     headers: buildJsonHeaders(token)
   });
@@ -420,7 +471,7 @@ export async function listSubscriptionTransactions(id, query = {}) {
   if (query.startTime) url.searchParams.append("start_time", query.startTime);
   if (query.endTime) url.searchParams.append("end_time", query.endTime);
 
-  const response = await fetch(url.toString(), {
+  const response = await paypalFetch(url.toString(), {
     method: "GET",
     headers: buildJsonHeaders(token)
   });
@@ -448,6 +499,26 @@ export async function activateSubscription(id, reason = "Activating subscription
   const payload = await readJsonPayload(response);
   if (!response.ok) {
     throw createPaypalError("activate-subscription-failed", response.status, payload);
+  }
+
+  return payload || { success: true };
+}
+
+export async function suspendSubscription(id, reason = "Suspending subscription") {
+  const token = await getAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/billing/subscriptions/${id}/suspend`, {
+    method: "POST",
+    headers: buildJsonHeaders(token),
+    body: JSON.stringify({ reason })
+  });
+
+  if (response.status === 204) {
+    return { success: true };
+  }
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("suspend-subscription-failed", response.status, payload);
   }
 
   return payload || { success: true };
@@ -545,10 +616,10 @@ export async function listPaymentTokens(customerId) {
 
 export async function createSetupToken(data = {}) {
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v3/vault/setup-tokens`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v3/vault/setup-tokens`, {
     method: "POST",
     headers: buildJsonHeaders(token, {
-      "PayPal-Request-Id": data.paypalRequestId
+      "PayPal-Request-Id": data.requestId || data.paypalRequestId || crypto.randomUUID()
     }),
     body: JSON.stringify(data.body || data)
   });
@@ -563,12 +634,12 @@ export async function createSetupToken(data = {}) {
 
 export async function createPaymentToken(options = {}) {
   const token = await getAccessToken();
-  const headers = buildJsonHeaders(token);
-  if (options.paypalRequestId) {
-    headers["PayPal-Request-Id"] = options.paypalRequestId;
-  }
+  const requestId = options.requestId || options.paypalRequestId || crypto.randomUUID();
+  const headers = buildJsonHeaders(token, {
+    "PayPal-Request-Id": requestId
+  });
 
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v3/vault/payment-tokens`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v3/vault/payment-tokens`, {
     method: "POST",
     headers,
     body: JSON.stringify(options.body || options)
@@ -587,7 +658,7 @@ export async function getUserInfo(schema = "openid") {
   const url = new URL(`${PAYPAL_API_BASE_URL}/v1/identity/openidconnect/userinfo`);
   url.searchParams.append("schema", schema);
 
-  const response = await fetch(url.toString(), {
+  const response = await paypalFetch(url.toString(), {
     method: "GET",
     headers: buildJsonHeaders(token)
   });
@@ -640,7 +711,7 @@ export async function searchTransactions(query = {}) {
     }
   });
 
-  const response = await fetch(url.toString(), {
+  const response = await paypalFetch(url.toString(), {
     method: "GET",
     headers: buildJsonHeaders(token)
   });
@@ -694,7 +765,7 @@ export async function listBillingPlans(query = {}) {
   if (query.page) url.searchParams.append("page", query.page);
   if (query.totalRequired !== undefined) url.searchParams.append("total_required", query.totalRequired);
 
-  const response = await fetch(url.toString(), {
+  const response = await paypalFetch(url.toString(), {
     method: "GET",
     headers: buildJsonHeaders(token, {
       Prefer: query.prefer || "return=minimal"
@@ -704,6 +775,29 @@ export async function listBillingPlans(query = {}) {
   const payload = await readJsonPayload(response);
   if (!response.ok) {
     throw createPaypalError("list-billing-plans-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function listInvoices(query = {}) {
+  const token = await getAccessToken();
+  const url = new URL(`${PAYPAL_API_BASE_URL}/v1/invoicing/invoices`);
+
+  if (query.page) url.searchParams.append("page", query.page);
+  if (query.pageSize || query.page_size) url.searchParams.append("page_size", query.pageSize || query.page_size);
+  if (query.totalCountRequired || query.total_count_required) {
+    url.searchParams.append("total_count_required", query.totalCountRequired || query.total_count_required);
+  }
+
+  const response = await paypalFetch(url.toString(), {
+    method: "GET",
+    headers: buildJsonHeaders(token)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("list-invoices-failed", response.status, payload);
   }
 
   return payload;
@@ -719,7 +813,7 @@ export async function validateWebhook(
   transmissionSig
 ) {
   const token = await getAccessToken();
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/notifications/verify-webhook-signature`, {
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/notifications/verify-webhook-signature`, {
     method: "POST",
     headers: buildJsonHeaders(token),
     body: JSON.stringify({
@@ -745,10 +839,14 @@ export function resolvePaypalWebhookId() {
   return PAYPAL_WEBHOOK_ID;
 }
 
-function buildOrderRequest(orderDetails) {
-  const amount = normalizeAmount(orderDetails.amount);
-  const description = readString(orderDetails.description) || "AW Roadside Service";
-  const customId = readString(orderDetails.customId) || undefined;
+export function buildOrderRequest(orderDetails) {
+  const amount = orderDetails.purchase_units?.[0]?.amount 
+    ? normalizeAmount(orderDetails.purchase_units[0].amount)
+    : (orderDetails.amount ? normalizeAmount(orderDetails.amount) : undefined);
+
+  const description = readString(orderDetails.description || orderDetails.purchase_units?.[0]?.description) || "AW Roadside Service";
+  const customId = readString(orderDetails.customId || orderDetails.purchase_units?.[0]?.custom_id) || undefined;
+  const referenceId = readString(orderDetails.referenceId || orderDetails.purchase_units?.[0]?.reference_id) || undefined;
 
   const purchaseUnit = {
     amount,
@@ -758,6 +856,17 @@ function buildOrderRequest(orderDetails) {
   if (customId) {
     purchaseUnit.custom_id = customId;
   }
+  if (referenceId) {
+    purchaseUnit.reference_id = referenceId;
+  }
+
+  // Preserve other purchase unit fields if provided (items, shipping, etc.)
+  if (orderDetails.purchase_units?.[0]) {
+    const originalPU = orderDetails.purchase_units[0];
+    if (originalPU.items) purchaseUnit.items = originalPU.items;
+    if (originalPU.shipping) purchaseUnit.shipping = originalPU.shipping;
+    if (originalPU.payee) purchaseUnit.payee = originalPU.payee;
+  }
 
   const applicationContext = {
     brand_name: PAYPAL_BRAND_NAME,
@@ -766,7 +875,7 @@ function buildOrderRequest(orderDetails) {
     user_action: "PAY_NOW"
   };
 
-  // Merge native_app or mobile_web if provided in orderDetails
+  // Merge return/cancel URLs
   if (orderDetails.return_url) applicationContext.return_url = orderDetails.return_url;
   if (orderDetails.cancel_url) applicationContext.cancel_url = orderDetails.cancel_url;
   if (orderDetails.returnUrl) applicationContext.return_url = orderDetails.returnUrl;
@@ -782,11 +891,28 @@ function buildOrderRequest(orderDetails) {
     Object.assign(applicationContext, orderDetails.application_context);
   }
 
-  return {
-    intent: "CAPTURE",
-    purchase_units: [purchaseUnit],
-    application_context: applicationContext
+  const request = {
+    intent: orderDetails.intent || "CAPTURE",
+    purchase_units: [purchaseUnit]
   };
+
+  if (applicationContext.return_url || applicationContext.cancel_url || orderDetails.application_context) {
+    request.application_context = applicationContext;
+  }
+
+  if (orderDetails.payment_source) {
+    request.payment_source = orderDetails.payment_source;
+  }
+
+  if (orderDetails.customer) {
+    request.customer = orderDetails.customer;
+  }
+
+  if (orderDetails.preferences) {
+    request.preferences = orderDetails.preferences;
+  }
+
+  return request;
 }
 
 function buildCaptureAuthorizedPaymentRequest(captureDetails) {
@@ -843,6 +969,21 @@ function normalizeAmountValue(value) {
 
 function encodeClientCredentials() {
   return Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64");
+}
+
+async function paypalFetch(url, options = {}) {
+  const fetchOptions = { ...options };
+  
+  // Proxy support could be implemented here if an agent library like https-proxy-agent was available.
+  // For now, we provide the configuration constants (PAYPAL_PROXY_URL, etc.) and this wrapper
+  // to centralize fetch calls for easier future proxy injection.
+  if (PAYPAL_PROXY_URL) {
+    console.log(`[DEBUG_LOG] PayPal request through proxy: ${PAYPAL_PROXY_URL}`);
+    // If undici is used (Node 18+ default fetch), we could set a Dispatcher here.
+    // fetchOptions.dispatcher = new ProxyAgent(PAYPAL_PROXY_URL);
+  }
+
+  return fetch(url, fetchOptions);
 }
 
 function requireCredentials() {

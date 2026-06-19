@@ -74,6 +74,8 @@ export function createPaypalCaptureController(helpers) {
     createPaypalOrderTracking,
     getPaypalAuthorizedPayment,
     capturePaypalAuthorizedPayment,
+    voidPaypalAuthorizedPayment,
+    reauthorizePaypalAuthorizedPayment,
     activatePaypalBillingPlan,
     createPaypalBillingPlan,
     createPaypalSubscription,
@@ -94,6 +96,7 @@ export function createPaypalCaptureController(helpers) {
     listPaypalSubscriptionTransactions,
     listPaypalBillingPlans,
     refundPaypalCapturedPayment,
+    listPaypalInvoices,
     introspectPaypalToken,
     revokePaypalToken,
     applyPaypalSubscriptionWebhook,
@@ -150,6 +153,37 @@ export function createPaypalCaptureController(helpers) {
   async function createOrderForPayload({ payload = {}, session = null, route = null } = {}) {
     const paymentKind = await resolvePaymentKind(payload, session);
     const normalizedRequest = await buildNormalizedRequest(payload, session, paymentKind);
+    
+    // Transfer Expanded Checkout fields from the original payload if present
+    if (payload.payment_source) {
+      normalizedRequest.payment_source = payload.payment_source;
+    }
+    if (payload.customer) {
+      normalizedRequest.customer = payload.customer;
+    }
+    if (payload.preferences) {
+      normalizedRequest.preferences = payload.preferences;
+    }
+    if (payload.intent) {
+      normalizedRequest.intent = payload.intent;
+    }
+    if (payload.purchase_units?.[0]) {
+       // Merge items and other purchase unit details if they were provided in the raw payload
+       // but not handled by buildNormalizedRequest
+       const rawPU = payload.purchase_units[0];
+       if (!normalizedRequest.purchase_units) {
+         normalizedRequest.purchase_units = [{}];
+       }
+       const pu = normalizedRequest.purchase_units[0];
+       if (rawPU.items && !pu.items) pu.items = rawPU.items;
+       if (rawPU.shipping && !pu.shipping) pu.shipping = rawPU.shipping;
+       if (rawPU.payee && !pu.payee) pu.payee = rawPU.payee;
+       if (rawPU.reference_id && !pu.reference_id) pu.reference_id = rawPU.reference_id;
+    }
+    if (payload.requestId || payload.PayPalRequestId) {
+      normalizedRequest.requestId = payload.requestId || payload.PayPalRequestId;
+    }
+
     const createdAt = new Date().toISOString();
     const order = await createPaypalOrder(normalizedRequest);
 
@@ -226,7 +260,7 @@ export function createPaypalCaptureController(helpers) {
       throw buildMissingOrderIdError();
     }
 
-    const capture = await capturePaypalOrder(orderId);
+    const capture = await capturePaypalOrder(orderId, payload.capture || payload);
     const capturedAt = new Date().toISOString();
     const amountCaptured = extractPaypalCapturedAmount(capture);
     const captureId = extractPaypalCaptureId(capture);
@@ -362,7 +396,7 @@ export function createPaypalCaptureController(helpers) {
       throw buildMissingOrderIdError();
     }
 
-    const authorization = await authorizePaypalOrder(orderId);
+    const authorization = await authorizePaypalOrder(orderId, payload.authorization || payload);
     const authorizedAt = new Date().toISOString();
 
     await appendPaymentLog({
@@ -396,7 +430,7 @@ export function createPaypalCaptureController(helpers) {
       throw buildMissingOrderIdError();
     }
 
-    const confirmation = await confirmPaypalOrder(orderId);
+    const confirmation = await confirmPaypalOrder(orderId, payload.confirmation || payload);
     const confirmedAt = new Date().toISOString();
 
     await appendPaymentLog({
@@ -468,7 +502,7 @@ export function createPaypalCaptureController(helpers) {
     return await getPaypalAuthorizedPayment(authorizationId, context.req);
   }
 
-  async function captureAuthorizedPaymentForPayload({ payload = {} } = {}) {
+  async function captureAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
     const authorizationId = optionalString(payload.authorizationId);
     if (!authorizationId) {
       const error = new Error("A PayPal authorizationId is required.");
@@ -477,6 +511,28 @@ export function createPaypalCaptureController(helpers) {
       throw error;
     }
     return await capturePaypalAuthorizedPayment(authorizationId, payload, context.req);
+  }
+
+  async function voidAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
+    const authorizationId = optionalString(payload.authorizationId);
+    if (!authorizationId) {
+      const error = new Error("A PayPal authorizationId is required.");
+      error.statusCode = 400;
+      error.code = "authorization-id-required";
+      throw error;
+    }
+    return await voidPaypalAuthorizedPayment(authorizationId, context.req);
+  }
+
+  async function reauthorizeAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
+    const authorizationId = optionalString(payload.authorizationId);
+    if (!authorizationId) {
+      const error = new Error("A PayPal authorizationId is required.");
+      error.statusCode = 400;
+      error.code = "authorization-id-required";
+      throw error;
+    }
+    return await reauthorizePaypalAuthorizedPayment(authorizationId, payload, context.req);
   }
 
   async function activateBillingPlanForPayload({ payload = {} } = {}) {
@@ -523,6 +579,11 @@ export function createPaypalCaptureController(helpers) {
     return await activatePaypalSubscription(id, reason, context.req);
   }
 
+  async function suspendSubscriptionForPayload({ id, payload = {}, context = {} } = {}) {
+    const reason = payload.reason || "Suspending subscription";
+    return await suspendPaypalSubscription(id, reason, context.req);
+  }
+
   async function captureSubscriptionForPayload({ id, payload = {}, paypalRequestId, context = {} } = {}) {
     return await capturePaypalSubscription(id, { body: payload, paypalRequestId }, context.req);
   }
@@ -561,6 +622,10 @@ export function createPaypalCaptureController(helpers) {
 
   async function getUserInfoForPayload({ schema, context = {} } = {}) {
     return await getPaypalUserInfo(schema, context.req);
+  }
+
+  async function listInvoicesForPayload({ payload = {}, context = {} } = {}) {
+    return await listPaypalInvoices(payload, context.req);
   }
 
   async function introspectTokenForPayload({ payload = {}, context = {} } = {}) {
@@ -622,6 +687,8 @@ export function createPaypalCaptureController(helpers) {
     captureOrderForPayload,
     getAuthorizedPaymentForPayload,
     captureAuthorizedPaymentForPayload,
+    voidAuthorizedPaymentForPayload,
+    reauthorizeAuthorizedPaymentForPayload,
     activateBillingPlanForPayload,
     createBillingPlanForPayload,
     createSubscriptionForPayload,
@@ -629,6 +696,7 @@ export function createPaypalCaptureController(helpers) {
     patchSubscriptionForPayload,
     reviseSubscriptionForPayload,
     activateSubscriptionForPayload,
+    suspendSubscriptionForPayload,
     captureSubscriptionForPayload,
     getSetupTokenForPayload,
     createSetupTokenForPayload,
@@ -641,6 +709,7 @@ export function createPaypalCaptureController(helpers) {
     getUserInfoForPayload,
     listSubscriptionTransactionsForPayload,
     listBillingPlansForPayload,
+    listInvoicesForPayload,
     introspectTokenForPayload,
     revokeTokenForPayload,
     applyWebhookEvent

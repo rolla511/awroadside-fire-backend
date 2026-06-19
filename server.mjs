@@ -1249,6 +1249,142 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/billing/subscriptions/`)) {
+      const parts = normalizedRawApiPath.split("/");
+      const subscriptionId = parts[parts.length - 1] === "activate" ? parts[parts.length - 2] : parts[parts.length - 1];
+      const action = parts[parts.length - 1] === "activate" ? "activate" : "get_or_patch";
+
+      if (action === "activate") {
+        if (req.method !== "POST") {
+          sendMethodNotAllowed(res, "POST");
+          return;
+        }
+
+        try {
+          const payload = await readJsonBody(req).catch(() => ({}));
+          const result = await paypalCaptureController.activateSubscriptionForPayload({
+            id: subscriptionId,
+            payload,
+            context: { req }
+          });
+          sendJson(res, 204, result);
+        } catch (error) {
+          console.error('[ERROR] Activate Subscription Route Failed:', error);
+          const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+          sendJson(res, statusCode, {
+            error: error?.code || "paypal-subscription-activate-failed",
+            message: error.message
+          });
+        }
+        return;
+      } else if (action === "get_or_patch") {
+        if (req.method === "PATCH") {
+          try {
+            const payload = await readJsonBody(req);
+            const result = await paypalCaptureController.patchSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+            sendJson(res, 204, result);
+          } catch (error) {
+            console.error('[ERROR] Patch Subscription Route Failed:', error);
+            const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+            sendJson(res, statusCode, {
+              error: error?.code || "paypal-subscription-patch-failed",
+              message: error.message
+            });
+          }
+          return;
+        } else if (req.method === "GET") {
+          try {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const query = Object.fromEntries(url.searchParams);
+            const result = await paypalCaptureController.getSubscriptionForPayload({
+              id: subscriptionId,
+              payload: query,
+              context: { req }
+            });
+            sendJson(res, 200, result);
+          } catch (error) {
+            console.error('[ERROR] Get Subscription Route Failed:', error);
+            const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+            sendJson(res, statusCode, {
+              error: error?.code || "paypal-subscription-get-failed",
+              message: error.message
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/billing/subscriptions`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating subscriptions."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const result = await paypalCaptureController.createSubscriptionForPayload({
+          payload,
+          context: { req }
+        });
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Create Subscription Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-subscription-create-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/invoicing/invoices`) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      const session = resolveUserSession(req);
+      if (!session || session.role !== "ADMIN") {
+        sendJson(res, 403, {
+          error: "forbidden",
+          message: "Only administrators can list invoices."
+        });
+        return;
+      }
+
+      try {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const query = Object.fromEntries(url.searchParams);
+        const result = await paypalCaptureController.listInvoicesForPayload({
+          payload: query,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] List Invoices Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-list-invoices-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/oauth/introspect`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -1343,6 +1479,53 @@ const server = http.createServer(async (req, res) => {
         });
       }
       return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/authorizations/`)) {
+      const parts = normalizedRawApiPath.split("/");
+      const authorizationId = parts[parts.length - 2];
+      const action = parts[parts.length - 1];
+
+      if (action === "void" || action === "reauthorize") {
+        if (req.method !== "POST") {
+          sendMethodNotAllowed(res, "POST");
+          return;
+        }
+
+        const session = resolveUserSession(req);
+        if (!session || session.role !== "ADMIN") {
+          sendJson(res, 403, {
+            error: "forbidden",
+            message: `Only administrators can ${action} authorizations.`
+          });
+          return;
+        }
+
+        try {
+          const payload = await readJsonBody(req).catch(() => ({}));
+          let result;
+          if (action === "void") {
+            result = await paypalCaptureController.voidAuthorizedPaymentForPayload({
+              payload: { ...payload, authorizationId },
+              context: { req }
+            });
+          } else {
+            result = await paypalCaptureController.reauthorizeAuthorizedPaymentForPayload({
+              payload: { ...payload, authorizationId },
+              context: { req }
+            });
+          }
+          sendJson(res, action === "void" ? 200 : 201, result);
+        } catch (error) {
+          console.error(`[ERROR] Authorization ${action} Route Failed:`, error);
+          const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+          sendJson(res, statusCode, {
+            error: error?.code || `paypal-authorization-${action}-failed`,
+            message: error.message
+          });
+        }
+        return;
+      }
     }
 
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-subscription`) {
@@ -4312,6 +4495,22 @@ async function capturePaypalAuthorizedPayment(authorizationId, captureDetails = 
   return paypal.captureAuthorizedPayment(authorizationId, captureDetails);
 }
 
+async function voidPaypalAuthorizedPayment(authorizationId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] voidPaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
+  }
+  return paypal.voidAuthorizedPayment(authorizationId);
+}
+
+async function reauthorizePaypalAuthorizedPayment(authorizationId, reauthorizeDetails = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] reauthorizePaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
+  }
+  return paypal.reauthorizeAuthorizedPayment(authorizationId, reauthorizeDetails);
+}
+
 async function activatePaypalBillingPlan(planId, req = null) {
   const session = req ? resolveUserSession(req) : null;
   if (req && !session) {
@@ -4374,6 +4573,14 @@ async function activatePaypalSubscription(id, reason, req = null) {
     console.log(`[DEBUG_LOG] activatePaypalSubscription called with request but no session for subscription ${id}`);
   }
   return paypal.activateSubscription(id, reason);
+}
+
+async function suspendPaypalSubscription(id, reason, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] suspendPaypalSubscription called with request but no session for subscription ${id}`);
+  }
+  return paypal.suspendSubscription(id, reason);
 }
 
 async function capturePaypalSubscription(id, options, req = null) {
@@ -4464,6 +4671,14 @@ async function listPaypalBillingPlans(query = {}, req = null) {
   return paypal.listBillingPlans(query);
 }
 
+async function listPaypalInvoices(query = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] listPaypalInvoices called with request but no session`);
+  }
+  return paypal.listInvoices(query);
+}
+
 function extractPaypalCapturedAmount(capture) {
   const amountValue = Number.parseFloat(
     readOptionalString(capture?.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value) ||
@@ -4528,6 +4743,8 @@ const paypalCaptureController = createPaypalCaptureController({
   createPaypalOrderTracking,
   getPaypalAuthorizedPayment,
   capturePaypalAuthorizedPayment,
+  voidPaypalAuthorizedPayment,
+  reauthorizePaypalAuthorizedPayment,
   activatePaypalBillingPlan,
   createPaypalBillingPlan,
   createPaypalSubscription,
@@ -4535,6 +4752,7 @@ const paypalCaptureController = createPaypalCaptureController({
   patchPaypalSubscription,
   revisePaypalSubscription,
   activatePaypalSubscription,
+  suspendPaypalSubscription,
   capturePaypalSubscription,
   getPaypalSetupToken,
   getPaypalPaymentToken,
@@ -4547,6 +4765,7 @@ const paypalCaptureController = createPaypalCaptureController({
   getPaypalUserInfo,
   listPaypalSubscriptionTransactions,
   listPaypalBillingPlans,
+  listPaypalInvoices,
   refundPaypalCapturedPayment,
   introspectPaypalToken,
   revokePaypalToken,
