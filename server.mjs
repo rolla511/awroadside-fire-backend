@@ -1249,6 +1249,38 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/refund-capture`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      const session = resolveUserSession(req);
+      if (!session || session.role !== "ADMIN") {
+        sendJson(res, 403, {
+          error: "forbidden",
+          message: "Only administrators can issue refunds."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const captureId = readRequiredString(payload?.captureId || payload?.capture_id, "captureId");
+        const result = await refundPaypalCapturedPayment(captureId, payload, req);
+
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Refund Capture Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-refund-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-subscription`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -1378,6 +1410,129 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/authorize-order`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before authorizing orders."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const session = resolveUserSession(req);
+        const result = await paypalCaptureController.authorizeOrderForPayload({
+          payload,
+          session,
+          route: RAW_API_BASE_PATH
+        });
+
+        sendJson(res, 200, {
+          status: result.status,
+          orderId: result.orderId,
+          authorization: result.authorization,
+          paymentKind: result.paymentKind,
+          userId: result.userId
+        });
+      } catch (error) {
+        console.error('[ERROR] Authorize Order Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-authorize-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/confirm-order`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before confirming orders."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const session = resolveUserSession(req);
+        const result = await paypalCaptureController.confirmOrderForPayload({
+          payload,
+          session,
+          route: RAW_API_BASE_PATH
+        });
+
+        sendJson(res, 200, {
+          status: result.status,
+          orderId: result.orderId,
+          confirmation: result.confirmation,
+          paymentKind: result.paymentKind,
+          userId: result.userId
+        });
+      } catch (error) {
+        console.error('[ERROR] Confirm Order Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-confirm-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-order-tracking`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating order tracking."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const session = resolveUserSession(req);
+        const result = await paypalCaptureController.createOrderTrackingForPayload({
+          payload,
+          session,
+          route: RAW_API_BASE_PATH
+        });
+
+        sendJson(res, 200, {
+          status: result.status,
+          orderId: result.orderId,
+          tracking: result.tracking,
+          paymentKind: result.paymentKind,
+          userId: result.userId
+        });
+      } catch (error) {
+        console.error('[ERROR] Create Order Tracking Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-tracking-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/vault/payment-tokens`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -1397,7 +1552,8 @@ const server = http.createServer(async (req, res) => {
         const paypalRequestId = req.headers["paypal-request-id"];
         const result = await paypalCaptureController.createPaymentTokenForPayload({
           payload,
-          paypalRequestId
+          paypalRequestId,
+          context: { req }
         });
 
         sendJson(res, 201, result);
@@ -1406,6 +1562,41 @@ const server = http.createServer(async (req, res) => {
         const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
         sendJson(res, statusCode, {
           error: error?.code || "paypal-vault-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/vault/setup-tokens`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating setup tokens."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const paypalRequestId = req.headers["paypal-request-id"];
+        const result = await paypalCaptureController.createSetupTokenForPayload({
+          payload,
+          paypalRequestId,
+          context: { req }
+        });
+
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Create Setup Token Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-setup-token-failed",
           message: error.message
         });
       }
@@ -3933,91 +4124,205 @@ async function updatePaypalOrder(orderId, patches) {
   return paypal.updateOrder(orderId, patches);
 }
 
-async function capturePaypalOrder(orderId) {
+async function capturePaypalOrder(orderId, req = null) {
+  // If request is provided, we might need to resolve a session or perform other checks
+  // before capturing, as specified in the issue description regarding tokens.
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] capturePaypalOrder called with request but no session for order ${orderId}`);
+  }
   return paypal.captureOrder(orderId);
 }
 
-async function getAuthorizedPayment(authorizationId) {
+async function authorizePaypalOrder(orderId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] authorizePaypalOrder called with request but no session for order ${orderId}`);
+  }
+  return paypal.authorizeOrder(orderId);
+}
+
+async function confirmPaypalOrder(orderId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] confirmPaypalOrder called with request but no session for order ${orderId}`);
+  }
+  return paypal.confirmOrder(orderId);
+}
+
+async function createPaypalOrderTracking(orderId, trackingDetails = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalOrderTracking called with request but no session for order ${orderId}`);
+  }
+  return paypal.createOrderTracking(orderId, trackingDetails);
+}
+
+async function getPaypalAuthorizedPayment(authorizationId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
+  }
   return paypal.getAuthorizedPayment(authorizationId);
 }
 
-async function captureAuthorizedPayment(authorizationId, captureDetails = {}) {
+async function capturePaypalAuthorizedPayment(authorizationId, captureDetails = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] capturePaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
+  }
   return paypal.captureAuthorizedPayment(authorizationId, captureDetails);
 }
 
-async function activateBillingPlan(planId) {
+async function activatePaypalBillingPlan(planId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] activatePaypalBillingPlan called with request but no session for plan ${planId}`);
+  }
   return paypal.activateBillingPlan(planId);
 }
 
-async function createBillingPlan(data) {
+async function createPaypalBillingPlan(data, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalBillingPlan called with request but no session`);
+  }
   return paypal.createBillingPlan(data);
 }
 
-async function createSubscription(data) {
+async function createPaypalSubscription(data, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalSubscription called with request but no session`);
+  }
   return paypal.createSubscription(data);
 }
 
-async function getSubscription(id, query) {
+async function getPaypalSubscription(id, query, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalSubscription called with request but no session for subscription ${id}`);
+  }
   return paypal.getSubscription(id, query);
 }
 
-async function patchSubscription(id, patches) {
+async function patchPaypalSubscription(id, patches, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] patchPaypalSubscription called with request but no session for subscription ${id}`);
+  }
   return paypal.patchSubscription(id, patches);
 }
 
-async function reviseSubscription(id, options) {
+async function revisePaypalSubscription(id, options, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] revisePaypalSubscription called with request but no session for subscription ${id}`);
+  }
   return paypal.reviseSubscription(id, options);
 }
 
-async function listSubscriptionTransactions(id, query) {
+async function listPaypalSubscriptionTransactions(id, query, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] listPaypalSubscriptionTransactions called with request but no session for subscription ${id}`);
+  }
   return paypal.listSubscriptionTransactions(id, query);
 }
 
-async function activateSubscription(id, reason) {
+async function activatePaypalSubscription(id, reason, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] activatePaypalSubscription called with request but no session for subscription ${id}`);
+  }
   return paypal.activateSubscription(id, reason);
 }
 
-async function captureSubscription(id, options) {
+async function capturePaypalSubscription(id, options, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] capturePaypalSubscription called with request but no session for subscription ${id}`);
+  }
   return paypal.captureSubscription(id, options);
 }
 
-async function searchTransactions(query) {
+async function searchPaypalTransactions(query, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] searchPaypalTransactions called with request but no session`);
+  }
   return paypal.searchTransactions(query);
 }
 
-async function getUserInfo(schema) {
+async function getPaypalUserInfo(schema, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalUserInfo called with request but no session`);
+  }
   return paypal.getUserInfo(schema);
 }
 
-async function createPaymentToken(options) {
+async function createPaypalPaymentToken(options = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalPaymentToken called with request but no session`);
+  }
   return paypal.createPaymentToken(options);
 }
 
-async function createSetupToken(data) {
+async function createPaypalSetupToken(data = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalSetupToken called with request but no session`);
+  }
   return paypal.createSetupToken(data);
 }
 
-async function getSetupToken(id) {
+async function getPaypalSetupToken(id, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalSetupToken called with request but no session for token ${id}`);
+  }
   return paypal.getSetupToken(id);
 }
 
-async function getPaymentToken(id) {
+async function getPaypalPaymentToken(id, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalPaymentToken called with request but no session for token ${id}`);
+  }
   return paypal.getPaymentToken(id);
 }
 
-async function patchPaymentToken(id, payload) {
+async function patchPaypalPaymentToken(id, payload, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] patchPaypalPaymentToken called with request but no session for token ${id}`);
+  }
   return paypal.patchPaymentToken(id, payload);
 }
 
-async function listPaymentTokens(customerId) {
+async function listPaypalPaymentTokens(customerId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] listPaypalPaymentTokens called with request but no session for customer ${customerId}`);
+  }
   return paypal.listPaymentTokens(customerId);
 }
 
-async function deletePaymentToken(id) {
+async function deletePaypalPaymentToken(id, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] deletePaypalPaymentToken called with request but no session for token ${id}`);
+  }
   return paypal.deletePaymentToken(id);
 }
 
-async function listBillingPlans(query = {}) {
+async function listPaypalBillingPlans(query = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] listPaypalBillingPlans called with request but no session`);
+  }
   return paypal.listBillingPlans(query);
 }
 
@@ -4039,6 +4344,14 @@ function extractPaypalCaptureId(capture) {
   );
 }
 
+async function refundPaypalCapturedPayment(captureId, refundDetails = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] refundPaypalCapturedPayment called with request but no session for capture ${captureId}`);
+  }
+  return paypal.refundCapturedPayment(captureId, refundDetails);
+}
+
 const paypalCaptureController = createPaypalCaptureController({
   readOptionalString,
   normalizeServiceRequest,
@@ -4056,27 +4369,31 @@ const paypalCaptureController = createPaypalCaptureController({
   createPaypalOrder,
   updatePaypalOrder,
   capturePaypalOrder,
-  getAuthorizedPayment,
-  captureAuthorizedPayment,
-  activateBillingPlan,
-  createBillingPlan,
-  createSubscription,
-  getSubscription,
-  patchSubscription,
-  reviseSubscription,
-  activateSubscription,
-  captureSubscription,
-  getSetupToken,
-  getPaymentToken,
-  patchPaymentToken,
-  listPaymentTokens,
-  createSetupToken,
-  createPaymentToken,
-  deletePaymentToken,
-  searchTransactions,
-  getUserInfo,
-  listSubscriptionTransactions,
-  listBillingPlans,
+  authorizePaypalOrder,
+  confirmPaypalOrder,
+  createPaypalOrderTracking,
+  getPaypalAuthorizedPayment,
+  capturePaypalAuthorizedPayment,
+  activatePaypalBillingPlan,
+  createPaypalBillingPlan,
+  createPaypalSubscription,
+  getPaypalSubscription,
+  patchPaypalSubscription,
+  revisePaypalSubscription,
+  activatePaypalSubscription,
+  capturePaypalSubscription,
+  getPaypalSetupToken,
+  getPaypalPaymentToken,
+  patchPaypalPaymentToken,
+  listPaypalPaymentTokens,
+  createPaypalSetupToken,
+  createPaypalPaymentToken,
+  deletePaypalPaymentToken,
+  searchPaypalTransactions,
+  getPaypalUserInfo,
+  listPaypalSubscriptionTransactions,
+  listPaypalBillingPlans,
+  refundPaypalCapturedPayment,
   extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
   extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
   appendPaymentLog,
