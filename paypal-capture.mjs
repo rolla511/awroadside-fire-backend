@@ -455,7 +455,7 @@ export function createPaypalCaptureController(helpers) {
     };
   }
 
-  async function getAuthorizedPaymentForPayload({ payload = {} } = {}) {
+  async function getAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
     const authorizationId = optionalString(payload.authorizationId);
     if (!authorizationId) {
       const error = new Error("A PayPal authorizationId is required.");
@@ -466,7 +466,7 @@ export function createPaypalCaptureController(helpers) {
     return await getPaypalAuthorizedPayment(authorizationId, context.req);
   }
 
-  async function captureAuthorizedPaymentForPayload({ payload = {} } = {}) {
+  async function captureAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
     const authorizationId = optionalString(payload.authorizationId);
     if (!authorizationId) {
       const error = new Error("A PayPal authorizationId is required.");
@@ -477,7 +477,7 @@ export function createPaypalCaptureController(helpers) {
     return await capturePaypalAuthorizedPayment(authorizationId, payload, context.req);
   }
 
-  async function activateBillingPlanForPayload({ payload = {} } = {}) {
+  async function activateBillingPlanForPayload({ payload = {}, context = {} } = {}) {
     const planId = optionalString(payload.planId || payload.id);
     if (!planId) {
       const error = new Error("A PayPal planId is required.");

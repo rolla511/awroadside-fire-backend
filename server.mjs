@@ -1603,6 +1603,47 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    const paymentTokenIdMatch = normalizedRawApiPath.match(new RegExp(`^${RAW_API_BASE_PATH}/payments/vault/payment-tokens/([^/]+)$`));
+    if (paymentTokenIdMatch) {
+      if (req.method !== "DELETE" && req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET, DELETE");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: `Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before ${req.method === "DELETE" ? "deleting" : "getting"} payment tokens.`
+        });
+        return;
+      }
+
+      try {
+        const tokenId = decodeURIComponent(paymentTokenIdMatch[1]);
+        if (req.method === "DELETE") {
+          const result = await paypalCaptureController.deletePaymentTokenForPayload({
+            id: tokenId,
+            context: { req }
+          });
+          sendJson(res, 200, result);
+        } else {
+          const result = await paypalCaptureController.getPaymentTokenForPayload({
+            id: tokenId,
+            context: { req }
+          });
+          sendJson(res, 200, result);
+        }
+      } catch (error) {
+        console.error(`[ERROR] ${req.method === "DELETE" ? "Delete" : "Get"} Payment Token Route Failed:`, error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || `paypal-${req.method === "DELETE" ? "delete" : "get"}-token-failed`,
+          message: error.message
+        });
+      }
+      return;
+    }
+
     const requestActionMatch = pathname.match(/^\/api\/requests\/([^/]+)\/([^/]+)$/);
     if (requestActionMatch) {
       if (req.method !== "POST") {
