@@ -94,6 +94,8 @@ export function createPaypalCaptureController(helpers) {
     listPaypalSubscriptionTransactions,
     listPaypalBillingPlans,
     refundPaypalCapturedPayment,
+    introspectPaypalToken,
+    revokePaypalToken,
     applyPaypalSubscriptionWebhook,
     applyPaypalProviderWebhook,
     applyPaypalPaymentWebhook
@@ -561,6 +563,14 @@ export function createPaypalCaptureController(helpers) {
     return await getPaypalUserInfo(schema, context.req);
   }
 
+  async function introspectTokenForPayload({ payload = {}, context = {} } = {}) {
+    return await introspectPaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
+  }
+
+  async function revokeTokenForPayload({ payload = {}, context = {} } = {}) {
+    return await revokePaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
+  }
+
   async function applyWebhookEvent(webhookEvent) {
     const eventType = readOptionalString(webhookEvent?.event_type).toUpperCase();
     if (!eventType) {
@@ -631,6 +641,8 @@ export function createPaypalCaptureController(helpers) {
     getUserInfoForPayload,
     listSubscriptionTransactionsForPayload,
     listBillingPlansForPayload,
+    introspectTokenForPayload,
+    revokeTokenForPayload,
     applyWebhookEvent
   };
 }

@@ -1249,6 +1249,70 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/oauth/introspect`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before introspecting tokens."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const result = await paypalCaptureController.introspectTokenForPayload({
+          payload,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] OAuth Introspect Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-introspect-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/oauth/revoke`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before revoking tokens."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const result = await paypalCaptureController.revokeTokenForPayload({
+          payload,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] OAuth Revoke Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-revoke-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/refund-capture`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -4426,6 +4490,22 @@ async function refundPaypalCapturedPayment(captureId, refundDetails = {}, req = 
   return paypal.refundCapturedPayment(captureId, refundDetails);
 }
 
+async function introspectPaypalToken(token, tokenTypeHint = "access_token", req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] introspectPaypalToken called with request but no session`);
+  }
+  return paypal.introspectToken(token, tokenTypeHint);
+}
+
+async function revokePaypalToken(token, tokenTypeHint = "access_token", req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] revokePaypalToken called with request but no session`);
+  }
+  return paypal.revokeToken(token, tokenTypeHint);
+}
+
 const paypalCaptureController = createPaypalCaptureController({
   readOptionalString,
   normalizeServiceRequest,
@@ -4468,6 +4548,8 @@ const paypalCaptureController = createPaypalCaptureController({
   listPaypalSubscriptionTransactions,
   listPaypalBillingPlans,
   refundPaypalCapturedPayment,
+  introspectPaypalToken,
+  revokePaypalToken,
   extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
   extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
   appendPaymentLog,

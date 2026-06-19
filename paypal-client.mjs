@@ -59,6 +59,60 @@ export async function getAccessToken() {
   return accessToken;
 }
 
+export async function introspectToken(token, tokenTypeHint = "access_token") {
+  requireCredentials();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/introspect`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${encodeClientCredentials()}`
+    },
+    body: new URLSearchParams({
+      token: readRequiredString(token, "token"),
+      token_type_hint: tokenTypeHint
+    }).toString()
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("token-introspection-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function revokeToken(token, tokenTypeHint = "access_token") {
+  requireCredentials();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/terminate`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${encodeClientCredentials()}`
+    },
+    body: new URLSearchParams({
+      token: readRequiredString(token, "token"),
+      token_type_hint: tokenTypeHint
+    }).toString()
+  });
+
+  if (response.status === 200 || response.status === 204) {
+    if (token === cachedToken) {
+      cachedToken = null;
+      tokenExpiry = 0;
+    }
+    return { success: true };
+  }
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("token-revocation-failed", response.status, payload);
+  }
+
+  return payload || { success: true };
+}
+
 export async function createOrder(orderDetails = {}) {
   const token = await getAccessToken();
   const requestBody = buildOrderRequest(orderDetails);
