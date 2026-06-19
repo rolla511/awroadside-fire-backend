@@ -174,6 +174,15 @@ export function createPaypalCaptureController(helpers) {
          }
        };
     }
+    if (payload.card) {
+       normalizedRequest.payment_source = {
+         ...normalizedRequest.payment_source,
+         card: {
+           ...normalizedRequest.payment_source?.card,
+           ...payload.card
+         }
+       };
+    }
     if (payload.customer) {
       normalizedRequest.customer = payload.customer;
     }
@@ -182,6 +191,15 @@ export function createPaypalCaptureController(helpers) {
     }
     if (payload.vault) {
       normalizedRequest.vault = payload.vault;
+    }
+    if (payload.verification) {
+      normalizedRequest.verification = payload.verification;
+    }
+    if (payload.level_2) {
+      normalizedRequest.level_2 = payload.level_2;
+    }
+    if (payload.level_3) {
+      normalizedRequest.level_3 = payload.level_3;
     }
     if (payload.intent) {
       normalizedRequest.intent = payload.intent;
@@ -198,6 +216,8 @@ export function createPaypalCaptureController(helpers) {
        if (rawPU.shipping && !pu.shipping) pu.shipping = rawPU.shipping;
        if (rawPU.payee && !pu.payee) pu.payee = rawPU.payee;
        if (rawPU.reference_id && !pu.reference_id) pu.reference_id = rawPU.reference_id;
+       if (rawPU.description && !pu.description) pu.description = rawPU.description;
+       if (rawPU.amount && !pu.amount) pu.amount = rawPU.amount;
     }
     if (payload.requestId || payload.PayPalRequestId) {
       normalizedRequest.requestId = payload.requestId || payload.PayPalRequestId;

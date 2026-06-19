@@ -912,6 +912,10 @@ export function buildOrderRequest(orderDetails) {
     if (originalPU.items) purchaseUnit.items = originalPU.items;
     if (originalPU.shipping) purchaseUnit.shipping = originalPU.shipping;
     if (originalPU.payee) purchaseUnit.payee = originalPU.payee;
+    if (originalPU.description) purchaseUnit.description = originalPU.description;
+    if (originalPU.amount && originalPU.amount.breakdown) {
+       purchaseUnit.amount.breakdown = originalPU.amount.breakdown;
+    }
   }
 
   const applicationContext = {
@@ -962,12 +966,25 @@ export function buildOrderRequest(orderDetails) {
     request.vault = orderDetails.vault;
   }
 
+  if (orderDetails.verification) {
+    request.verification = orderDetails.verification;
+  }
+
+  if (orderDetails.level_2) {
+    purchaseUnit.level_2 = orderDetails.level_2;
+  }
+
+  if (orderDetails.level_3) {
+    purchaseUnit.level_3 = orderDetails.level_3;
+  }
+
   return request;
 }
 
 function buildCaptureAuthorizedPaymentRequest(captureDetails) {
   const amount = captureDetails.amount ? normalizeAmount(captureDetails.amount) : undefined;
-  const isFinalCapture = captureDetails.finalCapture === true || captureDetails.isFinalCapture === true;
+  const isFinalCapture = captureDetails.finalCapture === true || captureDetails.isFinalCapture === true || captureDetails.final_capture === true;
+  const disbursementMode = captureDetails.disbursement_mode || undefined;
   const note = readString(captureDetails.note || captureDetails.description);
 
   const request = {
@@ -975,6 +992,9 @@ function buildCaptureAuthorizedPaymentRequest(captureDetails) {
   };
   if (amount) {
     request.amount = amount;
+  }
+  if (disbursementMode) {
+    request.disbursement_mode = disbursementMode;
   }
   if (note) {
     request.note_to_payer = note;

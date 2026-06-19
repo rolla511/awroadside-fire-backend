@@ -4556,7 +4556,8 @@ async function createPaypalOrder(serviceRequest) {
             ? `AW Roadside provider suspension fee - ${serviceRequest.serviceType || "reinstatement"}`
             : `Priority roadside service - ${serviceRequest.serviceType}`;
   return paypal.createOrder({
-    description,
+    ...serviceRequest,
+    description: serviceRequest.description || description,
     amount: serviceRequest.amount,
     customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
   });
@@ -4830,6 +4831,7 @@ function extractPaypalVerificationResult(resource) {
       authentication_status: readOptionalString(threeDSecure.authentication_status),
       enrollment_status: readOptionalString(threeDSecure.enrollment_status)
     } : null,
+    status_details: resource?.status_details || null,
     authentication_result: authenticationResult ? {
       liability_shift: readOptionalString(authenticationResult.liability_shift),
       three_d_secure: authenticationResult.three_d_secure ? {
