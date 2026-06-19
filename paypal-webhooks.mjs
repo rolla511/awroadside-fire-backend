@@ -1,3 +1,71 @@
+import crypto from "crypto";
+import { promises as fs } from "fs";
+
+function crc32(buf) {
+  if (typeof buf === 'string') buf = Buffer.from(buf);
+  let crc = 0 ^ -1;
+  const table = new Int32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) {
+      c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+    }
+    table[i] = c;
+  }
+  for (let i = 0; i < buf.length; i++) {
+    crc = (crc >>> 8) ^ table[(crc ^ buf[i]) & 0xFF];
+  }
+  return (crc ^ -1) >>> 0;
+}
+
+const CACHE_DIR = "./app/runtime/security";
+
+async function downloadAndCache(url) {
+  const cacheKey = url.replace(/\W+/g, '-');
+  const filePath = `${CACHE_DIR}/${cacheKey}`;
+
+  const cachedData = await fs.readFile(filePath, 'utf-8').catch(() => null);
+  if (cachedData) {
+    return cachedData;
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to download certificate from ${url}: ${response.statusText}`);
+  }
+  const data = await response.text();
+  await fs.mkdir(CACHE_DIR, { recursive: true });
+  await fs.writeFile(filePath, data);
+
+  return data;
+}
+
+async function verifySignatureLocally(event, headers, webhookId) {
+  const transmissionId = headers['paypal-transmission-id'];
+  const timeStamp = headers['paypal-transmission-time'];
+  const sig = headers['paypal-transmission-sig'];
+  const certUrl = headers['paypal-cert-url'];
+
+  if (!transmissionId || !timeStamp || !sig || !certUrl) {
+    return false;
+  }
+
+  const crc = crc32(event);
+  const message = `${transmissionId}|${timeStamp}|${webhookId}|${crc}`;
+  console.log(`[DEBUG_LOG] Local verification message: ${message}`);
+
+  try {
+    const certPem = await downloadAndCache(certUrl);
+    const signatureBuffer = Buffer.from(sig, 'base64');
+    const verifier = crypto.createVerify('SHA256');
+    verifier.update(message);
+    return verifier.verify(certPem, signatureBuffer);
+  } catch (error) {
+    console.error("[ERROR] Webhook local verification failed:", error);
+    return false;
+  }
+}
+
 export function createPaypalWebhookRouteHandler({
   paypal,
   paypalClientId,
@@ -76,18 +144,26 @@ export function createPaypalWebhookRouteHandler({
         return true;
       }
 
-      const verification = await paypal.validateWebhook(
-        transmissionId,
-        transmissionTime,
-        certUrl,
-        paypalWebhookId,
-        webhookEvent,
-        authAlgo,
-        transmissionSig
-      );
-      const verificationStatus = readOptionalString(
-        verification.verification_status || verification.status
-      ).toUpperCase();
+      const isLocalValid = await verifySignatureLocally(rawBody, req.headers, paypalWebhookId);
+      
+      let verificationStatus = "FAILED";
+      if (isLocalValid) {
+        verificationStatus = "SUCCESS";
+      } else {
+        // Fallback to API verification if local fails (e.g. if CRC logic differs)
+        const verification = await paypal.validateWebhook(
+          transmissionId,
+          transmissionTime,
+          certUrl,
+          paypalWebhookId,
+          webhookEvent,
+          authAlgo,
+          transmissionSig
+        );
+        verificationStatus = readOptionalString(
+          verification.verification_status || verification.status
+        ).toUpperCase();
+      }
       const eventId = readOptionalString(webhookEvent.id) || transmissionId;
       const eventType = readOptionalString(webhookEvent.event_type).toUpperCase() || "UNKNOWN";
 

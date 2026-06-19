@@ -1201,6 +1201,97 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/customer/partner-referrals`) {
+      if (!isAdmin(req)) {
+        sendForbidden(res);
+        return;
+      }
+
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const result = await paypalCaptureController.createPartnerReferralForPayload({
+          payload,
+          context: { req }
+        });
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Create Partner Referral Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-partner-referral-create-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/customer/partner-referrals/`)) {
+      if (!isAdmin(req)) {
+        sendForbidden(res);
+        return;
+      }
+
+      const referralId = normalizedRawApiPath.split("/").pop();
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      try {
+        const result = await paypalCaptureController.getPartnerReferralForPayload({
+          id: referralId,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] Get Partner Referral Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-partner-referral-get-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/customer/partners/`) && normalizedRawApiPath.includes("/merchant-integrations/")) {
+      if (!isAdmin(req)) {
+        sendForbidden(res);
+        return;
+      }
+
+      const parts = normalizedRawApiPath.split("/");
+      const partnerId = parts[parts.indexOf("partners") + 1];
+      const merchantId = parts[parts.indexOf("merchant-integrations") + 1];
+
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      try {
+        const result = await paypalCaptureController.getMerchantIntegrationStatusForPayload({
+          partnerId,
+          merchantId,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] Get Merchant Integration Status Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-merchant-integration-status-get-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-order`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -1251,28 +1342,58 @@ const server = http.createServer(async (req, res) => {
 
     if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/billing/subscriptions/`)) {
       const parts = normalizedRawApiPath.split("/");
-      const subscriptionId = parts[parts.length - 1] === "activate" ? parts[parts.length - 2] : parts[parts.length - 1];
-      const action = parts[parts.length - 1] === "activate" ? "activate" : "get_or_patch";
+      const lastPart = parts[parts.length - 1];
+      const subscriptionId = ["activate", "suspend", "revise", "transactions"].includes(lastPart) ? parts[parts.length - 2] : lastPart;
+      const action = ["activate", "suspend", "revise", "transactions"].includes(lastPart) ? lastPart : "get_or_patch";
 
-      if (action === "activate") {
-        if (req.method !== "POST") {
-          sendMethodNotAllowed(res, "POST");
+      if (action === "activate" || action === "suspend" || action === "revise" || action === "transactions") {
+        const allowedMethod = action === "transactions" ? "GET" : "POST";
+        if (req.method !== allowedMethod) {
+          sendMethodNotAllowed(res, allowedMethod);
           return;
         }
 
         try {
-          const payload = await readJsonBody(req).catch(() => ({}));
-          const result = await paypalCaptureController.activateSubscriptionForPayload({
-            id: subscriptionId,
-            payload,
-            context: { req }
-          });
-          sendJson(res, 204, result);
+          const payload = (action === "transactions") ? {} : await readJsonBody(req).catch(() => ({}));
+          let result;
+          if (action === "activate") {
+            result = await paypalCaptureController.activateSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+          } else if (action === "suspend") {
+            result = await paypalCaptureController.suspendSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+          } else if (action === "revise") {
+            result = await paypalCaptureController.reviseSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+          } else if (action === "transactions") {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const query = Object.fromEntries(url.searchParams);
+            result = await paypalCaptureController.listSubscriptionTransactionsForPayload({
+              id: subscriptionId,
+              payload: query,
+              context: { req }
+            });
+          }
+
+          if (action === "revise" || action === "transactions") {
+            sendJson(res, 200, result);
+          } else {
+            sendJson(res, 204, result);
+          }
         } catch (error) {
-          console.error('[ERROR] Activate Subscription Route Failed:', error);
+          console.error(`[ERROR] ${action.charAt(0).toUpperCase() + action.slice(1)} Subscription Route Failed:`, error);
           const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
           sendJson(res, statusCode, {
-            error: error?.code || "paypal-subscription-activate-failed",
+            error: error?.code || `paypal-subscription-${action}-failed`,
             message: error.message
           });
         }
@@ -4721,6 +4842,30 @@ async function revokePaypalToken(token, tokenTypeHint = "access_token", req = nu
   return paypal.revokeToken(token, tokenTypeHint);
 }
 
+async function createPaypalPartnerReferral(referralData, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalPartnerReferral called with request but no session`);
+  }
+  return paypal.createPartnerReferral(referralData);
+}
+
+async function getPaypalPartnerReferral(referralId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalPartnerReferral called with request but no session for referral ${referralId}`);
+  }
+  return paypal.getPartnerReferral(referralId);
+}
+
+async function getPaypalMerchantIntegrationStatus(partnerId, merchantId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalMerchantIntegrationStatus called with request but no session for partner ${partnerId} merchant ${merchantId}`);
+  }
+  return paypal.getMerchantIntegrationStatus(partnerId, merchantId);
+}
+
 const paypalCaptureController = createPaypalCaptureController({
   readOptionalString,
   normalizeServiceRequest,
@@ -4769,6 +4914,9 @@ const paypalCaptureController = createPaypalCaptureController({
   refundPaypalCapturedPayment,
   introspectPaypalToken,
   revokePaypalToken,
+  createPaypalPartnerReferral,
+  getPaypalPartnerReferral,
+  getPaypalMerchantIntegrationStatus,
   extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
   extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
   appendPaymentLog,

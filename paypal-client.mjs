@@ -803,6 +803,52 @@ export async function listInvoices(query = {}) {
   return payload;
 }
 
+export async function createPartnerReferral(referralData) {
+  const token = await getAccessToken();
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/customer/partner-referrals`, {
+    method: "POST",
+    headers: buildJsonHeaders(token),
+    body: JSON.stringify(referralData)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("create-partner-referral-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function getPartnerReferral(referralId) {
+  const token = await getAccessToken();
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v2/customer/partner-referrals/${referralId}`, {
+    method: "GET",
+    headers: buildJsonHeaders(token)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("get-partner-referral-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function getMerchantIntegrationStatus(partnerId, merchantId) {
+  const token = await getAccessToken();
+  const response = await paypalFetch(`${PAYPAL_API_BASE_URL}/v1/customer/partners/${partnerId}/merchant-integrations/${merchantId}`, {
+    method: "GET",
+    headers: buildJsonHeaders(token)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("get-merchant-integration-status-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
 export async function validateWebhook(
   transmissionId,
   transmissionTime,

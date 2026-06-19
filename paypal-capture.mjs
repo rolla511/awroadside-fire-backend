@@ -632,6 +632,18 @@ export function createPaypalCaptureController(helpers) {
     return await introspectPaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
   }
 
+  async function createPartnerReferralForPayload({ payload = {}, context = {} } = {}) {
+    return await createPaypalPartnerReferral(payload, context.req);
+  }
+
+  async function getPartnerReferralForPayload({ id, context = {} } = {}) {
+    return await getPaypalPartnerReferral(id, context.req);
+  }
+
+  async function getMerchantIntegrationStatusForPayload({ partnerId, merchantId, context = {} } = {}) {
+    return await getPaypalMerchantIntegrationStatus(partnerId, merchantId, context.req);
+  }
+
   async function revokeTokenForPayload({ payload = {}, context = {} } = {}) {
     return await revokePaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
   }
@@ -712,6 +724,9 @@ export function createPaypalCaptureController(helpers) {
     listInvoicesForPayload,
     introspectTokenForPayload,
     revokeTokenForPayload,
+    createPartnerReferralForPayload,
+    getPartnerReferralForPayload,
+    getMerchantIntegrationStatusForPayload,
     applyWebhookEvent
   };
 }
