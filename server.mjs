@@ -1644,6 +1644,39 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    const setupTokenIdMatch = normalizedRawApiPath.match(new RegExp(`^${RAW_API_BASE_PATH}/payments/vault/setup-tokens/([^/]+)$`));
+    if (setupTokenIdMatch) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before getting setup tokens."
+        });
+        return;
+      }
+
+      try {
+        const tokenId = decodeURIComponent(setupTokenIdMatch[1]);
+        const result = await paypalCaptureController.getSetupTokenForPayload({
+          id: tokenId,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] Get Setup Token Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-get-setup-token-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     const requestActionMatch = pathname.match(/^\/api\/requests\/([^/]+)\/([^/]+)$/);
     if (requestActionMatch) {
       if (req.method !== "POST") {
