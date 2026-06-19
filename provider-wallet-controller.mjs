@@ -10,10 +10,15 @@ function sortProviderRequestsByNewest(left, right) {
 
 function mapProviderLedgerEntry(request) {
   const estimatedPayoutAmount = Number(request?.providerPayoutAmount || 0);
+  const amountCharged = Number(request?.amountCharged || 0);
+  const amountCollected = Number(request?.amountCollected || 0);
   const payoutStatus = readOptionalString(request?.providerPayoutStatus).toUpperCase() || "UNASSIGNED";
+  const paymentStatus = readOptionalString(request?.paymentStatus).toUpperCase() || null;
+  const paymentCompleted = paymentStatus === "CAPTURED";
   const disputeFlag = Boolean(request?.disputeFlag);
   const refundFlag = Boolean(request?.refundFlag || request?.refundIssued);
   const holdFlag = disputeFlag || refundFlag || ["ON_HOLD", "HELD", "BLOCKED", "FAILED"].includes(payoutStatus);
+  const currentWalletImpactAmount = paymentCompleted && payoutStatus !== "COMPLETED" ? estimatedPayoutAmount : 0;
 
   return {
     requestId: request?.requestId || request?.id || null,
@@ -23,9 +28,14 @@ function mapProviderLedgerEntry(request) {
     status: request?.status || null,
     completionStatus: request?.completionStatus || null,
     paymentStatus: request?.paymentStatus || null,
+    servicePaymentAmount: amountCharged,
+    paymentCollectedAmount: amountCollected,
+    paymentCompleted,
     providerPayoutStatus: payoutStatus,
     estimatedPayoutAmount,
+    providerNetAmount: estimatedPayoutAmount,
     actualPayoutAmount: payoutStatus === "COMPLETED" ? estimatedPayoutAmount : null,
+    currentWalletImpactAmount,
     disputeFlag,
     refundFlag,
     holdFlag,
@@ -44,6 +54,8 @@ function summarizeLedger(ledger) {
     (accumulator, entry) => {
       const amount = Number(entry.estimatedPayoutAmount || 0);
       accumulator.totalEstimated += amount;
+      accumulator.totalServiceCharged += Number(entry.servicePaymentAmount || 0);
+      accumulator.totalPaymentsCollected += Number(entry.paymentCollectedAmount || 0);
 
       if (entry.providerPayoutStatus === "COMPLETED") {
         accumulator.fundsPaidOut += amount;
@@ -63,6 +75,8 @@ function summarizeLedger(ledger) {
     },
     {
       totalEstimated: 0,
+      totalServiceCharged: 0,
+      totalPaymentsCollected: 0,
       fundsAvailable: 0,
       fundsPending: 0,
       fundsOnHold: 0,
@@ -73,12 +87,16 @@ function summarizeLedger(ledger) {
 
   return {
     totalEstimated: Number(summary.totalEstimated.toFixed(2)),
+    totalServiceCharged: Number(summary.totalServiceCharged.toFixed(2)),
+    totalPaymentsCollected: Number(summary.totalPaymentsCollected.toFixed(2)),
     fundsAvailable: Number(summary.fundsAvailable.toFixed(2)),
     fundsPending: Number(summary.fundsPending.toFixed(2)),
     fundsOnHold: Number(summary.fundsOnHold.toFixed(2)),
     fundsDispute: Number(summary.fundsDispute.toFixed(2)),
     fundsPaidOut: Number(summary.fundsPaidOut.toFixed(2)),
+    currentWalletBalance: Number((summary.fundsAvailable + summary.fundsPending + summary.fundsOnHold + summary.fundsDispute).toFixed(2)),
     completedPayoutCount: ledger.filter((entry) => entry.providerPayoutStatus === "COMPLETED").length,
+    completedPaymentCount: ledger.filter((entry) => entry.paymentCompleted).length,
     pendingPayoutCount: ledger.filter((entry) => ["PENDING", "PROCESSING", "UNCLAIMED", "UNASSIGNED"].includes(entry.providerPayoutStatus)).length,
     onHoldCount: ledger.filter((entry) => ["ON_HOLD", "HELD", "BLOCKED", "FAILED"].includes(entry.providerPayoutStatus)).length,
     disputeCount: ledger.filter((entry) => entry.disputeFlag).length
@@ -114,6 +132,9 @@ export function createProviderWalletPayload({
       accountState: provider.accountState || "ACTIVE",
       services: Array.isArray(provider.services) ? provider.services : [],
       vehicle: provider.providerProfile?.vehicleInfo || null,
+      payoutTermsAccepted: provider.terms?.providerPayout?.accepted === true || provider.providerProfile?.payoutTerms?.accepted === true,
+      payoutTermsAcceptedAt: provider.terms?.providerPayout?.acceptedAt || provider.providerProfile?.payoutTerms?.acceptedAt || null,
+      payoutSafeModeActive: provider.terms?.providerPayout?.safeModeActive !== false && provider.providerProfile?.payoutTerms?.safeModeActive !== false,
       // The PayPal email is used solely for payouts from the platform to the partner.
       paypalEmail: paypal.email || null
     },
