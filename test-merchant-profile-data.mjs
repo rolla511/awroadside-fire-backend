@@ -28,8 +28,12 @@ function testMerchantProfileNormalization() {
     if (normalized.trackingId !== "TRACK-123") throw new Error('trackingId mapping failed');
     if (normalized.providerAccountId !== "MERCH-456") throw new Error('providerAccountId/merchantId mapping failed');
     
-    // Check if oauth_third_party is preserved (currently normalizeProviderPaypalProfile might not be capturing it)
-    console.log('[DEBUG_LOG] oauth_third_party in normalized:', normalized.oauth_third_party);
+    // Check if oauth_third_party is preserved
+    console.log('[DEBUG_LOG] oauthThirdParty in normalized:', JSON.stringify(normalized.oauthThirdParty, null, 2));
+    if (!Array.isArray(normalized.oauthThirdParty) || normalized.oauthThirdParty.length === 0) {
+      throw new Error('oauthThirdParty mapping failed');
+    }
+    if (normalized.integrationType !== "FIRST_PARTY_INTEGRATED") throw new Error('integrationType mapping failed');
     
     console.log('[DEBUG_LOG] Test complete.');
   } catch (error) {

@@ -5459,7 +5459,7 @@ function extractPaypalPayoutIdentifiers(resource) {
   };
 }
 
-function normalizeProviderPaypalProfile(value) {
+export function normalizeProviderPaypalProfile(value) {
   const paypal = value && typeof value === "object" ? value : {};
   return {
     providerAccountId: readOptionalString(paypal.providerAccountId) || readOptionalString(paypal.merchantId) || null,
@@ -5491,7 +5491,13 @@ function normalizeProviderPaypalProfile(value) {
     lastAccountUpdateAt: optionalIsoString(paypal.lastAccountUpdateAt),
     lastAccountLimitEventAt: optionalIsoString(paypal.lastAccountLimitEventAt),
     lastCapabilityUpdateAt: optionalIsoString(paypal.lastCapabilityUpdateAt),
-    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt)
+    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt),
+    oauthThirdParty: Array.isArray(paypal.oauth_third_party || paypal.oauthThirdParty)
+      ? (paypal.oauth_third_party || paypal.oauthThirdParty)
+      : [],
+    integrationType: readOptionalString(paypal.integration_type || paypal.integrationType) || null,
+    integrationMethod: readOptionalString(paypal.integration_method || paypal.integrationMethod) || null,
+    status: readOptionalString(paypal.status) || null
   };
 }
 
