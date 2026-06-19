@@ -957,6 +957,10 @@ export function buildOrderRequest(orderDetails) {
   if (orderDetails.preferences) {
     request.preferences = orderDetails.preferences;
   }
+  
+  if (orderDetails.vault) {
+    request.vault = orderDetails.vault;
+  }
 
   return request;
 }

@@ -4818,6 +4818,28 @@ function extractPaypalCaptureId(capture) {
   );
 }
 
+function extractPaypalVerificationResult(resource) {
+  const paymentSource = resource?.payment_source;
+  const card = paymentSource?.card || paymentSource?.tokenized_card;
+  const authenticationResult = card?.authentication_result;
+  const threeDSecure = authenticationResult?.three_d_secure || resource?.three_d_secure;
+
+  return {
+    liability_shift: readOptionalString(authenticationResult?.liability_shift) || readOptionalString(resource?.liability_shift) || null,
+    three_d_secure: threeDSecure ? {
+      authentication_status: readOptionalString(threeDSecure.authentication_status),
+      enrollment_status: readOptionalString(threeDSecure.enrollment_status)
+    } : null,
+    authentication_result: authenticationResult ? {
+      liability_shift: readOptionalString(authenticationResult.liability_shift),
+      three_d_secure: authenticationResult.three_d_secure ? {
+         authentication_status: readOptionalString(authenticationResult.three_d_secure.authentication_status),
+         enrollment_status: readOptionalString(authenticationResult.three_d_secure.enrollment_status)
+      } : null
+    } : null
+  };
+}
+
 async function refundPaypalCapturedPayment(captureId, refundDetails = {}, req = null) {
   const session = req ? resolveUserSession(req) : null;
   if (req && !session) {
@@ -4919,6 +4941,7 @@ const paypalCaptureController = createPaypalCaptureController({
   getPaypalMerchantIntegrationStatus,
   extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
   extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
+  extractPaypalVerificationResult: (resource) => extractPaypalVerificationResult(resource),
   appendPaymentLog,
   updateRequestRecord,
   recordSubscriberMembershipPaymentOrder: (userId, context = {}) =>
@@ -5671,6 +5694,8 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       "0"
   );
   const captureId = readOptionalString(resource.id);
+  const verificationResult = extractPaypalVerificationResult(resource);
+  const statusDetails = resource.status_details;
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
     readOptionalString(resource?.invoice_id) ||
@@ -5689,7 +5714,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          status_details: statusDetails,
+          ...verificationResult
         });
       } else {
         const membershipStatus =
@@ -5720,7 +5747,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           subscriptionStatus,
           subscriberActive: membershipStatus === "REFUNDED" || membershipStatus === "PAYMENT_FAILED" || membershipStatus === "CANCELLED"
             ? false
-            : matchedSubscriber.subscriberActive
+            : matchedSubscriber.subscriberActive,
+          status_details: statusDetails,
+          ...verificationResult
         });
       }
 
@@ -5752,7 +5781,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          status_details: statusDetails,
+          ...verificationResult
         });
       } else {
         updatedProvider = await recordProviderSuspensionFeeCaptureByUserId(matchedProviderPayment.user.id, {
@@ -5762,7 +5793,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          status_details: statusDetails,
+          ...verificationResult
         });
       }
     } else {
@@ -5813,7 +5846,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       lastPaymentOrderId: orderId || request.lastPaymentOrderId || null,
       lastPaymentEventId: readOptionalString(webhookEvent.id) || request.lastPaymentEventId || null,
       lastPaymentEventType: eventType,
-      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null
+      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null,
+      lastPaymentStatusDetails: statusDetails || request.lastPaymentStatusDetails || null,
+      ...verificationResult
     };
 
     if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {

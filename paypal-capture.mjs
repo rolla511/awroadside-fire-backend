@@ -60,6 +60,7 @@ export function createPaypalCaptureController(helpers) {
     capturePaypalOrder,
     extractPaypalCapturedAmount,
     extractPaypalCaptureId,
+    extractPaypalVerificationResult,
     appendPaymentLog,
     updateRequestRecord,
     recordSubscriberMembershipPaymentOrder,
@@ -158,11 +159,29 @@ export function createPaypalCaptureController(helpers) {
     if (payload.payment_source) {
       normalizedRequest.payment_source = payload.payment_source;
     }
+    if (payload.payment_source_info) {
+       normalizedRequest.payment_source = {
+         ...normalizedRequest.payment_source,
+         ...payload.payment_source_info
+       };
+    }
+    if (payload.decrypted_token) {
+       normalizedRequest.payment_source = {
+         ...normalizedRequest.payment_source,
+         tokenized_card: {
+           ...normalizedRequest.payment_source?.tokenized_card,
+           ...payload.decrypted_token
+         }
+       };
+    }
     if (payload.customer) {
       normalizedRequest.customer = payload.customer;
     }
     if (payload.preferences) {
       normalizedRequest.preferences = payload.preferences;
+    }
+    if (payload.vault) {
+      normalizedRequest.vault = payload.vault;
     }
     if (payload.intent) {
       normalizedRequest.intent = payload.intent;
@@ -186,6 +205,9 @@ export function createPaypalCaptureController(helpers) {
 
     const createdAt = new Date().toISOString();
     const order = await createPaypalOrder(normalizedRequest);
+    const verificationResult = typeof extractPaypalVerificationResult === "function" 
+      ? extractPaypalVerificationResult(order) 
+      : {};
 
     await appendPaymentLog({
       event: "order-created",
@@ -198,6 +220,8 @@ export function createPaypalCaptureController(helpers) {
         : normalizedRequest.requestId || null,
       paypalOrderId: order.id,
       status: order.status,
+      status_details: order.status_details,
+      ...verificationResult,
       createdAt,
       route: route || null
     });
@@ -264,11 +288,16 @@ export function createPaypalCaptureController(helpers) {
     const capturedAt = new Date().toISOString();
     const amountCaptured = extractPaypalCapturedAmount(capture);
     const captureId = extractPaypalCaptureId(capture);
+    const verificationResult = typeof extractPaypalVerificationResult === "function" 
+      ? extractPaypalVerificationResult(capture) 
+      : {};
 
     await appendPaymentLog({
       event: "order-captured",
       paypalOrderId: orderId,
       status: capture.status,
+      status_details: capture.status_details,
+      ...verificationResult,
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
@@ -398,11 +427,16 @@ export function createPaypalCaptureController(helpers) {
 
     const authorization = await authorizePaypalOrder(orderId, payload.authorization || payload);
     const authorizedAt = new Date().toISOString();
+    const verificationResult = typeof extractPaypalVerificationResult === "function" 
+      ? extractPaypalVerificationResult(authorization) 
+      : {};
 
     await appendPaymentLog({
       event: "order-authorized",
       paypalOrderId: orderId,
       status: authorization.status,
+      status_details: authorization.status_details,
+      ...verificationResult,
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
@@ -432,11 +466,16 @@ export function createPaypalCaptureController(helpers) {
 
     const confirmation = await confirmPaypalOrder(orderId, payload.confirmation || payload);
     const confirmedAt = new Date().toISOString();
+    const verificationResult = typeof extractPaypalVerificationResult === "function" 
+      ? extractPaypalVerificationResult(confirmation) 
+      : {};
 
     await appendPaymentLog({
       event: "order-confirmed",
       paypalOrderId: orderId,
       status: confirmation.status,
+      status_details: confirmation.status_details,
+      ...verificationResult,
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
