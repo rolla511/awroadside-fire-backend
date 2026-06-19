@@ -192,6 +192,42 @@ export function createPaypalCaptureController(helpers) {
     if (payload.vault) {
       normalizedRequest.vault = payload.vault;
     }
+    if (payload.experience_context) {
+      normalizedRequest.experience_context = payload.experience_context;
+    }
+    if (payload.attributes) {
+      normalizedRequest.attributes = payload.attributes;
+    }
+    if (payload.venmo) {
+      normalizedRequest.venmo = payload.venmo;
+    }
+    if (payload.apple_pay) {
+      normalizedRequest.apple_pay = payload.apple_pay;
+    }
+    if (payload.apple) {
+      normalizedRequest.apple_pay = {
+        ...normalizedRequest.apple_pay,
+        ...payload.apple
+      };
+    }
+    if (payload.google_pay) {
+      normalizedRequest.google_pay = payload.google_pay;
+    }
+    if (payload.google) {
+      normalizedRequest.google_pay = {
+        ...normalizedRequest.google_pay,
+        ...payload.google
+      };
+    }
+    if (payload.paypal) {
+      normalizedRequest.paypal = payload.paypal;
+    }
+    if (payload.token) {
+      normalizedRequest.token = payload.token;
+    }
+    if (payload.cobranded_cards) {
+      normalizedRequest.cobranded_cards = payload.cobranded_cards;
+    }
     if (payload.verification) {
       normalizedRequest.verification = payload.verification;
     }

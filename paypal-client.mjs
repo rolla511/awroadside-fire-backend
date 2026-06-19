@@ -965,9 +965,56 @@ export function buildOrderRequest(orderDetails) {
   if (orderDetails.vault) {
     request.vault = orderDetails.vault;
   }
+  
+  if (orderDetails.experience_context) {
+    request.experience_context = orderDetails.experience_context;
+  }
+
+  if (orderDetails.attributes) {
+    request.attributes = orderDetails.attributes;
+  }
+
+  if (orderDetails.venmo) {
+    request.payment_source = {
+      ...request.payment_source,
+      venmo: orderDetails.venmo
+    };
+  }
+  
+  if (orderDetails.apple_pay) {
+    request.payment_source = {
+      ...request.payment_source,
+      apple_pay: orderDetails.apple_pay
+    };
+  }
+
+  if (orderDetails.google_pay) {
+    request.payment_source = {
+      ...request.payment_source,
+      google_pay: orderDetails.google_pay
+    };
+  }
+
+  if (orderDetails.paypal) {
+    request.payment_source = {
+      ...request.payment_source,
+      paypal: orderDetails.paypal
+    };
+  }
+
+  if (orderDetails.token) {
+    request.payment_source = {
+      ...request.payment_source,
+      token: orderDetails.token
+    };
+  }
 
   if (orderDetails.verification) {
     request.verification = orderDetails.verification;
+  }
+
+  if (orderDetails.cobranded_cards) {
+    request.cobranded_cards = orderDetails.cobranded_cards;
   }
 
   if (orderDetails.level_2) {
