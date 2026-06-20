@@ -4537,6 +4537,7 @@ const paypalCaptureController = createPaypalCaptureController({
   normalizeServiceRequest,
   createServicePaymentQuote,
   normalizeServicePaymentRequest,
+  createPreSignupPaymentRequest,
   getServiceRequestById: (requestId) => getServiceRequestById(requestId),
   shouldTreatPaymentAsSubscriberMembership: (payload, session = null) =>
     shouldTreatPaymentAsSubscriberMembership(payload, session),

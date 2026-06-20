@@ -45,13 +45,40 @@ function buildMissingOrderIdError() {
   return error;
 }
 
+function createDefaultPreSignupPaymentRequest(payload = {}) {
+  const role = optionalString(payload.role || payload.preSignupRole).toUpperCase();
+  const normalizedRole = role === "PROVIDER" ? "PROVIDER" : "SUBSCRIBER";
+  const amountValue = optionalString(payload.amount?.value || payload.amount || payload.purchase?.amount) || "10.99";
+  const currency = optionalString(payload.currency || payload.amount?.currency || payload.amount?.currency_code || payload.purchase?.currency) || "USD";
+  const fullName = optionalString(payload.fullName || payload.name) || "AW Roadside Pre-Signup";
+  const phoneNumber = optionalString(payload.phoneNumber || payload.phone) || `pre-signup-${normalizedRole.toLowerCase()}`;
+  const zip = optionalString(payload.zip || payload.billingZip || payload.serviceZip) || "pre-signup";
+
+  return {
+    paymentKind: "pre-signup",
+    role: normalizedRole,
+    serviceType: "AW Roadside Pre-Signup Access",
+    customId: `pre-signup:${normalizedRole.toLowerCase()}:${Date.now()}`,
+    fullName,
+    phoneNumber,
+    location: `Pre-signup access ZIP ${zip}`,
+    amount: {
+      currency_code: currency,
+      value: amountValue
+    },
+    description: optionalString(payload.description || payload.purchase?.description) ||
+      `AW Roadside pre-signup access - ${normalizedRole === "PROVIDER" ? "Partner/Provider" : "Subscriber/User"} - one month`,
+    application_context: payload.application_context || null
+  };
+}
+
 export function createPaypalCaptureController(helpers) {
   const {
     readOptionalString = optionalString,
     normalizeServiceRequest,
     createServicePaymentQuote,
     normalizeServicePaymentRequest,
-    createPreSignupPaymentRequest,
+    createPreSignupPaymentRequest = createDefaultPreSignupPaymentRequest,
     getServiceRequestById,
     shouldTreatPaymentAsSubscriberMembership,
     createSubscriberMembershipPaymentRequest,
