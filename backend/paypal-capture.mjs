@@ -45,6 +45,26 @@ function buildMissingOrderIdError() {
   return error;
 }
 
+const PRE_SIGNUP_PAYMENT_METHODS = Object.freeze([
+  "paypal",
+  "debit_card",
+  "credit_card",
+  "venmo",
+  "apple_pay",
+  "google_pay"
+]);
+
+function normalizePreSignupPaymentMethod(payload = {}) {
+  const method = optionalString(payload.paymentMethodIntent || payload.paymentMethod || payload.purchase?.paymentMethodIntent).toLowerCase();
+  if (PRE_SIGNUP_PAYMENT_METHODS.includes(method)) {
+    return method;
+  }
+  const error = new Error("Choose a PayPal secure checkout payment method before creating a pre-signup order.");
+  error.statusCode = 400;
+  error.code = "payment-method-required";
+  throw error;
+}
+
 function createDefaultPreSignupPaymentRequest(payload = {}) {
   const role = optionalString(payload.role || payload.preSignupRole).toUpperCase();
   const normalizedRole = role === "PROVIDER" ? "PROVIDER" : "SUBSCRIBER";
@@ -53,9 +73,11 @@ function createDefaultPreSignupPaymentRequest(payload = {}) {
   const fullName = optionalString(payload.fullName || payload.name) || "AW Roadside Pre-Signup";
   const phoneNumber = optionalString(payload.phoneNumber || payload.phone) || `pre-signup-${normalizedRole.toLowerCase()}`;
   const zip = optionalString(payload.zip || payload.billingZip || payload.serviceZip) || "pre-signup";
+  const paymentMethodIntent = normalizePreSignupPaymentMethod(payload);
 
   return {
     paymentKind: "pre-signup",
+    paymentMethodIntent,
     role: normalizedRole,
     serviceType: "AW Roadside Pre-Signup Access",
     customId: `pre-signup:${normalizedRole.toLowerCase()}:${Date.now()}`,
@@ -66,6 +88,7 @@ function createDefaultPreSignupPaymentRequest(payload = {}) {
       currency_code: currency,
       value: amountValue
     },
+    paymentMethodLabel: optionalString(payload.paymentMethodLabel || payload.purchase?.billingMethod) || paymentMethodIntent,
     description: optionalString(payload.description || payload.purchase?.description) ||
       `AW Roadside pre-signup access - ${normalizedRole === "PROVIDER" ? "Partner/Provider" : "Subscriber/User"} - one month`,
     application_context: payload.application_context || null

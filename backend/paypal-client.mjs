@@ -886,8 +886,9 @@ function createPaypalError(operation, statusCode, payload) {
     responseStatusFallback(statusCode);
   const detail = name ? `${name}: ${description}` : description;
   const error = new Error(`PayPal ${operation} failed with ${statusCode}. ${detail}`);
-  error.statusCode = statusCode;
-  error.code = "paypal-request-failed";
+  const isClientAuthFailure = operation === "token-request-failed" && statusCode === 401 && name === "invalid_client";
+  error.statusCode = isClientAuthFailure ? 503 : statusCode;
+  error.code = isClientAuthFailure ? "paypal-client-auth-failed" : "paypal-request-failed";
   error.paypal = payload;
   return error;
 }

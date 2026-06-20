@@ -1245,7 +1245,9 @@ const server = http.createServer(async (req, res) => {
         const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
         sendJson(res, statusCode, {
           error: error?.code || "paypal-create-failed",
-          message: error.message
+          message: error?.code === "paypal-client-auth-failed"
+            ? "PayPal secure checkout is unavailable because the server PayPal credentials were rejected. Verify PAYPAL_ENV matches the PayPal client ID and secret."
+            : error.message
         });
       }
       return;
@@ -2310,9 +2312,12 @@ function createPreSignupPaymentRequest(payload = {}) {
   const fullName = readOptionalString(payload.fullName || payload.name) || "AW Roadside Pre-Signup";
   const phoneNumber = readOptionalString(payload.phoneNumber || payload.phone) || `pre-signup-${normalizedRole.toLowerCase()}`;
   const zip = readOptionalString(payload.zip || payload.billingZip || payload.serviceZip) || "pre-signup";
+  const paymentMethodIntent = normalizePreSignupPaymentMethod(payload);
 
   return {
     paymentKind: "pre-signup",
+    paymentMethodIntent,
+    paymentMethodLabel: readOptionalString(payload.paymentMethodLabel || payload.purchase?.billingMethod) || paymentMethodIntent,
     role: normalizedRole,
     serviceType: "AW Roadside Pre-Signup Access",
     customId: `pre-signup:${normalizedRole.toLowerCase()}:${Date.now()}`,
@@ -2326,6 +2331,26 @@ function createPreSignupPaymentRequest(payload = {}) {
     description: `AW Roadside pre-signup access - ${normalizedRole === "PROVIDER" ? "Partner/Provider" : "Subscriber/User"} - one month`,
     application_context: payload.application_context || null
   };
+}
+
+const PRE_SIGNUP_PAYMENT_METHODS = Object.freeze([
+  "paypal",
+  "debit_card",
+  "credit_card",
+  "venmo",
+  "apple_pay",
+  "google_pay"
+]);
+
+function normalizePreSignupPaymentMethod(payload = {}) {
+  const method = readOptionalString(payload.paymentMethodIntent || payload.paymentMethod || payload.purchase?.paymentMethodIntent).toLowerCase();
+  if (PRE_SIGNUP_PAYMENT_METHODS.includes(method)) {
+    return method;
+  }
+  const error = new Error("Choose a PayPal secure checkout payment method before creating a pre-signup order.");
+  error.statusCode = 400;
+  error.code = "payment-method-required";
+  throw error;
 }
 
 async function updateSubscriberMembershipPaymentState(userId, context = {}) {
