@@ -68,3 +68,13 @@ services:
         sync: false
       - key: ADMIN_TRUSTED_ZONES
         sync: false
+  - type: web
+    name: awroadside-fire-frontend
+    env: static
+    rootDir: .
+    buildCommand: echo "Static frontend ready"
+    staticPublishPath: web
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /awroadside-fire-index.html
