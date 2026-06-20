@@ -129,6 +129,7 @@ function readBooleanEnv(value, fallback = false) {
 
 const subscriberMonthlyFee = 7.99;
 const providerMonthlyFee = 6;
+const preSignupAccessFee = 10.99;
 const providerSuspensionFeeFirst = 100;
 const providerSuspensionFeeSecond = 250;
 const providerSuspensionPlatformShareSecond = 100;
@@ -1006,6 +1007,7 @@ const server = http.createServer(async (req, res) => {
       appendPreSignupIntake: (entry) => storageAuthority.appendPreSignupIntake(entry),
       normalizeServiceRequest,
       normalizeServicePaymentRequest,
+      createPreSignupPaymentRequest,
       shouldTreatPaymentAsSubscriberMembership: (payload, session = null) =>
         shouldTreatPaymentAsSubscriberMembership(payload, session),
       createSubscriberMembershipPaymentRequest: (payload, session = null) =>
@@ -2603,6 +2605,30 @@ async function createSubscriberMembershipPaymentRequest(payload = {}, session = 
     fullName: readOptionalString(subscriber.fullName) || readOptionalString(subscriber.username) || "Subscriber",
     phoneNumber: readOptionalString(subscriber.phoneNumber) || `subscriber-${subscriber.id}`,
     paymentMethodMasked: maskedPayment
+  };
+}
+
+function createPreSignupPaymentRequest(payload = {}) {
+  const role = readOptionalString(payload.role || payload.preSignupRole).toUpperCase();
+  const normalizedRole = role === "PROVIDER" ? "PROVIDER" : "SUBSCRIBER";
+  const fullName = readOptionalString(payload.fullName || payload.name) || "AW Roadside Pre-Signup";
+  const phoneNumber = readOptionalString(payload.phoneNumber || payload.phone) || `pre-signup-${normalizedRole.toLowerCase()}`;
+  const zip = readOptionalString(payload.zip || payload.billingZip || payload.serviceZip) || "pre-signup";
+
+  return {
+    paymentKind: "pre-signup",
+    role: normalizedRole,
+    serviceType: "AW Roadside Pre-Signup Access",
+    customId: `pre-signup:${normalizedRole.toLowerCase()}:${Date.now()}`,
+    fullName,
+    phoneNumber,
+    location: `Pre-signup access ZIP ${zip}`,
+    amount: {
+      currency_code: "USD",
+      value: preSignupAccessFee.toFixed(2)
+    },
+    description: `AW Roadside pre-signup access - ${normalizedRole === "PROVIDER" ? "Partner/Provider" : "Subscriber/User"} - one month`,
+    application_context: payload.application_context || null
   };
 }
 

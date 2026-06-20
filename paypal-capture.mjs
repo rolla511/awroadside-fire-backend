@@ -1,6 +1,7 @@
 export const PAYPAL_CAPTURE_PAYMENT_KINDS = Object.freeze([
   "priority",
   "service",
+  "pre-signup",
   "membership",
   "provider-membership",
   "provider-suspension"
@@ -50,6 +51,7 @@ export function createPaypalCaptureController(helpers) {
     normalizeServiceRequest,
     createServicePaymentQuote,
     normalizeServicePaymentRequest,
+    createPreSignupPaymentRequest,
     getServiceRequestById,
     shouldTreatPaymentAsSubscriberMembership,
     createSubscriberMembershipPaymentRequest,
@@ -114,6 +116,12 @@ export function createPaypalCaptureController(helpers) {
 
   async function resolvePaymentKind(payload = {}, session = null) {
     const requestedKind = readOptionalString(payload?.paymentKind).toLowerCase();
+    if (requestedKind && requestedKind !== "priority") {
+      if (!PAYPAL_CAPTURE_PAYMENT_KINDS.includes(requestedKind)) {
+        throw buildUnsupportedPaymentKindError(requestedKind);
+      }
+      return requestedKind;
+    }
     const useMembershipPayment = await shouldTreatPaymentAsSubscriberMembership(payload, session);
     const paymentKind = useMembershipPayment ? "membership" : requestedKind || "priority";
     if (!PAYPAL_CAPTURE_PAYMENT_KINDS.includes(paymentKind)) {
@@ -134,6 +142,10 @@ export function createPaypalCaptureController(helpers) {
       const request = await getServiceRequestById(requestId);
       const quote = createServicePaymentQuote(request);
       return normalizeServicePaymentRequest(payload, request, quote);
+    }
+
+    if (paymentKind === "pre-signup") {
+      return createPreSignupPaymentRequest(payload, session);
     }
 
     if (paymentKind === "membership") {
