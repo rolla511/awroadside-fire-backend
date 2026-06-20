@@ -1,6 +1,7 @@
 export const PAYPAL_CAPTURE_PAYMENT_KINDS = Object.freeze([
   "priority",
   "service",
+  "pre-signup",
   "membership",
   "provider-membership",
   "provider-suspension"
@@ -50,6 +51,7 @@ export function createPaypalCaptureController(helpers) {
     normalizeServiceRequest,
     createServicePaymentQuote,
     normalizeServicePaymentRequest,
+    createPreSignupPaymentRequest,
     getServiceRequestById,
     shouldTreatPaymentAsSubscriberMembership,
     createSubscriberMembershipPaymentRequest,
@@ -69,22 +71,33 @@ export function createPaypalCaptureController(helpers) {
     activateProviderRecurringBillingByUserId,
     recordProviderSuspensionFeeCaptureByUserId,
     sendPaymentReceiptEmailForRequest,
-    getAuthorizedPayment,
-    captureAuthorizedPayment,
-    activateBillingPlan,
-    createBillingPlan,
-    createSubscription,
-    getSubscription,
-    patchSubscription,
-    reviseSubscription,
-    activateSubscription,
-    captureSubscription,
-    getSetupToken,
-    createPaymentToken,
-    deletePaymentToken,
-    searchTransactions,
-    listSubscriptionTransactions,
-    listBillingPlans,
+    authorizePaypalOrder,
+    confirmPaypalOrder,
+    createPaypalOrderTracking,
+    getPaypalAuthorizedPayment,
+    capturePaypalAuthorizedPayment,
+    activatePaypalBillingPlan,
+    createPaypalBillingPlan,
+    createPaypalSubscription,
+    getPaypalSubscription,
+    patchPaypalSubscription,
+    revisePaypalSubscription,
+    activatePaypalSubscription,
+    capturePaypalSubscription,
+    getPaypalSetupToken,
+    getPaypalPaymentToken,
+    patchPaypalPaymentToken,
+    listPaypalPaymentTokens,
+    createPaypalSetupToken,
+    createPaypalPaymentToken,
+    deletePaypalPaymentToken,
+    searchPaypalTransactions,
+    getPaypalUserInfo,
+    listPaypalSubscriptionTransactions,
+    listPaypalBillingPlans,
+    refundPaypalCapturedPayment,
+    introspectPaypalToken,
+    revokePaypalToken,
     applyPaypalSubscriptionWebhook,
     applyPaypalProviderWebhook,
     applyPaypalPaymentWebhook
@@ -99,6 +112,12 @@ export function createPaypalCaptureController(helpers) {
 
   async function resolvePaymentKind(payload = {}, session = null) {
     const requestedKind = readOptionalString(payload?.paymentKind).toLowerCase();
+    if (requestedKind && requestedKind !== "priority") {
+      if (!PAYPAL_CAPTURE_PAYMENT_KINDS.includes(requestedKind)) {
+        throw buildUnsupportedPaymentKindError(requestedKind);
+      }
+      return requestedKind;
+    }
     const useMembershipPayment = await shouldTreatPaymentAsSubscriberMembership(payload, session);
     const paymentKind = useMembershipPayment ? "membership" : requestedKind || "priority";
     if (!PAYPAL_CAPTURE_PAYMENT_KINDS.includes(paymentKind)) {
@@ -119,6 +138,10 @@ export function createPaypalCaptureController(helpers) {
       const request = await getServiceRequestById(requestId);
       const quote = createServicePaymentQuote(request);
       return normalizeServicePaymentRequest(payload, request, quote);
+    }
+
+    if (paymentKind === "pre-signup") {
+      return createPreSignupPaymentRequest(payload, session);
     }
 
     if (paymentKind === "membership") {
@@ -344,7 +367,109 @@ export function createPaypalCaptureController(helpers) {
     };
   }
 
-  async function getAuthorizedPaymentForPayload({ payload = {} } = {}) {
+  async function authorizeOrderForPayload({ payload = {}, session = null, route = null } = {}) {
+    const paymentKind = await resolvePaymentKind(payload, session);
+    const orderId = optionalString(payload.orderId);
+    if (!orderId) {
+      throw buildMissingOrderIdError();
+    }
+
+    const authorization = await authorizePaypalOrder(orderId);
+    const authorizedAt = new Date().toISOString();
+
+    await appendPaymentLog({
+      event: "order-authorized",
+      paypalOrderId: orderId,
+      status: authorization.status,
+      paymentKind,
+      userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
+      targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
+      targetId: isUserScopedPaymentKind(paymentKind)
+        ? String(session?.userId || Number(payload.userId) || "") || null
+        : readOptionalString(payload.requestId) || null,
+      authorizedAt,
+      route: route || null,
+      authorization
+    });
+
+    return {
+      status: authorization.status,
+      orderId,
+      authorization,
+      paymentKind,
+      userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null
+    };
+  }
+
+  async function confirmOrderForPayload({ payload = {}, session = null, route = null } = {}) {
+    const paymentKind = await resolvePaymentKind(payload, session);
+    const orderId = optionalString(payload.orderId);
+    if (!orderId) {
+      throw buildMissingOrderIdError();
+    }
+
+    const confirmation = await confirmPaypalOrder(orderId);
+    const confirmedAt = new Date().toISOString();
+
+    await appendPaymentLog({
+      event: "order-confirmed",
+      paypalOrderId: orderId,
+      status: confirmation.status,
+      paymentKind,
+      userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
+      targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
+      targetId: isUserScopedPaymentKind(paymentKind)
+        ? String(session?.userId || Number(payload.userId) || "") || null
+        : readOptionalString(payload.requestId) || null,
+      confirmedAt,
+      route: route || null,
+      confirmation
+    });
+
+    return {
+      status: confirmation.status,
+      orderId,
+      confirmation,
+      paymentKind,
+      userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null
+    };
+  }
+
+  async function createOrderTrackingForPayload({ payload = {}, session = null, route = null } = {}) {
+    const paymentKind = await resolvePaymentKind(payload, session);
+    const orderId = optionalString(payload.orderId);
+    if (!orderId) {
+      throw buildMissingOrderIdError();
+    }
+
+    const tracking = await createOrderTracking(orderId, payload.tracking || payload);
+    const trackedAt = new Date().toISOString();
+
+    await appendPaymentLog({
+      event: "order-tracking-created",
+      paypalOrderId: orderId,
+      status: tracking.status,
+      paymentKind,
+      userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
+      targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
+      targetId: isUserScopedPaymentKind(paymentKind)
+        ? String(session?.userId || Number(payload.userId) || "") || null
+        : readOptionalString(payload.requestId) || null,
+      trackedAt,
+      route: route || null,
+      tracking
+    });
+
+    return {
+      status: tracking.status,
+      orderId,
+      tracking,
+      paymentKind,
+      userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null
+    };
+  }
+
+  async function getAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
     const authorizationId = optionalString(payload.authorizationId);
     if (!authorizationId) {
       const error = new Error("A PayPal authorizationId is required.");
@@ -352,10 +477,10 @@ export function createPaypalCaptureController(helpers) {
       error.code = "authorization-id-required";
       throw error;
     }
-    return await getAuthorizedPayment(authorizationId);
+    return await getPaypalAuthorizedPayment(authorizationId, context.req);
   }
 
-  async function captureAuthorizedPaymentForPayload({ payload = {} } = {}) {
+  async function captureAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
     const authorizationId = optionalString(payload.authorizationId);
     if (!authorizationId) {
       const error = new Error("A PayPal authorizationId is required.");
@@ -363,10 +488,10 @@ export function createPaypalCaptureController(helpers) {
       error.code = "authorization-id-required";
       throw error;
     }
-    return await captureAuthorizedPayment(authorizationId, payload);
+    return await capturePaypalAuthorizedPayment(authorizationId, payload, context.req);
   }
 
-  async function activateBillingPlanForPayload({ payload = {} } = {}) {
+  async function activateBillingPlanForPayload({ payload = {}, context = {} } = {}) {
     const planId = optionalString(payload.planId || payload.id);
     if (!planId) {
       const error = new Error("A PayPal planId is required.");
@@ -374,80 +499,88 @@ export function createPaypalCaptureController(helpers) {
       error.code = "plan-id-required";
       throw error;
     }
-    return await activateBillingPlan(planId);
+    return await activatePaypalBillingPlan(planId, context.req);
   }
 
-  async function listBillingPlansForPayload({ payload = {} } = {}) {
-    return await listBillingPlans(payload);
+  async function listBillingPlansForPayload({ payload = {}, context = {} } = {}) {
+    return await listPaypalBillingPlans(payload, context.req);
   }
 
-  async function createBillingPlanForPayload({ payload = {} } = {}) {
-    return await createBillingPlan(payload);
+  async function createBillingPlanForPayload({ payload = {}, context = {} } = {}) {
+    return await createPaypalBillingPlan(payload, context.req);
   }
 
-  async function createSubscriptionForPayload({ payload = {} } = {}) {
-    return await createSubscription(payload);
+  async function createSubscriptionForPayload({ payload = {}, context = {} } = {}) {
+    return await createPaypalSubscription(payload, context.req);
   }
 
-  async function getSubscriptionForPayload({ id, payload = {} } = {}) {
-    return await getSubscription(id, payload);
+  async function getSubscriptionForPayload({ id, payload = {}, context = {} } = {}) {
+    return await getPaypalSubscription(id, payload, context.req);
   }
 
-  async function patchSubscriptionForPayload({ id, payload = [] } = {}) {
-    return await patchSubscription(id, payload);
+  async function patchSubscriptionForPayload({ id, payload = [], context = {} } = {}) {
+    return await patchPaypalSubscription(id, payload, context.req);
   }
 
-  async function reviseSubscriptionForPayload({ id, payload = {} } = {}) {
-    return await reviseSubscription(id, { body: payload });
+  async function reviseSubscriptionForPayload({ id, payload = {}, context = {} } = {}) {
+    return await revisePaypalSubscription(id, { body: payload }, context.req);
   }
 
-  async function listSubscriptionTransactionsForPayload({ id, payload = {} } = {}) {
-    return await listSubscriptionTransactions(id, payload);
+  async function listSubscriptionTransactionsForPayload({ id, payload = {}, context = {} } = {}) {
+    return await listPaypalSubscriptionTransactions(id, payload, context.req);
   }
 
-  async function activateSubscriptionForPayload({ id, payload = {} } = {}) {
+  async function activateSubscriptionForPayload({ id, payload = {}, context = {} } = {}) {
     const reason = payload.reason || "Activating subscription";
-    return await activateSubscription(id, reason);
+    return await activatePaypalSubscription(id, reason, context.req);
   }
 
-  async function captureSubscriptionForPayload({ id, payload = {}, paypalRequestId } = {}) {
-    return await captureSubscription(id, { body: payload, paypalRequestId });
+  async function captureSubscriptionForPayload({ id, payload = {}, paypalRequestId, context = {} } = {}) {
+    return await capturePaypalSubscription(id, { body: payload, paypalRequestId }, context.req);
   }
 
-  async function getPaymentTokenForPayload({ id } = {}) {
-    return await getPaymentToken(id);
+  async function getPaymentTokenForPayload({ id, context = {} } = {}) {
+    return await getPaypalPaymentToken(id, context.req);
   }
 
-  async function patchPaymentTokenForPayload({ id, payload } = {}) {
-    return await patchPaymentToken(id, payload);
+  async function patchPaymentTokenForPayload({ id, payload, context = {} } = {}) {
+    return await patchPaypalPaymentToken(id, payload, context.req);
   }
 
-  async function listPaymentTokensForPayload({ customerId } = {}) {
-    return await listPaymentTokens(customerId);
+  async function listPaymentTokensForPayload({ customerId, context = {} } = {}) {
+    return await listPaypalPaymentTokens(customerId, context.req);
   }
 
-  async function createPaymentTokenForPayload({ payload = {}, paypalRequestId } = {}) {
-    return await createPaymentToken({ body: payload, paypalRequestId });
+  async function createPaymentTokenForPayload({ payload = {}, paypalRequestId, context = {} } = {}) {
+    return await createPaypalPaymentToken({ body: payload, paypalRequestId }, context.req);
   }
 
-  async function createSetupTokenForPayload({ payload = {}, paypalRequestId } = {}) {
-    return await createSetupToken({ body: payload, paypalRequestId });
+  async function createSetupTokenForPayload({ payload = {}, paypalRequestId, context = {} } = {}) {
+    return await createPaypalSetupToken({ body: payload, paypalRequestId }, context.req);
   }
 
-  async function deletePaymentTokenForPayload({ id } = {}) {
-    return await deletePaymentToken(id);
+  async function deletePaymentTokenForPayload({ id, context = {} } = {}) {
+    return await deletePaypalPaymentToken(id, context.req);
   }
 
-  async function getSetupTokenForPayload({ id } = {}) {
-    return await getSetupToken(id);
+  async function getSetupTokenForPayload({ id, context = {} } = {}) {
+    return await getPaypalSetupToken(id, context.req);
   }
 
-  async function searchTransactionsForPayload({ payload = {} } = {}) {
-    return await searchTransactions(payload);
+  async function searchTransactionsForPayload({ payload = {}, context = {} } = {}) {
+    return await searchPaypalTransactions(payload, context.req);
   }
 
-  async function getUserInfoForPayload({ schema } = {}) {
-    return await getUserInfo(schema);
+  async function getUserInfoForPayload({ schema, context = {} } = {}) {
+    return await getPaypalUserInfo(schema, context.req);
+  }
+
+  async function introspectTokenForPayload({ payload = {}, context = {} } = {}) {
+    return await introspectPaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
+  }
+
+  async function revokeTokenForPayload({ payload = {}, context = {} } = {}) {
+    return await revokePaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
   }
 
   async function applyWebhookEvent(webhookEvent) {
@@ -495,6 +628,9 @@ export function createPaypalCaptureController(helpers) {
     resolvePaymentKind,
     createOrderForPayload,
     updateOrderForPayload,
+    authorizeOrderForPayload,
+    confirmOrderForPayload,
+    createOrderTrackingForPayload,
     captureOrderForPayload,
     getAuthorizedPaymentForPayload,
     captureAuthorizedPaymentForPayload,
@@ -517,6 +653,8 @@ export function createPaypalCaptureController(helpers) {
     getUserInfoForPayload,
     listSubscriptionTransactionsForPayload,
     listBillingPlansForPayload,
+    introspectTokenForPayload,
+    revokeTokenForPayload,
     applyWebhookEvent
   };
 }

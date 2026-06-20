@@ -85,10 +85,10 @@ export function createAwRoadsideDbConfig({
   const configuredHost = normalizeString(env.DB_HOST || env.AW_DB_HOST);
   const databaseId = normalizeString(env.db_id);
   const configuredDatabaseName = normalizeString(env.AW_DB_NAME);
-  const userAccessEntry = normalizeString(env.USDB_ENTRY);
-  const configHandle = normalizeString(env.USDB_CONFIG_HANDLE);
-  const configuredUser = normalizeString(env.DB_USER || env.AW_DB_USER);
-  const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
+  const userAccessEntry = normalizeString(env.Usdb_entry || env.USDB_ENTRY);
+  const configHandle = normalizeString(env.config || env.USDB_CONFIG_HANDLE);
+  const configuredUser = normalizeString(env.config || env.DB_USER || env.AW_DB_USER);
+  const password = normalizeString(env.Usdb_entry || env.DB_PASSWORD || env.AW_DB_PASSWORD);
   const configuredPort = Number.parseInt(
     normalizeString(env.DB_PORT || env.AW_DB_PORT || `${DEFAULT_POSTGRES_PORT}`),
     10

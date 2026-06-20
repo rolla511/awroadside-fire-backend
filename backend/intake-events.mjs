@@ -72,11 +72,49 @@ export function createPreSignupIntakeController({
         const role = resolveRole(route, payload);
         const entry = await buildPreSignupEntry(payload, role, req, helpers, {
           releaseDate: resolveReleaseDate(releaseDate),
-          paymentsConfigured: Boolean(paymentsConfigured())
+          paymentsConfigured: Boolean(paymentsConfigured()),
+          req // Pass request to helpers if needed
         });
 
         await persistPreSignupEntry(entry, helpers, { intakeLogPath, latestStatusPath });
         const user = await syncIntakeToUserAccount(entry, helpers);
+
+        // If capture was requested but deferred until user creation (for session)
+        if (entry.payment.orderId && entry.payment.status === "PENDING_CAPTURE" && user && typeof helpers.capturePaypalOrder === "function") {
+          try {
+            const token = typeof helpers.issueUserSession === "function" 
+              ? helpers.issueUserSession({ userId: user.id, email: user.email, roles: user.roles })
+              : null;
+            
+            const captureReq = { 
+              headers: { authorization: token ? `Bearer ${token}` : "" },
+              socket: req.socket
+            };
+            
+            const capture = await helpers.capturePaypalOrder(entry.payment.orderId, captureReq);
+            entry.payment.status = normalizePaymentStatus(capture.status, true);
+            entry.payment.capture = capture;
+            entry.payment.captureId = extractPaypalCaptureId(capture);
+            entry.payment.capturedAt = new Date().toISOString();
+            
+            if (typeof helpers.appendPaymentLog === "function") {
+              await helpers.appendPaymentLog({
+                event: "pre-signup-order-captured-deferred",
+                paypalOrderId: entry.payment.orderId,
+                status: entry.payment.status,
+                paymentKind: "pre-signup",
+                targetType: "user",
+                targetId: String(user.id),
+                createdAt: entry.payment.capturedAt,
+                capture
+              });
+            }
+            console.log(`[INTAKE] Deferred capture successful for user ${user.id}, order ${entry.payment.orderId}`);
+          } catch (captureError) {
+            console.error(`[INTAKE] Deferred capture failed for user ${user.id}: ${captureError.message}`);
+          }
+        }
+
         await sendPreSignupConfirmation(entry, helpers);
 
         let session = null;
@@ -253,16 +291,19 @@ async function resolvePayment(payload, helpers, context) {
       error.code = "paypal-not-configured";
       throw error;
     }
-    capture = await helpers.capturePaypalOrder(orderId);
-    await helpers.appendPaymentLog?.({
-      event: "pre-signup-order-captured",
-      paypalOrderId: orderId,
-      status: capture?.status || "CAPTURED",
-      paymentKind: "pre-signup",
-      targetType: "pre-signup",
-      createdAt: new Date().toISOString(),
-      capture
-    });
+
+    // Capture is deferred until user is created so we can have a session token if required
+    return {
+      provider: "paypal",
+      orderId,
+      subscriptionId: null,
+      captureId: null,
+      status: "PENDING_CAPTURE",
+      amount: normalizeAmount(payload?.amount || payment.amount || paypal.amount),
+      capturedAt: null,
+      serverCaptured: false,
+      capture: null
+    };
   }
 
   const captureId =
@@ -474,9 +515,9 @@ function normalizePaymentStatus(status, hasCaptureId) {
 
 function requireCapturedPayment(payment, payload) {
   const status = optionalString(payment?.status).toUpperCase();
-  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (payment?.orderId && status === "CAPTURED"));
+  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (payment?.orderId && (status === "CAPTURED" || status === "PENDING_CAPTURE")));
   
-  if ((status === "CAPTURED" || status === "APPROVED" || status === "ACTIVE") && hasEvidence) {
+  if ((status === "CAPTURED" || status === "APPROVED" || status === "ACTIVE" || status === "PENDING_CAPTURE") && hasEvidence) {
     if (payment.amount && payment.amount.value !== PRE_SIGNUP_FEE) {
        console.warn(`[INTAKE] Payment amount mismatch: expected ${PRE_SIGNUP_FEE}, got ${payment.amount.value}`);
     }
@@ -506,6 +547,7 @@ async function hashPassword(password) {
     });
   });
   const result = `${PASSWORD_HASH_ALGORITHM}$${salt}$${hash}`;
+  console.log(`[DEBUG_LOG] Password hashed for ${password.slice(0, 3)}... (salt: ${salt})`);
   return result;
 }
 

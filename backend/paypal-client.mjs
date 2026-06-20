@@ -14,6 +14,9 @@ const PAYPAL_WEBHOOK_ID = readEnv("PAYPAL_WEBHOOK_ID") || PAYPAL_WEBHOOK_IDS[PAY
 const PAYPAL_BRAND_NAME = readEnv("PAYPAL_BRAND_NAME") || "AW Roadside";
 const PAYPAL_SOFT_DESCRIPTOR = toSoftDescriptor(readEnv("PAYPAL_SOFT_DESCRIPTOR") || "AWROADSIDE");
 const PAYPAL_PARTNER_ATTRIBUTION_ID = readEnv("PAYPAL_PARTNER_ATTRIBUTION_ID");
+const PAYPAL_PROXY_URL = readEnv("PAYPAL_PROXY_URL");
+const PAYPAL_PROXY_USERNAME = readEnv("PAYPAL_PROXY_USERNAME");
+const PAYPAL_PROXY_PASSWORD = readEnv("PAYPAL_PROXY_PASSWORD");
 
 let cachedToken = null;
 let tokenExpiry = 0;
@@ -27,7 +30,7 @@ export async function getAccessToken() {
   }
 
   console.log("[DEBUG_LOG] PayPal token expired or missing. Fetching new one...");
-  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token`, {
+  const options = {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -38,7 +41,8 @@ export async function getAccessToken() {
     body: new URLSearchParams({
       grant_type: "client_credentials"
     }).toString()
-  });
+  };
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token`, options);
 
   const payload = await readJsonPayload(response);
   if (!response.ok) {
@@ -57,6 +61,60 @@ export async function getAccessToken() {
 
   console.log(`[DEBUG_LOG] New PayPal token acquired. Expires in ${expiresIn}s.`);
   return accessToken;
+}
+
+export async function introspectToken(token, tokenTypeHint = "access_token") {
+  requireCredentials();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/introspect`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${encodeClientCredentials()}`
+    },
+    body: new URLSearchParams({
+      token: readRequiredString(token, "token"),
+      token_type_hint: tokenTypeHint
+    }).toString()
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("token-introspection-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function revokeToken(token, tokenTypeHint = "access_token") {
+  requireCredentials();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/oauth2/token/terminate`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/x-www-form-urlencoded",
+      Authorization: `Basic ${encodeClientCredentials()}`
+    },
+    body: new URLSearchParams({
+      token: readRequiredString(token, "token"),
+      token_type_hint: tokenTypeHint
+    }).toString()
+  });
+
+  if (response.status === 200 || response.status === 204) {
+    if (token === cachedToken) {
+      cachedToken = null;
+      tokenExpiry = 0;
+    }
+    return { success: true };
+  }
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("token-revocation-failed", response.status, payload);
+  }
+
+  return payload || { success: true };
 }
 
 export async function createOrder(orderDetails = {}) {
@@ -93,6 +151,63 @@ export async function captureOrder(orderId) {
   const payload = await readJsonPayload(response);
   if (!response.ok) {
     throw createPaypalError("capture-order-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function authorizeOrder(orderId) {
+  const normalizedOrderId = readRequiredString(orderId, "orderId");
+  const token = await getAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/authorize`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      Prefer: "return=representation",
+      "PayPal-Request-Id": crypto.randomUUID()
+    })
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("authorize-order-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function confirmOrder(orderId) {
+  const normalizedOrderId = readRequiredString(orderId, "orderId");
+  const token = await getAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/confirm-payment-source`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      Prefer: "return=representation",
+      "PayPal-Request-Id": crypto.randomUUID()
+    })
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("confirm-order-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function createOrderTracking(orderId, trackingDetails = {}) {
+  const normalizedOrderId = readRequiredString(orderId, "orderId");
+  const token = await getAccessToken();
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/checkout/orders/${encodeURIComponent(normalizedOrderId)}/track`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      "PayPal-Request-Id": crypto.randomUUID()
+    }),
+    body: JSON.stringify(trackingDetails)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("create-order-tracking-failed", response.status, payload);
   }
 
   return payload;
@@ -542,6 +657,38 @@ export async function searchTransactions(query = {}) {
   const payload = await readJsonPayload(response);
   if (!response.ok) {
     throw createPaypalError("search-transactions-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
+export async function refundCapturedPayment(captureId, refundDetails = {}) {
+  const normalizedCaptureId = readRequiredString(captureId, "captureId");
+  const token = await getAccessToken();
+  const requestBody = {};
+
+  if (refundDetails.amount) {
+    requestBody.amount = normalizeAmount(refundDetails.amount);
+  }
+  if (refundDetails.invoiceId || refundDetails.invoice_id) {
+    requestBody.invoice_id = readString(refundDetails.invoiceId || refundDetails.invoice_id);
+  }
+  if (refundDetails.noteToPayer || refundDetails.note_to_payer || refundDetails.note) {
+    requestBody.note_to_payer = readString(refundDetails.noteToPayer || refundDetails.note_to_payer || refundDetails.note);
+  }
+
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v2/payments/captures/${encodeURIComponent(normalizedCaptureId)}/refund`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      Prefer: "return=representation",
+      "PayPal-Request-Id": crypto.randomUUID()
+    }),
+    body: JSON.stringify(requestBody)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("refund-capture-failed", response.status, payload);
   }
 
   return payload;
