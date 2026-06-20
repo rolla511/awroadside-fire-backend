@@ -1335,6 +1335,9 @@ const server = http.createServer(async (req, res) => {
           orderId: result.orderId,
           status: result.status,
           paymentKind: result.paymentKind,
+          paymentSource: result.paymentSource || null,
+          paymentTokenId: result.paymentTokenId || null,
+          paymentTokenType: result.paymentTokenType || null,
           userId: result.userId
         });
       } catch (error) {
@@ -1912,20 +1915,33 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/vault/payment-tokens`) {
-      if (req.method !== "POST") {
-        sendMethodNotAllowed(res, "POST");
+      if (req.method !== "POST" && req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET, POST");
         return;
       }
 
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before vaulting cards."
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before using vaulted payment tokens."
         });
         return;
       }
 
       try {
+        if (req.method === "GET") {
+          const customerId =
+            url.searchParams.get("customer_id") ||
+            url.searchParams.get("customerId") ||
+            "";
+          const result = await paypalCaptureController.listPaymentTokensForPayload({
+            customerId,
+            context: { req }
+          });
+          sendJson(res, 200, result);
+          return;
+        }
+
         const payload = await readJsonBody(req);
         const paypalRequestId = req.headers["paypal-request-id"];
         const result = await paypalCaptureController.createPaymentTokenForPayload({
@@ -1936,10 +1952,10 @@ const server = http.createServer(async (req, res) => {
 
         sendJson(res, 201, result);
       } catch (error) {
-        console.error('[ERROR] Vault Payment Token Route Failed:', error);
+        console.error(`[ERROR] ${req.method === "GET" ? "List" : "Vault"} Payment Token Route Failed:`, error);
         const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
         sendJson(res, statusCode, {
-          error: error?.code || "paypal-vault-failed",
+          error: error?.code || (req.method === "GET" ? "paypal-list-tokens-failed" : "paypal-vault-failed"),
           message: error.message
         });
       }

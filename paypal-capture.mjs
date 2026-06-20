@@ -45,6 +45,96 @@ function buildMissingOrderIdError() {
   return error;
 }
 
+function normalizePaymentTokenInput(payload = {}) {
+  const explicitToken =
+    payload.payment_source?.token ||
+    payload.paymentSource?.token ||
+    payload.token ||
+    payload.paymentToken ||
+    payload.payment_token ||
+    null;
+  const tokenId =
+    optionalString(explicitToken?.id) ||
+    optionalString(payload.paymentTokenId) ||
+    optionalString(payload.payment_token_id) ||
+    optionalString(payload.vaultPaymentTokenId) ||
+    optionalString(payload.vault_payment_token_id);
+
+  if (!tokenId) {
+    return null;
+  }
+
+  return {
+    id: tokenId,
+    type: optionalString(explicitToken?.type || payload.paymentTokenType || payload.payment_token_type) || "PAYMENT_METHOD_TOKEN"
+  };
+}
+
+function normalizeSetupTokenInput(payload = {}) {
+  const explicitToken =
+    payload.payment_source?.token ||
+    payload.paymentSource?.token ||
+    payload.setupToken ||
+    payload.setup_token ||
+    payload.token ||
+    null;
+  const tokenId =
+    optionalString(explicitToken?.id) ||
+    optionalString(payload.setupTokenId) ||
+    optionalString(payload.setup_token_id);
+
+  if (!tokenId) {
+    return null;
+  }
+
+  return {
+    id: tokenId,
+    type: optionalString(explicitToken?.type || payload.setupTokenType || payload.setup_token_type) || "SETUP_TOKEN"
+  };
+}
+
+function summarizePaymentSource(paymentSource = {}) {
+  const token = paymentSource?.token;
+  if (token?.id) {
+    return {
+      type: "token",
+      tokenId: token.id,
+      tokenType: token.type || null
+    };
+  }
+
+  const sourceType = ["paypal", "card", "venmo", "apple_pay", "google_pay", "bank"].find((key) => paymentSource?.[key]);
+  return sourceType
+    ? {
+        type: sourceType,
+        tokenId: null,
+        tokenType: null
+      }
+    : null;
+}
+
+function sanitizePaymentRequestForLog(request = {}) {
+  if (!request || typeof request !== "object") {
+    return request;
+  }
+  const next = {
+    ...request,
+    payment_source: request.payment_source && typeof request.payment_source === "object"
+      ? { ...request.payment_source }
+      : request.payment_source
+  };
+  const card = next.payment_source?.card;
+  if (card && typeof card === "object") {
+    next.payment_source.card = {
+      ...card,
+      number: card.number ? "[redacted]" : card.number,
+      security_code: card.security_code ? "[redacted]" : card.security_code,
+      securityCode: card.securityCode ? "[redacted]" : card.securityCode
+    };
+  }
+  return next;
+}
+
 const PRE_SIGNUP_PAYMENT_METHODS = Object.freeze([
   "paypal",
   "debit_card",
@@ -216,6 +306,7 @@ export function createPaypalCaptureController(helpers) {
   async function createOrderForPayload({ payload = {}, session = null, route = null } = {}) {
     const paymentKind = await resolvePaymentKind(payload, session);
     const normalizedRequest = await buildNormalizedRequest(payload, session, paymentKind);
+    const paymentToken = normalizePaymentTokenInput(payload);
     
     // Transfer Expanded Checkout fields from the original payload if present
     if (payload.payment_source) {
@@ -284,7 +375,14 @@ export function createPaypalCaptureController(helpers) {
     if (payload.paypal) {
       normalizedRequest.paypal = payload.paypal;
     }
-    if (payload.token) {
+    if (paymentToken) {
+      normalizedRequest.payment_source = {
+        ...normalizedRequest.payment_source,
+        token: paymentToken
+      };
+      normalizedRequest.paymentTokenId = paymentToken.id;
+      normalizedRequest.paymentTokenType = paymentToken.type;
+    } else if (payload.token) {
       normalizedRequest.token = payload.token;
     }
     if (payload.cobranded_cards) {
@@ -323,13 +421,14 @@ export function createPaypalCaptureController(helpers) {
 
     const createdAt = new Date().toISOString();
     const order = await createPaypalOrder(normalizedRequest);
+    const paymentSourceSummary = summarizePaymentSource(normalizedRequest.payment_source);
     const verificationResult = typeof extractPaypalVerificationResult === "function" 
       ? extractPaypalVerificationResult(order) 
       : {};
 
     await appendPaymentLog({
       event: "order-created",
-      request: normalizedRequest,
+      request: sanitizePaymentRequestForLog(normalizedRequest),
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? normalizedRequest.userId : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
@@ -339,6 +438,7 @@ export function createPaypalCaptureController(helpers) {
       paypalOrderId: order.id,
       status: order.status,
       status_details: order.status_details,
+      paymentSource: paymentSourceSummary,
       ...verificationResult,
       createdAt,
       route: route || null
@@ -349,6 +449,8 @@ export function createPaypalCaptureController(helpers) {
         paymentMethodMasked: normalizedRequest.paymentMethodMasked || null,
         paymentProvider: "paypal",
         paypalOrderId: order.id,
+        paypalPaymentTokenId: paymentToken?.id || null,
+        paypalPaymentTokenType: paymentToken?.type || null,
         paymentStatus: order.status || "ORDER_CREATED",
         paymentEventType: "PAYPAL_ORDER_CREATED",
         recordedAt: createdAt
@@ -358,6 +460,8 @@ export function createPaypalCaptureController(helpers) {
         paymentMethodMasked: normalizedRequest.paymentMethodMasked || null,
         paymentProvider: "paypal",
         paypalOrderId: order.id,
+        paypalPaymentTokenId: paymentToken?.id || null,
+        paypalPaymentTokenType: paymentToken?.type || null,
         paymentStatus: order.status || "ORDER_CREATED",
         paymentEventType: "PAYPAL_ORDER_CREATED",
         recordedAt: createdAt
@@ -367,6 +471,8 @@ export function createPaypalCaptureController(helpers) {
         paymentMethodMasked: normalizedRequest.paymentMethodMasked || null,
         paymentProvider: "paypal",
         paypalOrderId: order.id,
+        paypalPaymentTokenId: paymentToken?.id || null,
+        paypalPaymentTokenType: paymentToken?.type || null,
         paymentStatus: order.status || "ORDER_CREATED",
         paymentEventType: "PAYPAL_ORDER_CREATED",
         recordedAt: createdAt,
@@ -378,7 +484,9 @@ export function createPaypalCaptureController(helpers) {
         ...request,
         amountCharged: Number(normalizedRequest.amount?.value || 0),
         paymentStatus: "ORDER_CREATED",
-        lastPaymentOrderId: order.id
+        lastPaymentOrderId: order.id,
+        lastPaymentTokenId: paymentToken?.id || request.lastPaymentTokenId || null,
+        lastPaymentTokenType: paymentToken?.type || request.lastPaymentTokenType || null
       }));
     }
 
@@ -386,6 +494,9 @@ export function createPaypalCaptureController(helpers) {
       orderId: order.id,
       status: order.status,
       paymentKind,
+      paymentSource: paymentSourceSummary,
+      paymentTokenId: paymentToken?.id || null,
+      paymentTokenType: paymentToken?.type || null,
       userId: isUserScopedPaymentKind(paymentKind) ? normalizedRequest.userId : null,
       request: normalizedRequest
     };
@@ -758,7 +869,16 @@ export function createPaypalCaptureController(helpers) {
   }
 
   async function createPaymentTokenForPayload({ payload = {}, paypalRequestId, context = {} } = {}) {
-    return await createPaypalPaymentToken({ body: payload, paypalRequestId }, context.req);
+    const setupToken = normalizeSetupTokenInput(payload);
+    const body = setupToken && !payload.payment_source
+      ? {
+          payment_source: {
+            token: setupToken
+          },
+          ...(payload.customer ? { customer: payload.customer } : {})
+        }
+      : payload;
+    return await createPaypalPaymentToken({ body, paypalRequestId }, context.req);
   }
 
   async function createSetupTokenForPayload({ payload = {}, paypalRequestId, context = {} } = {}) {

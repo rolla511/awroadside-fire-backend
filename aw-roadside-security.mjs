@@ -576,6 +576,9 @@ export function createAwRoadsideSecurityController({ requestServiceController, w
             orderId: result.orderId,
             status: result.status,
             paymentKind: result.paymentKind,
+            paymentSource: result.paymentSource || null,
+            paymentTokenId: result.paymentTokenId || null,
+            paymentTokenType: result.paymentTokenType || null,
             userId: result.userId
           });
         } catch (error) {
