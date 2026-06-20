@@ -45,13 +45,40 @@ function buildMissingOrderIdError() {
   return error;
 }
 
+function createDefaultPreSignupPaymentRequest(payload = {}) {
+  const role = optionalString(payload.role || payload.preSignupRole).toUpperCase();
+  const normalizedRole = role === "PROVIDER" ? "PROVIDER" : "SUBSCRIBER";
+  const amountValue = optionalString(payload.amount?.value || payload.amount || payload.purchase?.amount) || "10.99";
+  const currency = optionalString(payload.currency || payload.amount?.currency || payload.amount?.currency_code || payload.purchase?.currency) || "USD";
+  const fullName = optionalString(payload.fullName || payload.name) || "AW Roadside Pre-Signup";
+  const phoneNumber = optionalString(payload.phoneNumber || payload.phone) || `pre-signup-${normalizedRole.toLowerCase()}`;
+  const zip = optionalString(payload.zip || payload.billingZip || payload.serviceZip) || "pre-signup";
+
+  return {
+    paymentKind: "pre-signup",
+    role: normalizedRole,
+    serviceType: "AW Roadside Pre-Signup Access",
+    customId: `pre-signup:${normalizedRole.toLowerCase()}:${Date.now()}`,
+    fullName,
+    phoneNumber,
+    location: `Pre-signup access ZIP ${zip}`,
+    amount: {
+      currency_code: currency,
+      value: amountValue
+    },
+    description: optionalString(payload.description || payload.purchase?.description) ||
+      `AW Roadside pre-signup access - ${normalizedRole === "PROVIDER" ? "Partner/Provider" : "Subscriber/User"} - one month`,
+    application_context: payload.application_context || null
+  };
+}
+
 export function createPaypalCaptureController(helpers) {
   const {
     readOptionalString = optionalString,
     normalizeServiceRequest,
     createServicePaymentQuote,
     normalizeServicePaymentRequest,
-    createPreSignupPaymentRequest,
+    createPreSignupPaymentRequest = createDefaultPreSignupPaymentRequest,
     getServiceRequestById,
     shouldTreatPaymentAsSubscriberMembership,
     createSubscriberMembershipPaymentRequest,
@@ -62,7 +89,6 @@ export function createPaypalCaptureController(helpers) {
     capturePaypalOrder,
     extractPaypalCapturedAmount,
     extractPaypalCaptureId,
-    extractPaypalVerificationResult,
     appendPaymentLog,
     updateRequestRecord,
     recordSubscriberMembershipPaymentOrder,
@@ -77,8 +103,6 @@ export function createPaypalCaptureController(helpers) {
     createPaypalOrderTracking,
     getPaypalAuthorizedPayment,
     capturePaypalAuthorizedPayment,
-    voidPaypalAuthorizedPayment,
-    reauthorizePaypalAuthorizedPayment,
     activatePaypalBillingPlan,
     createPaypalBillingPlan,
     createPaypalSubscription,
@@ -99,7 +123,6 @@ export function createPaypalCaptureController(helpers) {
     listPaypalSubscriptionTransactions,
     listPaypalBillingPlans,
     refundPaypalCapturedPayment,
-    listPaypalInvoices,
     introspectPaypalToken,
     revokePaypalToken,
     applyPaypalSubscriptionWebhook,
@@ -166,116 +189,8 @@ export function createPaypalCaptureController(helpers) {
   async function createOrderForPayload({ payload = {}, session = null, route = null } = {}) {
     const paymentKind = await resolvePaymentKind(payload, session);
     const normalizedRequest = await buildNormalizedRequest(payload, session, paymentKind);
-    
-    // Transfer Expanded Checkout fields from the original payload if present
-    if (payload.payment_source) {
-      normalizedRequest.payment_source = payload.payment_source;
-    }
-    if (payload.payment_source_info) {
-       normalizedRequest.payment_source = {
-         ...normalizedRequest.payment_source,
-         ...payload.payment_source_info
-       };
-    }
-    if (payload.decrypted_token) {
-       normalizedRequest.payment_source = {
-         ...normalizedRequest.payment_source,
-         tokenized_card: {
-           ...normalizedRequest.payment_source?.tokenized_card,
-           ...payload.decrypted_token
-         }
-       };
-    }
-    if (payload.card) {
-       normalizedRequest.payment_source = {
-         ...normalizedRequest.payment_source,
-         card: {
-           ...normalizedRequest.payment_source?.card,
-           ...payload.card
-         }
-       };
-    }
-    if (payload.customer) {
-      normalizedRequest.customer = payload.customer;
-    }
-    if (payload.preferences) {
-      normalizedRequest.preferences = payload.preferences;
-    }
-    if (payload.vault) {
-      normalizedRequest.vault = payload.vault;
-    }
-    if (payload.experience_context) {
-      normalizedRequest.experience_context = payload.experience_context;
-    }
-    if (payload.attributes) {
-      normalizedRequest.attributes = payload.attributes;
-    }
-    if (payload.venmo) {
-      normalizedRequest.venmo = payload.venmo;
-    }
-    if (payload.apple_pay) {
-      normalizedRequest.apple_pay = payload.apple_pay;
-    }
-    if (payload.apple) {
-      normalizedRequest.apple_pay = {
-        ...normalizedRequest.apple_pay,
-        ...payload.apple
-      };
-    }
-    if (payload.google_pay) {
-      normalizedRequest.google_pay = payload.google_pay;
-    }
-    if (payload.google) {
-      normalizedRequest.google_pay = {
-        ...normalizedRequest.google_pay,
-        ...payload.google
-      };
-    }
-    if (payload.paypal) {
-      normalizedRequest.paypal = payload.paypal;
-    }
-    if (payload.token) {
-      normalizedRequest.token = payload.token;
-    }
-    if (payload.cobranded_cards) {
-      normalizedRequest.cobranded_cards = payload.cobranded_cards;
-    }
-    if (payload.verification) {
-      normalizedRequest.verification = payload.verification;
-    }
-    if (payload.level_2) {
-      normalizedRequest.level_2 = payload.level_2;
-    }
-    if (payload.level_3) {
-      normalizedRequest.level_3 = payload.level_3;
-    }
-    if (payload.intent) {
-      normalizedRequest.intent = payload.intent;
-    }
-    if (payload.purchase_units?.[0]) {
-       // Merge items and other purchase unit details if they were provided in the raw payload
-       // but not handled by buildNormalizedRequest
-       const rawPU = payload.purchase_units[0];
-       if (!normalizedRequest.purchase_units) {
-         normalizedRequest.purchase_units = [{}];
-       }
-       const pu = normalizedRequest.purchase_units[0];
-       if (rawPU.items && !pu.items) pu.items = rawPU.items;
-       if (rawPU.shipping && !pu.shipping) pu.shipping = rawPU.shipping;
-       if (rawPU.payee && !pu.payee) pu.payee = rawPU.payee;
-       if (rawPU.reference_id && !pu.reference_id) pu.reference_id = rawPU.reference_id;
-       if (rawPU.description && !pu.description) pu.description = rawPU.description;
-       if (rawPU.amount && !pu.amount) pu.amount = rawPU.amount;
-    }
-    if (payload.requestId || payload.PayPalRequestId) {
-      normalizedRequest.requestId = payload.requestId || payload.PayPalRequestId;
-    }
-
     const createdAt = new Date().toISOString();
     const order = await createPaypalOrder(normalizedRequest);
-    const verificationResult = typeof extractPaypalVerificationResult === "function" 
-      ? extractPaypalVerificationResult(order) 
-      : {};
 
     await appendPaymentLog({
       event: "order-created",
@@ -288,8 +203,6 @@ export function createPaypalCaptureController(helpers) {
         : normalizedRequest.requestId || null,
       paypalOrderId: order.id,
       status: order.status,
-      status_details: order.status_details,
-      ...verificationResult,
       createdAt,
       route: route || null
     });
@@ -352,20 +265,15 @@ export function createPaypalCaptureController(helpers) {
       throw buildMissingOrderIdError();
     }
 
-    const capture = await capturePaypalOrder(orderId, payload.capture || payload);
+    const capture = await capturePaypalOrder(orderId);
     const capturedAt = new Date().toISOString();
     const amountCaptured = extractPaypalCapturedAmount(capture);
     const captureId = extractPaypalCaptureId(capture);
-    const verificationResult = typeof extractPaypalVerificationResult === "function" 
-      ? extractPaypalVerificationResult(capture) 
-      : {};
 
     await appendPaymentLog({
       event: "order-captured",
       paypalOrderId: orderId,
       status: capture.status,
-      status_details: capture.status_details,
-      ...verificationResult,
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
@@ -493,18 +401,13 @@ export function createPaypalCaptureController(helpers) {
       throw buildMissingOrderIdError();
     }
 
-    const authorization = await authorizePaypalOrder(orderId, payload.authorization || payload);
+    const authorization = await authorizePaypalOrder(orderId);
     const authorizedAt = new Date().toISOString();
-    const verificationResult = typeof extractPaypalVerificationResult === "function" 
-      ? extractPaypalVerificationResult(authorization) 
-      : {};
 
     await appendPaymentLog({
       event: "order-authorized",
       paypalOrderId: orderId,
       status: authorization.status,
-      status_details: authorization.status_details,
-      ...verificationResult,
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
@@ -532,18 +435,13 @@ export function createPaypalCaptureController(helpers) {
       throw buildMissingOrderIdError();
     }
 
-    const confirmation = await confirmPaypalOrder(orderId, payload.confirmation || payload);
+    const confirmation = await confirmPaypalOrder(orderId);
     const confirmedAt = new Date().toISOString();
-    const verificationResult = typeof extractPaypalVerificationResult === "function" 
-      ? extractPaypalVerificationResult(confirmation) 
-      : {};
 
     await appendPaymentLog({
       event: "order-confirmed",
       paypalOrderId: orderId,
       status: confirmation.status,
-      status_details: confirmation.status_details,
-      ...verificationResult,
       paymentKind,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null,
       targetType: isUserScopedPaymentKind(paymentKind) ? "user" : "request",
@@ -598,7 +496,7 @@ export function createPaypalCaptureController(helpers) {
     };
   }
 
-  async function getAuthorizedPaymentForPayload({ payload = {} } = {}) {
+  async function getAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
     const authorizationId = optionalString(payload.authorizationId);
     if (!authorizationId) {
       const error = new Error("A PayPal authorizationId is required.");
@@ -620,29 +518,7 @@ export function createPaypalCaptureController(helpers) {
     return await capturePaypalAuthorizedPayment(authorizationId, payload, context.req);
   }
 
-  async function voidAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
-    const authorizationId = optionalString(payload.authorizationId);
-    if (!authorizationId) {
-      const error = new Error("A PayPal authorizationId is required.");
-      error.statusCode = 400;
-      error.code = "authorization-id-required";
-      throw error;
-    }
-    return await voidPaypalAuthorizedPayment(authorizationId, context.req);
-  }
-
-  async function reauthorizeAuthorizedPaymentForPayload({ payload = {}, context = {} } = {}) {
-    const authorizationId = optionalString(payload.authorizationId);
-    if (!authorizationId) {
-      const error = new Error("A PayPal authorizationId is required.");
-      error.statusCode = 400;
-      error.code = "authorization-id-required";
-      throw error;
-    }
-    return await reauthorizePaypalAuthorizedPayment(authorizationId, payload, context.req);
-  }
-
-  async function activateBillingPlanForPayload({ payload = {} } = {}) {
+  async function activateBillingPlanForPayload({ payload = {}, context = {} } = {}) {
     const planId = optionalString(payload.planId || payload.id);
     if (!planId) {
       const error = new Error("A PayPal planId is required.");
@@ -686,11 +562,6 @@ export function createPaypalCaptureController(helpers) {
     return await activatePaypalSubscription(id, reason, context.req);
   }
 
-  async function suspendSubscriptionForPayload({ id, payload = {}, context = {} } = {}) {
-    const reason = payload.reason || "Suspending subscription";
-    return await suspendPaypalSubscription(id, reason, context.req);
-  }
-
   async function captureSubscriptionForPayload({ id, payload = {}, paypalRequestId, context = {} } = {}) {
     return await capturePaypalSubscription(id, { body: payload, paypalRequestId }, context.req);
   }
@@ -731,24 +602,8 @@ export function createPaypalCaptureController(helpers) {
     return await getPaypalUserInfo(schema, context.req);
   }
 
-  async function listInvoicesForPayload({ payload = {}, context = {} } = {}) {
-    return await listPaypalInvoices(payload, context.req);
-  }
-
   async function introspectTokenForPayload({ payload = {}, context = {} } = {}) {
     return await introspectPaypalToken(payload.token, payload.tokenTypeHint || "access_token", context.req);
-  }
-
-  async function createPartnerReferralForPayload({ payload = {}, context = {} } = {}) {
-    return await createPaypalPartnerReferral(payload, context.req);
-  }
-
-  async function getPartnerReferralForPayload({ id, context = {} } = {}) {
-    return await getPaypalPartnerReferral(id, context.req);
-  }
-
-  async function getMerchantIntegrationStatusForPayload({ partnerId, merchantId, context = {} } = {}) {
-    return await getPaypalMerchantIntegrationStatus(partnerId, merchantId, context.req);
   }
 
   async function revokeTokenForPayload({ payload = {}, context = {} } = {}) {
@@ -806,8 +661,6 @@ export function createPaypalCaptureController(helpers) {
     captureOrderForPayload,
     getAuthorizedPaymentForPayload,
     captureAuthorizedPaymentForPayload,
-    voidAuthorizedPaymentForPayload,
-    reauthorizeAuthorizedPaymentForPayload,
     activateBillingPlanForPayload,
     createBillingPlanForPayload,
     createSubscriptionForPayload,
@@ -815,7 +668,6 @@ export function createPaypalCaptureController(helpers) {
     patchSubscriptionForPayload,
     reviseSubscriptionForPayload,
     activateSubscriptionForPayload,
-    suspendSubscriptionForPayload,
     captureSubscriptionForPayload,
     getSetupTokenForPayload,
     createSetupTokenForPayload,
@@ -828,12 +680,8 @@ export function createPaypalCaptureController(helpers) {
     getUserInfoForPayload,
     listSubscriptionTransactionsForPayload,
     listBillingPlansForPayload,
-    listInvoicesForPayload,
     introspectTokenForPayload,
     revokeTokenForPayload,
-    createPartnerReferralForPayload,
-    getPartnerReferralForPayload,
-    getMerchantIntegrationStatusForPayload,
     applyWebhookEvent
   };
 }
