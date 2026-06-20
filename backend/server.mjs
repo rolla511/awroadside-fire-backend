@@ -730,10 +730,16 @@ function resolvePaypalClientSecretForMode(mode) {
       readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sandbox") ||
       readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANBOX") ||
       readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sanbox") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_SECRET")
+      readPaypalEnvValue("PAYPAL_CLIENT_SECRET") ||
+      readPaypalEnvValue("SECRET_KEY_1") ||
+      readPaypalEnvValue("PAYPAL_SECRET_KEY_1")
     );
   }
-  return readPaypalEnvValue("PAYPAL_CLIENT_SECRET");
+  return (
+    readPaypalEnvValue("PAYPAL_CLIENT_SECRET") ||
+    readPaypalEnvValue("SECRET_KEY_1") ||
+    readPaypalEnvValue("PAYPAL_SECRET_KEY_1")
+  );
 }
 const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
 const paypalClientId = resolvePaypalClientIdForMode(paypalMode);
@@ -2971,6 +2977,13 @@ async function getPaymentConfigPayload() {
     provider: "paypal",
     enabled: Boolean(paypalClientId && paypalClientSecret),
     clientId: paypalClientId || null,
+    credentials: {
+      mode: paypalMode,
+      clientIdPreview: maskCredential(paypalClientId),
+      clientIdLength: paypalClientId ? paypalClientId.length : 0,
+      secretConfigured: Boolean(paypalClientSecret),
+      secretLength: paypalClientSecret ? paypalClientSecret.length : 0
+    },
     webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
@@ -3008,6 +3021,17 @@ async function getPaymentConfigPayload() {
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
     uiEventMap: AW_ROADSIDE_POLICY.uiEventMap
   };
+}
+
+function maskCredential(value) {
+  const normalized = readOptionalString(value);
+  if (!normalized) {
+    return null;
+  }
+  if (normalized.length <= 10) {
+    return `${normalized.slice(0, 2)}...${normalized.slice(-2)}`;
+  }
+  return `${normalized.slice(0, 6)}...${normalized.slice(-4)}`;
 }
 
 async function sendAccountEmail(payload) {

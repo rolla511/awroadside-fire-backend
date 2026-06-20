@@ -836,10 +836,16 @@ function resolvePaypalClientSecret() {
       readEnv("PAYPAL_CLIENT_SECRET_sandbox") ||
       readEnv("PAYPAL_CLIENT_SECRET_SANBOX") ||
       readEnv("PAYPAL_CLIENT_SECRET_sanbox") ||
-      readEnv("PAYPAL_CLIENT_SECRET")
+      readEnv("PAYPAL_CLIENT_SECRET") ||
+      readEnv("SECRET_KEY_1") ||
+      readEnv("PAYPAL_SECRET_KEY_1")
     );
   }
-  return readEnv("PAYPAL_CLIENT_SECRET");
+  return (
+    readEnv("PAYPAL_CLIENT_SECRET") ||
+    readEnv("SECRET_KEY_1") ||
+    readEnv("PAYPAL_SECRET_KEY_1")
+  );
 }
 
 function readEnv(name) {
