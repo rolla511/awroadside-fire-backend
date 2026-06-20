@@ -16,14 +16,14 @@ services:
         sync: false
       - key: internal_db_url
         sync: false
-      - key: USdb_entry
+      - key: Usdb_entry
         sync: false
       - key: config
         sync: false
-      - key: AW_DB_MODE
-        value: internal-db
-      - key: AW_DB_STRICT
-        value: "false"
+      - key: USDB_ENTRY
+        sync: false
+      - key: USDB_CONFIG_HANDLE
+        sync: false
       - key: RUNTIME_ROOT
         value: app/runtime
       - key: PAYPAL_ENV
@@ -31,6 +31,8 @@ services:
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: SECRET_KEY_1
         sync: false
       - key: PAYPAL_WEBHOOK_ID
         sync: false

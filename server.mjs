@@ -1209,6 +1209,97 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/customer/partner-referrals`) {
+      if (!isAdmin(req)) {
+        sendForbidden(res);
+        return;
+      }
+
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const result = await paypalCaptureController.createPartnerReferralForPayload({
+          payload,
+          context: { req }
+        });
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Create Partner Referral Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-partner-referral-create-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/customer/partner-referrals/`)) {
+      if (!isAdmin(req)) {
+        sendForbidden(res);
+        return;
+      }
+
+      const referralId = normalizedRawApiPath.split("/").pop();
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      try {
+        const result = await paypalCaptureController.getPartnerReferralForPayload({
+          id: referralId,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] Get Partner Referral Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-partner-referral-get-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/customer/partners/`) && normalizedRawApiPath.includes("/merchant-integrations/")) {
+      if (!isAdmin(req)) {
+        sendForbidden(res);
+        return;
+      }
+
+      const parts = normalizedRawApiPath.split("/");
+      const partnerId = parts[parts.indexOf("partners") + 1];
+      const merchantId = parts[parts.indexOf("merchant-integrations") + 1];
+
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      try {
+        const result = await paypalCaptureController.getMerchantIntegrationStatusForPayload({
+          partnerId,
+          merchantId,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] Get Merchant Integration Status Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-merchant-integration-status-get-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-order`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -1254,6 +1345,172 @@ const server = http.createServer(async (req, res) => {
           message: error?.code === "paypal-client-auth-failed"
             ? "PayPal secure checkout is unavailable because the server PayPal credentials were rejected. Verify PAYPAL_ENV matches the PayPal client ID and secret."
             : error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/billing/subscriptions/`)) {
+      const parts = normalizedRawApiPath.split("/");
+      const lastPart = parts[parts.length - 1];
+      const subscriptionId = ["activate", "suspend", "revise", "transactions"].includes(lastPart) ? parts[parts.length - 2] : lastPart;
+      const action = ["activate", "suspend", "revise", "transactions"].includes(lastPart) ? lastPart : "get_or_patch";
+
+      if (action === "activate" || action === "suspend" || action === "revise" || action === "transactions") {
+        const allowedMethod = action === "transactions" ? "GET" : "POST";
+        if (req.method !== allowedMethod) {
+          sendMethodNotAllowed(res, allowedMethod);
+          return;
+        }
+
+        try {
+          const payload = (action === "transactions") ? {} : await readJsonBody(req).catch(() => ({}));
+          let result;
+          if (action === "activate") {
+            result = await paypalCaptureController.activateSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+          } else if (action === "suspend") {
+            result = await paypalCaptureController.suspendSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+          } else if (action === "revise") {
+            result = await paypalCaptureController.reviseSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+          } else if (action === "transactions") {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const query = Object.fromEntries(url.searchParams);
+            result = await paypalCaptureController.listSubscriptionTransactionsForPayload({
+              id: subscriptionId,
+              payload: query,
+              context: { req }
+            });
+          }
+
+          if (action === "revise" || action === "transactions") {
+            sendJson(res, 200, result);
+          } else {
+            sendJson(res, 204, result);
+          }
+        } catch (error) {
+          console.error(`[ERROR] ${action.charAt(0).toUpperCase() + action.slice(1)} Subscription Route Failed:`, error);
+          const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+          sendJson(res, statusCode, {
+            error: error?.code || `paypal-subscription-${action}-failed`,
+            message: error.message
+          });
+        }
+        return;
+      } else if (action === "get_or_patch") {
+        if (req.method === "PATCH") {
+          try {
+            const payload = await readJsonBody(req);
+            const result = await paypalCaptureController.patchSubscriptionForPayload({
+              id: subscriptionId,
+              payload,
+              context: { req }
+            });
+            sendJson(res, 204, result);
+          } catch (error) {
+            console.error('[ERROR] Patch Subscription Route Failed:', error);
+            const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+            sendJson(res, statusCode, {
+              error: error?.code || "paypal-subscription-patch-failed",
+              message: error.message
+            });
+          }
+          return;
+        } else if (req.method === "GET") {
+          try {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const query = Object.fromEntries(url.searchParams);
+            const result = await paypalCaptureController.getSubscriptionForPayload({
+              id: subscriptionId,
+              payload: query,
+              context: { req }
+            });
+            sendJson(res, 200, result);
+          } catch (error) {
+            console.error('[ERROR] Get Subscription Route Failed:', error);
+            const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+            sendJson(res, statusCode, {
+              error: error?.code || "paypal-subscription-get-failed",
+              message: error.message
+            });
+          }
+          return;
+        }
+      }
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/billing/subscriptions`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating subscriptions."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const result = await paypalCaptureController.createSubscriptionForPayload({
+          payload,
+          context: { req }
+        });
+        sendJson(res, 201, result);
+      } catch (error) {
+        console.error('[ERROR] Create Subscription Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-subscription-create-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/invoicing/invoices`) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      const session = resolveUserSession(req);
+      if (!session || session.role !== "ADMIN") {
+        sendJson(res, 403, {
+          error: "forbidden",
+          message: "Only administrators can list invoices."
+        });
+        return;
+      }
+
+      try {
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const query = Object.fromEntries(url.searchParams);
+        const result = await paypalCaptureController.listInvoicesForPayload({
+          payload: query,
+          context: { req }
+        });
+        sendJson(res, 200, result);
+      } catch (error) {
+        console.error('[ERROR] List Invoices Route Failed:', error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-list-invoices-failed",
+          message: error.message
         });
       }
       return;
@@ -1353,6 +1610,53 @@ const server = http.createServer(async (req, res) => {
         });
       }
       return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/authorizations/`)) {
+      const parts = normalizedRawApiPath.split("/");
+      const authorizationId = parts[parts.length - 2];
+      const action = parts[parts.length - 1];
+
+      if (action === "void" || action === "reauthorize") {
+        if (req.method !== "POST") {
+          sendMethodNotAllowed(res, "POST");
+          return;
+        }
+
+        const session = resolveUserSession(req);
+        if (!session || session.role !== "ADMIN") {
+          sendJson(res, 403, {
+            error: "forbidden",
+            message: `Only administrators can ${action} authorizations.`
+          });
+          return;
+        }
+
+        try {
+          const payload = await readJsonBody(req).catch(() => ({}));
+          let result;
+          if (action === "void") {
+            result = await paypalCaptureController.voidAuthorizedPaymentForPayload({
+              payload: { ...payload, authorizationId },
+              context: { req }
+            });
+          } else {
+            result = await paypalCaptureController.reauthorizeAuthorizedPaymentForPayload({
+              payload: { ...payload, authorizationId },
+              context: { req }
+            });
+          }
+          sendJson(res, action === "void" ? 200 : 201, result);
+        } catch (error) {
+          console.error(`[ERROR] Authorization ${action} Route Failed:`, error);
+          const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+          sendJson(res, statusCode, {
+            error: error?.code || `paypal-authorization-${action}-failed`,
+            message: error.message
+          });
+        }
+        return;
+      }
     }
 
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-subscription`) {
@@ -4327,7 +4631,8 @@ async function createPaypalOrder(serviceRequest) {
             ? `AW Roadside provider suspension fee - ${serviceRequest.serviceType || "reinstatement"}`
             : `Priority roadside service - ${serviceRequest.serviceType}`;
   return paypal.createOrder({
-    description,
+    ...serviceRequest,
+    description: serviceRequest.description || description,
     amount: serviceRequest.amount,
     customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
   });
@@ -4385,6 +4690,22 @@ async function capturePaypalAuthorizedPayment(authorizationId, captureDetails = 
     console.log(`[DEBUG_LOG] capturePaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
   }
   return paypal.captureAuthorizedPayment(authorizationId, captureDetails);
+}
+
+async function voidPaypalAuthorizedPayment(authorizationId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] voidPaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
+  }
+  return paypal.voidAuthorizedPayment(authorizationId);
+}
+
+async function reauthorizePaypalAuthorizedPayment(authorizationId, reauthorizeDetails = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] reauthorizePaypalAuthorizedPayment called with request but no session for authorization ${authorizationId}`);
+  }
+  return paypal.reauthorizeAuthorizedPayment(authorizationId, reauthorizeDetails);
 }
 
 async function activatePaypalBillingPlan(planId, req = null) {
@@ -4449,6 +4770,14 @@ async function activatePaypalSubscription(id, reason, req = null) {
     console.log(`[DEBUG_LOG] activatePaypalSubscription called with request but no session for subscription ${id}`);
   }
   return paypal.activateSubscription(id, reason);
+}
+
+async function suspendPaypalSubscription(id, reason, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] suspendPaypalSubscription called with request but no session for subscription ${id}`);
+  }
+  return paypal.suspendSubscription(id, reason);
 }
 
 async function capturePaypalSubscription(id, options, req = null) {
@@ -4539,6 +4868,14 @@ async function listPaypalBillingPlans(query = {}, req = null) {
   return paypal.listBillingPlans(query);
 }
 
+async function listPaypalInvoices(query = {}, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] listPaypalInvoices called with request but no session`);
+  }
+  return paypal.listInvoices(query);
+}
+
 function extractPaypalCapturedAmount(capture) {
   const amountValue = Number.parseFloat(
     readOptionalString(capture?.purchase_units?.[0]?.payments?.captures?.[0]?.amount?.value) ||
@@ -4555,6 +4892,29 @@ function extractPaypalCaptureId(capture) {
     readOptionalString(capture?.id) ||
     null
   );
+}
+
+function extractPaypalVerificationResult(resource) {
+  const paymentSource = resource?.payment_source;
+  const card = paymentSource?.card || paymentSource?.tokenized_card;
+  const authenticationResult = card?.authentication_result;
+  const threeDSecure = authenticationResult?.three_d_secure || resource?.three_d_secure;
+
+  return {
+    liability_shift: readOptionalString(authenticationResult?.liability_shift) || readOptionalString(resource?.liability_shift) || null,
+    three_d_secure: threeDSecure ? {
+      authentication_status: readOptionalString(threeDSecure.authentication_status),
+      enrollment_status: readOptionalString(threeDSecure.enrollment_status)
+    } : null,
+    status_details: resource?.status_details || null,
+    authentication_result: authenticationResult ? {
+      liability_shift: readOptionalString(authenticationResult.liability_shift),
+      three_d_secure: authenticationResult.three_d_secure ? {
+         authentication_status: readOptionalString(authenticationResult.three_d_secure.authentication_status),
+         enrollment_status: readOptionalString(authenticationResult.three_d_secure.enrollment_status)
+      } : null
+    } : null
+  };
 }
 
 async function refundPaypalCapturedPayment(captureId, refundDetails = {}, req = null) {
@@ -4581,6 +4941,30 @@ async function revokePaypalToken(token, tokenTypeHint = "access_token", req = nu
   return paypal.revokeToken(token, tokenTypeHint);
 }
 
+async function createPaypalPartnerReferral(referralData, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] createPaypalPartnerReferral called with request but no session`);
+  }
+  return paypal.createPartnerReferral(referralData);
+}
+
+async function getPaypalPartnerReferral(referralId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalPartnerReferral called with request but no session for referral ${referralId}`);
+  }
+  return paypal.getPartnerReferral(referralId);
+}
+
+async function getPaypalMerchantIntegrationStatus(partnerId, merchantId, req = null) {
+  const session = req ? resolveUserSession(req) : null;
+  if (req && !session) {
+    console.log(`[DEBUG_LOG] getPaypalMerchantIntegrationStatus called with request but no session for partner ${partnerId} merchant ${merchantId}`);
+  }
+  return paypal.getMerchantIntegrationStatus(partnerId, merchantId);
+}
+
 const paypalCaptureController = createPaypalCaptureController({
   readOptionalString,
   normalizeServiceRequest,
@@ -4604,6 +4988,8 @@ const paypalCaptureController = createPaypalCaptureController({
   createPaypalOrderTracking,
   getPaypalAuthorizedPayment,
   capturePaypalAuthorizedPayment,
+  voidPaypalAuthorizedPayment,
+  reauthorizePaypalAuthorizedPayment,
   activatePaypalBillingPlan,
   createPaypalBillingPlan,
   createPaypalSubscription,
@@ -4611,6 +4997,7 @@ const paypalCaptureController = createPaypalCaptureController({
   patchPaypalSubscription,
   revisePaypalSubscription,
   activatePaypalSubscription,
+  suspendPaypalSubscription,
   capturePaypalSubscription,
   getPaypalSetupToken,
   getPaypalPaymentToken,
@@ -4623,11 +5010,16 @@ const paypalCaptureController = createPaypalCaptureController({
   getPaypalUserInfo,
   listPaypalSubscriptionTransactions,
   listPaypalBillingPlans,
+  listPaypalInvoices,
   refundPaypalCapturedPayment,
   introspectPaypalToken,
   revokePaypalToken,
+  createPaypalPartnerReferral,
+  getPaypalPartnerReferral,
+  getPaypalMerchantIntegrationStatus,
   extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
   extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
+  extractPaypalVerificationResult: (resource) => extractPaypalVerificationResult(resource),
   appendPaymentLog,
   updateRequestRecord,
   recordSubscriberMembershipPaymentOrder: (userId, context = {}) =>
@@ -5168,7 +5560,7 @@ function extractPaypalPayoutIdentifiers(resource) {
   };
 }
 
-function normalizeProviderPaypalProfile(value) {
+export function normalizeProviderPaypalProfile(value) {
   const paypal = value && typeof value === "object" ? value : {};
   return {
     providerAccountId: readOptionalString(paypal.providerAccountId) || readOptionalString(paypal.merchantId) || null,
@@ -5200,7 +5592,13 @@ function normalizeProviderPaypalProfile(value) {
     lastAccountUpdateAt: optionalIsoString(paypal.lastAccountUpdateAt),
     lastAccountLimitEventAt: optionalIsoString(paypal.lastAccountLimitEventAt),
     lastCapabilityUpdateAt: optionalIsoString(paypal.lastCapabilityUpdateAt),
-    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt)
+    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt),
+    oauthThirdParty: Array.isArray(paypal.oauth_third_party || paypal.oauthThirdParty)
+      ? (paypal.oauth_third_party || paypal.oauthThirdParty)
+      : [],
+    integrationType: readOptionalString(paypal.integration_type || paypal.integrationType) || null,
+    integrationMethod: readOptionalString(paypal.integration_method || paypal.integrationMethod) || null,
+    status: readOptionalString(paypal.status) || null
   };
 }
 
@@ -5374,6 +5772,8 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       "0"
   );
   const captureId = readOptionalString(resource.id);
+  const verificationResult = extractPaypalVerificationResult(resource);
+  const statusDetails = resource.status_details;
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
     readOptionalString(resource?.invoice_id) ||
@@ -5392,7 +5792,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          status_details: statusDetails,
+          ...verificationResult
         });
       } else {
         const membershipStatus =
@@ -5423,7 +5825,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           subscriptionStatus,
           subscriberActive: membershipStatus === "REFUNDED" || membershipStatus === "PAYMENT_FAILED" || membershipStatus === "CANCELLED"
             ? false
-            : matchedSubscriber.subscriberActive
+            : matchedSubscriber.subscriberActive,
+          status_details: statusDetails,
+          ...verificationResult
         });
       }
 
@@ -5455,7 +5859,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          status_details: statusDetails,
+          ...verificationResult
         });
       } else {
         updatedProvider = await recordProviderSuspensionFeeCaptureByUserId(matchedProviderPayment.user.id, {
@@ -5465,7 +5871,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString()
+          paidAt: new Date().toISOString(),
+          status_details: statusDetails,
+          ...verificationResult
         });
       }
     } else {
@@ -5516,7 +5924,9 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       lastPaymentOrderId: orderId || request.lastPaymentOrderId || null,
       lastPaymentEventId: readOptionalString(webhookEvent.id) || request.lastPaymentEventId || null,
       lastPaymentEventType: eventType,
-      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null
+      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null,
+      lastPaymentStatusDetails: statusDetails || request.lastPaymentStatusDetails || null,
+      ...verificationResult
     };
 
     if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {
