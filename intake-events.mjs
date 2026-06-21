@@ -312,7 +312,7 @@ async function resolvePayment(payload, helpers, context) {
     orderId: orderId || null,
     subscriptionId: subscriptionId || null,
     captureId: captureId || cardId || null,
-    status: normalizePaymentStatus(captureStatus, Boolean(captureId || subscriptionId || cardId)),
+    status: normalizePaymentStatus(captureStatus, Boolean(captureId || cardId)),
     amount: normalizeAmount(payload?.amount || payment.amount || paypal.amount),
     capturedAt: capture ? new Date().toISOString() : optionalString(payload?.capturedAt || payment.capturedAt) || null,
     serverCaptured: Boolean(shouldCapture && capture),
@@ -347,7 +347,7 @@ async function syncIntakeToUserAccount(entry, helpers) {
       roles: [entry.role],
       subscriberActive: entry.role === "SUBSCRIBER",
       subscriberProfile: entry.role === "SUBSCRIBER" ? {
-        membershipPrice: 7.99,
+        membershipPrice: 10.99,
         vehicle: entry.vehicle,
         savedVehicles: [entry.vehicle],
         membershipStatus: "ACTIVE",
@@ -356,7 +356,7 @@ async function syncIntakeToUserAccount(entry, helpers) {
           paypalOrderId: entry.payment.orderId,
           paypalSubscriptionId: entry.payment.subscriptionId,
           paypalCaptureId: entry.payment.captureId,
-          status: "CAPTURED"
+          status: entry.payment.status
         },
         paypalSubscriptionId: entry.payment.subscriptionId,
         updatedAt: now
@@ -499,6 +499,9 @@ function normalizeAmount(value) {
 
 function normalizePaymentStatus(status, hasCaptureId) {
   const normalized = optionalString(status).toUpperCase();
+  if (normalized === "APPROVED" || normalized === "ACTIVE") {
+    return normalized;
+  }
   if (normalized === "COMPLETED" || normalized === "CAPTURED") {
     return "CAPTURED";
   }
