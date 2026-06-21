@@ -354,9 +354,11 @@ async function syncIntakeToUserAccount(entry, helpers) {
         paymentInfo: {
           paymentProvider: "paypal",
           paypalOrderId: entry.payment.orderId,
+          paypalSubscriptionId: entry.payment.subscriptionId,
           paypalCaptureId: entry.payment.captureId,
           status: "CAPTURED"
         },
+        paypalSubscriptionId: entry.payment.subscriptionId,
         updatedAt: now
       } : null,
       providerStatus: entry.role === "PROVIDER" ? "PENDING_APPROVAL" : null,
@@ -364,7 +366,8 @@ async function syncIntakeToUserAccount(entry, helpers) {
         serviceArea: entry.logistics.serviceArea,
         services: entry.provider?.services || [],
         paypal: {
-          payoutEmail: entry.provider?.payoutEmail || entry.contact.email
+          payoutEmail: entry.provider?.payoutEmail || entry.contact.email,
+          subscriptionId: entry.payment.subscriptionId
         },
         updatedAt: now
       } : null,
@@ -507,7 +510,17 @@ function normalizePaymentStatus(status, hasCaptureId) {
 
 function requireCapturedPayment(payment, payload) {
   const status = optionalString(payment?.status).toUpperCase();
-  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (payment?.orderId && (status === "CAPTURED" || status === "PENDING_CAPTURE")));
+  const orderId = optionalString(payment?.orderId);
+  
+  // Reject mock IDs immediately
+  if (orderId.startsWith("CC_MOCK_") || orderId.includes("MOCK")) {
+    const error = new Error("Mock payments are not allowed in this environment.");
+    error.statusCode = 403;
+    error.code = "mock-payment-rejected";
+    throw error;
+  }
+
+  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (orderId && (status === "CAPTURED" || status === "PENDING_CAPTURE")));
   
   if ((status === "CAPTURED" || status === "APPROVED" || status === "ACTIVE" || status === "PENDING_CAPTURE") && hasEvidence) {
     return;
