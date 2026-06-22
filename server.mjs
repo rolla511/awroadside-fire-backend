@@ -127,8 +127,8 @@ function readBooleanEnv(value, fallback = false) {
   return fallback;
 }
 
-const subscriberMonthlyFee = 7.99;
-const providerMonthlyFee = 6;
+const subscriberMonthlyFee = 10.99;
+const providerMonthlyFee = 10.99;
 const preSignupAccessFee = 10.99;
 const providerSuspensionFeeFirst = 100;
 const providerSuspensionFeeSecond = 250;
@@ -5784,14 +5784,17 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
   const matchedRequest = await findRequestForPaypalPayment(resource);
   const amountValue = Number.parseFloat(
     readOptionalString(resource?.amount?.value) ||
+      readOptionalString(resource?.amount?.total) ||
       readOptionalString(resource?.seller_receivable_breakdown?.gross_amount?.value) ||
       "0"
   );
-  const captureId = readOptionalString(resource.id);
+  const authorizationId = eventType.startsWith("PAYMENT.AUTHORIZATION.") ? readOptionalString(resource.id) : "";
+  const captureId = eventType.startsWith("PAYMENT.AUTHORIZATION.") ? "" : readOptionalString(resource.id);
   const verificationResult = extractPaypalVerificationResult(resource);
   const statusDetails = resource.status_details;
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
+    readOptionalString(resource.parent_payment) ||
     readOptionalString(resource?.invoice_id) ||
     matchedRequest?.lastPaymentOrderId ||
     "";
@@ -5940,12 +5943,21 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       lastPaymentOrderId: orderId || request.lastPaymentOrderId || null,
       lastPaymentEventId: readOptionalString(webhookEvent.id) || request.lastPaymentEventId || null,
       lastPaymentEventType: eventType,
+      lastPaymentAuthorizationId: authorizationId || request.lastPaymentAuthorizationId || null,
+      lastPaymentAuthorizationValidUntil: optionalIsoString(resource.valid_until) || request.lastPaymentAuthorizationValidUntil || null,
       lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null,
       lastPaymentStatusDetails: statusDetails || request.lastPaymentStatusDetails || null,
       ...verificationResult
     };
 
-    if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {
+    if (eventType === "PAYMENT.AUTHORIZATION.CREATED") {
+      next.paymentStatus = "AUTHORIZED";
+      next.amountAuthorized = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : request.amountAuthorized || 0;
+    } else if (eventType === "PAYMENT.AUTHORIZATION.VOIDED") {
+      next.paymentStatus = "VOIDED";
+    } else if (eventType === "PAYMENT.AUTHORIZATION.EXPIRED") {
+      next.paymentStatus = "AUTHORIZATION_EXPIRED";
+    } else if (eventType === "PAYMENT.CAPTURE.COMPLETED" || eventType === "PAYMENT.SALE.COMPLETED") {
       next.paymentStatus = "CAPTURED";
       next.amountCollected = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : request.amountCollected || 0;
       next.refundIssued = false;
@@ -6045,6 +6057,7 @@ async function findRequestForPaypalPayment(resource) {
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
     readOptionalString(resource?.supplementary_data?.related_ids?.authorization_id) ||
+    readOptionalString(resource.parent_payment) ||
     readOptionalString(resource.invoice_id) ||
     readOptionalString(resource.id);
 
@@ -6060,7 +6073,9 @@ async function findRequestForPaypalPayment(resource) {
 
   if (orderId) {
     const byOrderId = requests.find(
-      (entry) => readOptionalString(entry.lastPaymentOrderId) === orderId
+      (entry) =>
+        readOptionalString(entry.lastPaymentOrderId) === orderId ||
+        readOptionalString(entry.lastPaymentAuthorizationId) === orderId
     );
     if (byOrderId) {
       return byOrderId;
