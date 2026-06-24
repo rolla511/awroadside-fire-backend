@@ -1028,6 +1028,8 @@ const server = http.createServer(async (req, res) => {
       createServicePaymentQuote,
       createServiceRequest,
       createPaypalOrder,
+      getPaypalOrderStatus,
+      updatePaypalOrder,
       capturePaypalOrder,
       extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
       extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
@@ -1162,7 +1164,121 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/hosted-button-intent`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const requestId = readRequiredString(payload?.requestId || payload?.request_id, "requestId");
+        const hostedButtonId = readRequiredString(payload?.hostedButtonId || payload?.hosted_button_id, "hostedButtonId");
+        const paymentIntentAt = new Date().toISOString();
+        const updatedRequest = await updateRequestRecord(requestId, (request) => ({
+          lastPaymentHostedButtonId: hostedButtonId,
+          lastPaymentHostedButtonIntentAt: paymentIntentAt,
+          lastPaymentHostedButtonRole: readOptionalString(payload?.customerRole || payload?.customer_role) || null,
+          lastPaymentHostedButtonServiceType: readOptionalString(payload?.serviceType || payload?.service_type || request.serviceType) || null,
+          paymentProvider: "paypal-hosted-button",
+          paymentStatus: readOptionalString(request.paymentStatus).toUpperCase() === "CAPTURED" ? request.paymentStatus : "PROMPTED"
+        }));
+        await appendPaymentLog({
+          event: "hosted-button-intent",
+          requestId: updatedRequest.requestId || updatedRequest.id,
+          hostedButtonId,
+          status: updatedRequest.paymentStatus,
+          createdAt: paymentIntentAt
+        });
+        sendJson(res, 200, {
+          requestId: updatedRequest.requestId || updatedRequest.id,
+          hostedButtonId,
+          paymentStatus: updatedRequest.paymentStatus,
+          intentRecordedAt: paymentIntentAt
+        });
+      } catch (error) {
+        sendJson(res, Number.isInteger(error?.statusCode) ? error.statusCode : 400, {
+          error: error?.code || "hosted-button-intent-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
     if (await handlePaypalWebhookRoute(req, res, pathname)) {
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/orders`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
+        });
+        return;
+      }
+
+      try {
+        const payload = await readJsonBody(req);
+        const order = await createPaypalOrder(createPaypalSampleCheckoutOrderPayload(payload));
+        await appendPaymentLog({
+          event: "paypal-sample-order-created",
+          paypalOrderId: order.id,
+          status: order.status,
+          createdAt: new Date().toISOString(),
+          route: "/api/orders"
+        });
+        sendJson(res, 201, order);
+      } catch (error) {
+        console.error("[ERROR] PayPal Sample Create Order Route Failed:", error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-create-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    const paypalSampleOrderCaptureMatch = normalizedRawApiPath.match(new RegExp(`^${RAW_API_BASE_PATH}/orders/([^/]+)/capture$`));
+    if (paypalSampleOrderCaptureMatch) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
+        });
+        return;
+      }
+
+      try {
+        const orderId = decodeURIComponent(paypalSampleOrderCaptureMatch[1]);
+        const result = await paypalCaptureController.captureOrderForPayload({
+          payload: {
+            orderId,
+            paymentKind: "priority"
+          },
+          session: resolveUserSession(req),
+          route: "/api/orders/:orderID/capture"
+        });
+        sendJson(res, 200, result.capture);
+      } catch (error) {
+        console.error("[ERROR] PayPal Sample Capture Order Route Failed:", error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "paypal-capture-failed",
+          message: error.message
+        });
+      }
       return;
     }
 
@@ -1349,6 +1465,52 @@ const server = http.createServer(async (req, res) => {
           message: error?.code === "paypal-client-auth-failed"
             ? "PayPal secure checkout is unavailable because the server PayPal credentials were rejected. Verify PAYPAL_ENV matches the PayPal client ID and secret."
             : error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/orders/`)) {
+      const parts = normalizedRawApiPath.split("/");
+      const orderId = parts[parts.length - 1];
+
+      if (req.method !== "GET" && req.method !== "PATCH") {
+        sendMethodNotAllowed(res, "GET, PATCH");
+        return;
+      }
+
+      if (!paypalClientId || !paypalClientSecret) {
+        sendJson(res, 503, {
+          error: "paypal-not-configured",
+          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before reading or patching orders."
+        });
+        return;
+      }
+
+      try {
+        if (req.method === "GET") {
+          const order = await paypalCaptureController.getOrderForPayload({ id: orderId });
+          sendJson(res, 200, {
+            orderId: order.id || orderId,
+            status: order.status || null,
+            order
+          });
+          return;
+        }
+
+        const payload = await readJsonBody(req);
+        const patches = Array.isArray(payload) ? payload : payload.patches || payload.patch || [];
+        const result = await paypalCaptureController.updateOrderForPayload({ id: orderId, payload: patches });
+        sendJson(res, 200, {
+          orderId,
+          result
+        });
+      } catch (error) {
+        console.error(`[ERROR] ${req.method === "GET" ? "Get" : "Patch"} Order Route Failed:`, error);
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || (req.method === "GET" ? "paypal-get-order-failed" : "paypal-patch-order-failed"),
+          message: error.message
         });
       }
       return;
@@ -1621,7 +1783,7 @@ const server = http.createServer(async (req, res) => {
       const authorizationId = parts[parts.length - 2];
       const action = parts[parts.length - 1];
 
-      if (action === "void" || action === "reauthorize") {
+      if (action === "capture" || action === "void" || action === "reauthorize") {
         if (req.method !== "POST") {
           sendMethodNotAllowed(res, "POST");
           return;
@@ -1639,7 +1801,12 @@ const server = http.createServer(async (req, res) => {
         try {
           const payload = await readJsonBody(req).catch(() => ({}));
           let result;
-          if (action === "void") {
+          if (action === "capture") {
+            result = await paypalCaptureController.captureAuthorizedPaymentForPayload({
+              payload: { ...payload, authorizationId },
+              context: { req }
+            });
+          } else if (action === "void") {
             result = await paypalCaptureController.voidAuthorizedPaymentForPayload({
               payload: { ...payload, authorizationId },
               context: { req }
@@ -1818,8 +1985,10 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 200, {
           status: result.status,
           orderId: result.orderId,
+          authorizationId: result.authorizationId || null,
           authorization: result.authorization,
           paymentKind: result.paymentKind,
+          request: result.request || null,
           userId: result.userId
         });
       } catch (error) {
@@ -2528,6 +2697,7 @@ function normalizeServiceRequest(payload) {
 
   return {
     ...(requestId ? { requestId } : {}),
+    ...(requestId ? { customId: requestId, referenceId: requestId } : {}),
     ...(userId !== null ? { userId } : {}),
     ...(roles.length ? { roles } : {}),
     subscriberActive,
@@ -2550,6 +2720,87 @@ function normalizeServiceRequest(payload) {
       value: priorityServicePrice.toFixed(2)
     }
   };
+}
+
+function createPaypalSampleCheckoutOrderPayload(payload = {}) {
+  const cart = Array.isArray(payload.cart) ? payload.cart : [];
+  const firstItem = cart[0] || {};
+  const currencyCode = readOptionalString(
+    payload.currency_code ||
+    payload.currencyCode ||
+    payload.amount?.currency_code ||
+    payload.amount?.currencyCode
+  ) || "USD";
+  const amountValue = normalizeAmountString(
+    payload.value ||
+    payload.amount?.value ||
+    firstItem.value ||
+    firstItem.amount ||
+    "100"
+  );
+  const quantity = readOptionalString(firstItem.quantity) || "1";
+  const itemName = readOptionalString(firstItem.name || firstItem.id) || "Priority Roadside Service";
+  const itemDescription = readOptionalString(firstItem.description) || "AW Roadside priority service payment";
+  const sku = readOptionalString(firstItem.sku || firstItem.id) || "priority-service";
+  const referenceId = readOptionalString(payload.requestId || payload.referenceId || payload.reference_id) || `paypal-sample-${Date.now()}`;
+  const customId = readOptionalString(payload.customId || payload.custom_id) || referenceId;
+  const intent = readOptionalString(payload.intent).toUpperCase() === "AUTHORIZE" ? "AUTHORIZE" : "CAPTURE";
+
+  return {
+    paymentKind: "priority",
+    intent,
+    serviceType: readOptionalString(payload.serviceType || payload.service_type) || "PRIORITY_SERVICE",
+    description: readOptionalString(payload.description) || itemDescription,
+    customId,
+    referenceId,
+    amount: {
+      currency_code: currencyCode,
+      value: amountValue
+    },
+    purchase_units: [
+      {
+        reference_id: referenceId,
+        custom_id: customId,
+        description: readOptionalString(payload.description) || itemDescription,
+        amount: {
+          currency_code: currencyCode,
+          value: amountValue,
+          breakdown: {
+            item_total: {
+              currency_code: currencyCode,
+              value: amountValue
+            }
+          }
+        },
+        items: [
+          {
+            name: itemName,
+            unit_amount: {
+              currency_code: currencyCode,
+              value: amountValue
+            },
+            quantity,
+            description: itemDescription,
+            sku
+          }
+        ]
+      }
+    ],
+    application_context: {
+      brand_name: "AW Roadside",
+      shipping_preference: "NO_SHIPPING",
+      user_action: "PAY_NOW",
+      ...payload.application_context
+    }
+  };
+}
+
+function normalizeAmountString(value) {
+  const amount = Number.parseFloat(readOptionalString(value) || String(value || ""));
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "100.00";
+  }
+  return amount.toFixed(2);
 }
 
 function isServiceScopedPaymentPayload(payload) {
@@ -3594,7 +3845,7 @@ function buildSubscriberRequestHistory(user, requests, users = []) {
 }
 
 function isPaymentCaptured(request) {
-  return readOptionalString(request?.paymentStatus).toUpperCase() === "CAPTURED";
+  return ["CAPTURED", "AUTHORIZED"].includes(readOptionalString(request?.paymentStatus).toUpperCase());
 }
 
 function isProviderActivated(request) {
@@ -4651,12 +4902,17 @@ async function createPaypalOrder(serviceRequest) {
     ...serviceRequest,
     description: serviceRequest.description || description,
     amount: serviceRequest.amount,
-    customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`
+    customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`,
+    referenceId: serviceRequest.referenceId || serviceRequest.requestId || undefined
   });
 }
 
 async function updatePaypalOrder(orderId, patches) {
   return paypal.updateOrder(orderId, patches);
+}
+
+async function getPaypalOrderStatus(orderId) {
+  return paypal.getOrderStatus(orderId);
 }
 
 async function capturePaypalOrder(orderId, req = null) {
@@ -4998,6 +5254,7 @@ const paypalCaptureController = createPaypalCaptureController({
   createProviderSuspensionPaymentRequest: (payload, session = null) =>
     createProviderSuspensionPaymentRequest(payload, session),
   createPaypalOrder,
+  getPaypalOrderStatus,
   updatePaypalOrder,
   capturePaypalOrder,
   authorizePaypalOrder,
@@ -5940,6 +6197,7 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
   }
 
   const updatedRequest = await updateRequestRecord(matchedRequest.requestId || matchedRequest.id, (request) => {
+    const paymentEventAt = new Date().toISOString();
     const next = {
       lastPaymentOrderId: orderId || request.lastPaymentOrderId || null,
       lastPaymentEventId: readOptionalString(webhookEvent.id) || request.lastPaymentEventId || null,
@@ -5954,6 +6212,12 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
     if (eventType === "PAYMENT.AUTHORIZATION.CREATED") {
       next.paymentStatus = "AUTHORIZED";
       next.amountAuthorized = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : request.amountAuthorized || 0;
+      next.paymentAuthorizedAt = paymentEventAt;
+      next.providerActivatedAt = request.providerActivatedAt || paymentEventAt;
+      next.exactLocationUnlockedAt = request.exactLocationUnlockedAt || paymentEventAt;
+      next.contactUnlockedAt = request.contactUnlockedAt || paymentEventAt;
+      next.locationDisclosureLevel = "EXACT";
+      next.contactDisclosureLevel = "UNLOCKED";
     } else if (eventType === "PAYMENT.AUTHORIZATION.VOIDED") {
       next.paymentStatus = "VOIDED";
     } else if (eventType === "PAYMENT.AUTHORIZATION.EXPIRED") {
@@ -5963,6 +6227,12 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       next.amountCollected = Number.isFinite(amountValue) && amountValue > 0 ? amountValue : request.amountCollected || 0;
       next.refundIssued = false;
       next.refundFlag = false;
+      next.paymentCapturedAt = paymentEventAt;
+      next.providerActivatedAt = request.providerActivatedAt || paymentEventAt;
+      next.exactLocationUnlockedAt = request.exactLocationUnlockedAt || paymentEventAt;
+      next.contactUnlockedAt = request.contactUnlockedAt || paymentEventAt;
+      next.locationDisclosureLevel = "EXACT";
+      next.contactDisclosureLevel = "UNLOCKED";
     } else if (eventType === "PAYMENT.CAPTURE.PENDING" || eventType === "PAYMENT.SALE.PENDING") {
       next.paymentStatus = "PENDING_CAPTURE";
     } else if (
@@ -6055,6 +6325,12 @@ async function findUserForPaypalSubscription(resource) {
 async function findRequestForPaypalPayment(resource) {
   const requests = await readRequestLog();
   const explicitRequestId = readOptionalString(resource.custom_id);
+  const amountValue = Number.parseFloat(
+    readOptionalString(resource?.amount?.value) ||
+      readOptionalString(resource?.amount?.total) ||
+      readOptionalString(resource?.seller_receivable_breakdown?.gross_amount?.value) ||
+      "0"
+  );
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
     readOptionalString(resource?.supplementary_data?.related_ids?.authorization_id) ||
@@ -6083,7 +6359,42 @@ async function findRequestForPaypalPayment(resource) {
     }
   }
 
-  return null;
+  return findRecentHostedButtonPaymentIntent(requests, amountValue);
+}
+
+function findRecentHostedButtonPaymentIntent(requests = [], amountValue = 0) {
+  const now = Date.now();
+  const intentWindowMs = 2 * 60 * 60 * 1000;
+  const candidates = (Array.isArray(requests) ? requests : [])
+    .filter((request) => {
+      if (!readOptionalString(request.lastPaymentHostedButtonId)) {
+        return false;
+      }
+      if (readOptionalString(request.paymentStatus).toUpperCase() === "CAPTURED") {
+        return false;
+      }
+      const intentAt = new Date(readOptionalString(request.lastPaymentHostedButtonIntentAt)).getTime();
+      if (!Number.isFinite(intentAt) || now - intentAt > intentWindowMs) {
+        return false;
+      }
+      const expectedAmount = Number.parseFloat(
+        readOptionalString(request.servicePaymentAmount) ||
+          readOptionalString(request.amountDue) ||
+          readOptionalString(request.amountAuthorized) ||
+          "0"
+      );
+      return !Number.isFinite(amountValue) ||
+        amountValue <= 0 ||
+        !Number.isFinite(expectedAmount) ||
+        expectedAmount <= 0 ||
+        Math.abs(expectedAmount - amountValue) < 0.01;
+    })
+    .sort((left, right) => {
+      const leftTime = new Date(readOptionalString(left.lastPaymentHostedButtonIntentAt)).getTime();
+      const rightTime = new Date(readOptionalString(right.lastPaymentHostedButtonIntentAt)).getTime();
+      return rightTime - leftTime;
+    });
+  return candidates[0] || null;
 }
 
 async function findUserForPaypalMembershipPayment(resource) {

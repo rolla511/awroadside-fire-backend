@@ -14,6 +14,7 @@ export const PAYPAL_WEBHOOK_EVENT_FAMILIES = Object.freeze([
   "PAYMENT.PAYOUTSBATCH.*",
   "PAYMENT.PAYOUTS-ITEM.*",
   "PAYMENTS.CUSTOMER-PAYOUTS.*",
+  "PAYMENT.AUTHORIZATION.*",
   "PAYMENT.CAPTURE.*",
   "PAYMENT.REFUND.*",
   "PAYMENT.SALE.*",
@@ -43,6 +44,20 @@ function buildMissingOrderIdError() {
   error.statusCode = 400;
   error.code = "invalid-order-id";
   return error;
+}
+
+function extractPaypalAuthorizationRecord(authorization) {
+  return authorization?.purchase_units?.[0]?.payments?.authorizations?.[0] || null;
+}
+
+function extractPaypalAuthorizationId(authorization) {
+  return optionalString(extractPaypalAuthorizationRecord(authorization)?.id);
+}
+
+function extractPaypalAuthorizedAmount(authorization) {
+  const authorizationRecord = extractPaypalAuthorizationRecord(authorization);
+  const amountValue = Number.parseFloat(optionalString(authorizationRecord?.amount?.value));
+  return Number.isFinite(amountValue) && amountValue > 0 ? amountValue : 0;
 }
 
 function normalizePaymentTokenInput(payload = {}) {
@@ -199,6 +214,7 @@ export function createPaypalCaptureController(helpers) {
     createProviderSuspensionPaymentRequest,
     createPaypalOrder,
     updatePaypalOrder,
+    getPaypalOrderStatus,
     capturePaypalOrder,
     extractPaypalCapturedAmount,
     extractPaypalCaptureId,
@@ -506,6 +522,14 @@ export function createPaypalCaptureController(helpers) {
     return await updatePaypalOrder(id, payload);
   }
 
+  async function getOrderForPayload({ id } = {}) {
+    const orderId = optionalString(id);
+    if (!orderId) {
+      throw buildMissingOrderIdError();
+    }
+    return await getPaypalOrderStatus(orderId);
+  }
+
   async function captureOrderForPayload({ payload = {}, session = null, route = null } = {}) {
     const paymentKind = await resolvePaymentKind(payload, session);
     const orderId = optionalString(payload.orderId);
@@ -677,11 +701,37 @@ export function createPaypalCaptureController(helpers) {
       authorization
     });
 
+    const authorizationRecord = extractPaypalAuthorizationRecord(authorization);
+    const authorizationId = extractPaypalAuthorizationId(authorization);
+    let updatedRequest = null;
+    if (!isUserScopedPaymentKind(paymentKind) && readOptionalString(payload.requestId) && typeof updateRequestRecord === "function") {
+      updatedRequest = await updateRequestRecord(payload.requestId, (request) => ({
+        ...request,
+        paymentStatus: "AUTHORIZED",
+        amountAuthorized: extractPaypalAuthorizedAmount(authorization) || Number(request.amountAuthorized || request.amountCharged || 0),
+        lastPaymentOrderId: orderId,
+        lastPaymentAuthorizationId: authorizationId || request.lastPaymentAuthorizationId || null,
+        lastPaymentAuthorizationValidUntil:
+          readOptionalString(authorizationRecord?.expiration_time) ||
+          readOptionalString(authorizationRecord?.valid_until) ||
+          request.lastPaymentAuthorizationValidUntil ||
+          null,
+        paymentAuthorizedAt: authorizedAt,
+        providerActivatedAt: request.providerActivatedAt || authorizedAt,
+        exactLocationUnlockedAt: request.exactLocationUnlockedAt || authorizedAt,
+        contactUnlockedAt: request.contactUnlockedAt || authorizedAt,
+        locationDisclosureLevel: "EXACT",
+        contactDisclosureLevel: "UNLOCKED"
+      }));
+    }
+
     return {
       status: authorization.status,
       orderId,
       authorization,
+      authorizationId,
       paymentKind,
+      request: updatedRequest,
       userId: isUserScopedPaymentKind(paymentKind) ? session?.userId || Number(payload.userId) || null : null
     };
   }
@@ -951,6 +1001,7 @@ export function createPaypalCaptureController(helpers) {
 
     if (
       eventType.startsWith("PAYMENT.CAPTURE.") ||
+      eventType.startsWith("PAYMENT.AUTHORIZATION.") ||
       eventType.startsWith("PAYMENT.REFUND.") ||
       eventType.startsWith("PAYMENT.SALE.") ||
       eventType === "PAYMENT.ORDER.CANCELLED"
@@ -970,6 +1021,7 @@ export function createPaypalCaptureController(helpers) {
     resolvePaymentKind,
     createOrderForPayload,
     updateOrderForPayload,
+    getOrderForPayload,
     authorizeOrderForPayload,
     confirmOrderForPayload,
     createOrderTrackingForPayload,
