@@ -405,6 +405,11 @@ export function createPaypalCaptureController(helpers) {
     return {
       orderId: order.id,
       status: order.status,
+      links: Array.isArray(order.links) ? order.links : [],
+      approveHref: Array.isArray(order.links)
+        ? order.links.find((link) => optionalString(link?.rel).toLowerCase() === "approve")?.href || null
+        : null,
+      order,
       paymentKind,
       paymentSource: paymentSourceSummary,
       paymentTokenId: paymentToken?.id || null,
@@ -591,24 +596,59 @@ export function createPaypalCaptureController(helpers) {
     const authorizationId = extractPaypalAuthorizationId(authorization);
     let updatedRequest = null;
     if (!isUserScopedPaymentKind(paymentKind) && readOptionalString(payload.requestId) && typeof updateRequestRecord === "function") {
-      updatedRequest = await updateRequestRecord(payload.requestId, (request) => ({
-        ...request,
-        paymentStatus: "AUTHORIZED",
-        amountAuthorized: extractPaypalAuthorizedAmount(authorization) || Number(request.amountAuthorized || request.amountCharged || 0),
-        lastPaymentOrderId: orderId,
-        lastPaymentAuthorizationId: authorizationId || request.lastPaymentAuthorizationId || null,
-        lastPaymentAuthorizationValidUntil:
-          readOptionalString(authorizationRecord?.expiration_time) ||
-          readOptionalString(authorizationRecord?.valid_until) ||
-          request.lastPaymentAuthorizationValidUntil ||
-          null,
-        paymentAuthorizedAt: authorizedAt,
-        providerActivatedAt: request.providerActivatedAt || authorizedAt,
-        exactLocationUnlockedAt: request.exactLocationUnlockedAt || authorizedAt,
-        contactUnlockedAt: request.contactUnlockedAt || authorizedAt,
-        locationDisclosureLevel: "EXACT",
-        contactDisclosureLevel: "UNLOCKED"
-      }));
+      updatedRequest = await updateRequestRecord(payload.requestId, (request) => {
+        const priorityCurrentEta = Number(request?.hardEtaMinutes ?? request?.softEtaMinutes ?? request?.etaMinutes);
+        const priorityEtaExceeded = Number.isFinite(priorityCurrentEta) && priorityCurrentEta > 30;
+        const priorityUpgrade = paymentKind === "priority"
+          ? {
+              priorityServiceRequested: true,
+              priorityUpgradeStatus: "AUTHORIZED",
+              priorityAuthorizedAt: authorizedAt,
+              priorityHardEtaRequired: true,
+              priorityHardEtaMaxMinutes: 30,
+              priorityRequiresReassignment: priorityEtaExceeded,
+              priorityReassignmentReason:
+                priorityEtaExceeded
+                  ? "Current ETA exceeds the priority hard ETA requirement."
+                  : request.priorityReassignmentReason || null
+            }
+          : {};
+        const priorityRelease = paymentKind === "priority" && priorityEtaExceeded
+          ? {
+              status: "SUBMITTED",
+              assignedProviderId: null,
+              acceptedAt: null,
+              providerActivatedAt: null,
+              exactLocationUnlockedAt: null,
+              contactUnlockedAt: null,
+              locationDisclosureLevel: "MASKED",
+              contactDisclosureLevel: "LOCKED",
+              priorityReleasedAt: authorizedAt,
+              dispatchRequeueCount: Number(request.dispatchRequeueCount || 0) + 1,
+              providerPayoutStatus: "UNASSIGNED"
+            }
+          : {};
+        return {
+          ...request,
+          ...priorityUpgrade,
+          ...priorityRelease,
+          paymentStatus: "AUTHORIZED",
+          amountAuthorized: extractPaypalAuthorizedAmount(authorization) || Number(request.amountAuthorized || request.amountCharged || 0),
+          lastPaymentOrderId: orderId,
+          lastPaymentAuthorizationId: authorizationId || request.lastPaymentAuthorizationId || null,
+          lastPaymentAuthorizationValidUntil:
+            readOptionalString(authorizationRecord?.expiration_time) ||
+            readOptionalString(authorizationRecord?.valid_until) ||
+            request.lastPaymentAuthorizationValidUntil ||
+            null,
+          paymentAuthorizedAt: authorizedAt,
+          providerActivatedAt: priorityEtaExceeded ? null : request.providerActivatedAt || authorizedAt,
+          exactLocationUnlockedAt: priorityEtaExceeded ? null : request.exactLocationUnlockedAt || authorizedAt,
+          contactUnlockedAt: priorityEtaExceeded ? null : request.contactUnlockedAt || authorizedAt,
+          locationDisclosureLevel: priorityEtaExceeded ? "MASKED" : "EXACT",
+          contactDisclosureLevel: priorityEtaExceeded ? "LOCKED" : "UNLOCKED"
+        };
+      });
     }
 
     return {

@@ -731,9 +731,13 @@ export function resolvePaypalWebhookId() {
 }
 
 function buildOrderRequest(orderDetails) {
-  const amount = normalizeAmount(orderDetails.amount);
-  const description = readString(orderDetails.description) || "AW Roadside Service";
-  const customId = readString(orderDetails.customId) || undefined;
+  const sourcePurchaseUnit = orderDetails.purchase_units?.[0];
+  const amount = sourcePurchaseUnit?.amount
+    ? normalizeAmount(sourcePurchaseUnit.amount)
+    : normalizeAmount(orderDetails.amount);
+  const description = readString(orderDetails.description || sourcePurchaseUnit?.description) || "AW Roadside Service";
+  const customId = readString(orderDetails.customId || sourcePurchaseUnit?.custom_id) || undefined;
+  const referenceId = readString(orderDetails.referenceId || sourcePurchaseUnit?.reference_id) || undefined;
 
   const purchaseUnit = {
     amount,
@@ -742,6 +746,21 @@ function buildOrderRequest(orderDetails) {
   };
   if (customId) {
     purchaseUnit.custom_id = customId;
+  }
+  if (referenceId) {
+    purchaseUnit.reference_id = referenceId;
+  }
+  if (sourcePurchaseUnit?.items) {
+    purchaseUnit.items = sourcePurchaseUnit.items;
+  }
+  if (sourcePurchaseUnit?.shipping) {
+    purchaseUnit.shipping = sourcePurchaseUnit.shipping;
+  }
+  if (sourcePurchaseUnit?.payee) {
+    purchaseUnit.payee = sourcePurchaseUnit.payee;
+  }
+  if (sourcePurchaseUnit?.amount?.breakdown) {
+    purchaseUnit.amount.breakdown = sourcePurchaseUnit.amount.breakdown;
   }
 
   const applicationContext = {
@@ -763,7 +782,7 @@ function buildOrderRequest(orderDetails) {
   }
 
   return {
-    intent: "CAPTURE",
+    intent: readString(orderDetails.intent).toUpperCase() === "AUTHORIZE" ? "AUTHORIZE" : "CAPTURE",
     purchase_units: [purchaseUnit],
     application_context: applicationContext
   };
@@ -792,7 +811,8 @@ function normalizeAmount(value) {
 
   return {
     currency_code: currencyCode,
-    value: normalizedValue
+    value: normalizedValue,
+    ...(value.breakdown ? { breakdown: value.breakdown } : {})
   };
 }
 
