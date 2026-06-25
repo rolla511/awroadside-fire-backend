@@ -213,6 +213,25 @@ export async function createOrderTracking(orderId, trackingDetails = {}) {
   return payload;
 }
 
+export async function createPayoutBatch(payoutDetails = {}) {
+  const token = await getAccessToken();
+  const requestBody = buildPayoutRequest(payoutDetails);
+  const response = await fetch(`${PAYPAL_API_BASE_URL}/v1/payments/payouts`, {
+    method: "POST",
+    headers: buildJsonHeaders(token, {
+      "PayPal-Request-Id": payoutDetails.requestId || payoutDetails.PayPalRequestId || crypto.randomUUID()
+    }),
+    body: JSON.stringify(requestBody)
+  });
+
+  const payload = await readJsonPayload(response);
+  if (!response.ok) {
+    throw createPaypalError("create-payout-batch-failed", response.status, payload);
+  }
+
+  return payload;
+}
+
 export async function updateOrder(orderId, patches = []) {
   const normalizedOrderId = readRequiredString(orderId, "orderId");
   const token = await getAccessToken();
@@ -248,6 +267,50 @@ export async function getOrderStatus(orderId) {
   }
 
   return payload;
+}
+
+function buildPayoutRequest(payoutDetails = {}) {
+  const body = payoutDetails.body || payoutDetails;
+  const senderBatchHeader = body.sender_batch_header || body.senderBatchHeader;
+  const items = Array.isArray(body.items) ? body.items : [];
+  if (!senderBatchHeader || typeof senderBatchHeader !== "object") {
+    throw new Error("PayPal payout sender_batch_header is required.");
+  }
+  if (!items.length) {
+    throw new Error("PayPal payout items are required.");
+  }
+  return {
+    sender_batch_header: {
+      sender_batch_id: readRequiredString(senderBatchHeader.sender_batch_id || senderBatchHeader.senderBatchId, "sender_batch_header.sender_batch_id"),
+      email_subject: readString(senderBatchHeader.email_subject || senderBatchHeader.emailSubject) || "AW Roadside provider payout",
+      ...(readString(senderBatchHeader.email_message || senderBatchHeader.emailMessage)
+        ? { email_message: readString(senderBatchHeader.email_message || senderBatchHeader.emailMessage) }
+        : {})
+    },
+    items: items.map(normalizePayoutItem)
+  };
+}
+
+function normalizePayoutItem(item = {}) {
+  return {
+    recipient_type: readString(item.recipient_type || item.recipientType || "EMAIL").toUpperCase(),
+    amount: normalizePayoutAmount(item.amount),
+    receiver: readRequiredString(item.receiver, "payout item receiver"),
+    sender_item_id: readRequiredString(item.sender_item_id || item.senderItemId, "payout item sender_item_id"),
+    ...(readString(item.note) ? { note: readString(item.note) } : {}),
+    ...(readString(item.purpose) ? { purpose: readString(item.purpose).toUpperCase() } : {}),
+    ...(item.alternate_notification_method ? { alternate_notification_method: item.alternate_notification_method } : {}),
+    ...(readString(item.notification_language || item.notificationLanguage)
+      ? { notification_language: readString(item.notification_language || item.notificationLanguage) }
+      : {})
+  };
+}
+
+function normalizePayoutAmount(amount = {}) {
+  return {
+    value: normalizeAmountValue(amount.value),
+    currency: readRequiredString(amount.currency || amount.currency_code || amount.currencyCode, "payout amount currency").toUpperCase()
+  };
 }
 
 export async function getAuthorizedPayment(authorizationId) {
