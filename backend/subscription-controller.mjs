@@ -1483,14 +1483,32 @@ function normalizeExistingProviderDocument(value) {
 
 function summarizeProviderDocuments(documents = {}) {
   const required = ["license", "registration", "insurance", "profilePhoto", "proofOfAddress"];
+  const expirationRequired = new Set(["license", "registration", "insurance"]);
   const missing = required.filter((docType) => !Boolean(documents?.[docType]?.submitted));
+  const expired = required.filter((docType) => {
+    if (!expirationRequired.has(docType) || !documents?.[docType]?.submitted) {
+      return false;
+    }
+    return !isFutureDocumentDate(documents?.[docType]?.expiresAt);
+  });
   const submittedCount = Object.values(documents).filter((entry) => entry?.submitted).length;
   return {
     required,
+    expirationRequired: [...expirationRequired],
     submittedCount,
     missing,
-    meetsMinimumRequirements: missing.length === 0
+    expired,
+    meetsMinimumRequirements: missing.length === 0 && expired.length === 0
   };
+}
+
+function isFutureDocumentDate(value) {
+  const normalized = optionalString(value);
+  if (!normalized) {
+    return false;
+  }
+  const time = new Date(normalized).getTime();
+  return Number.isFinite(time) && time > Date.now();
 }
 
 function buildProviderApprovalEligibility({
