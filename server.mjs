@@ -807,6 +807,7 @@ const mailPassword = (process.env.MAIL_PASSWORD || "").trim();
 const mailFrom = (process.env.MAIL_FROM || "").trim();
 const mailReplyTo = (process.env.MAIL_REPLY_TO || mailFrom).trim();
 const priorityServicePrice = 25;
+const priorityHardEtaMaxMinutes = 30;
 const serviceBasePrice = 55;
 const guestServicePrice = 55;
 const subscriberServicePrice = 40;
@@ -1460,6 +1461,9 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 201, {
           orderId: result.orderId,
           status: result.status,
+          approveHref: result.approveHref || null,
+          links: result.links || [],
+          order: result.order || null,
           paymentKind: result.paymentKind,
           paymentSource: result.paymentSource || null,
           paymentTokenId: result.paymentTokenId || null,
@@ -2703,6 +2707,41 @@ function normalizeServiceRequest(payload) {
   const dispatchOnlyLiabilityAccepted = Boolean(
     payload.dispatchOnlyLiabilityAccepted || customerTier === "SUBSCRIBER"
   );
+  const priorityPaymentTotal = Number((pricing.serviceCharge + priorityServicePrice).toFixed(2));
+  const priorityPaymentAmount = {
+    currency_code: "USD",
+    value: priorityPaymentTotal.toFixed(2),
+    breakdown: {
+      item_total: {
+        currency_code: "USD",
+        value: priorityPaymentTotal.toFixed(2)
+      }
+    }
+  };
+  const priorityPaymentItems = [
+    {
+      name: "Roadside service",
+      description: `${customerTier === "SUBSCRIBER" ? "Subscriber" : "Guest"} ${serviceType} service rate`,
+      sku: "roadside-service",
+      unit_amount: {
+        currency_code: "USD",
+        value: pricing.serviceCharge.toFixed(2)
+      },
+      quantity: "1",
+      category: "DIGITAL_GOODS"
+    },
+    {
+      name: "Priority dispatch",
+      description: "Priority service fee",
+      sku: "priority-dispatch",
+      unit_amount: {
+        currency_code: "USD",
+        value: priorityServicePrice.toFixed(2)
+      },
+      quantity: "1",
+      category: "DIGITAL_GOODS"
+    }
+  ];
 
   return {
     ...(requestId ? { requestId } : {}),
@@ -2711,7 +2750,11 @@ function normalizeServiceRequest(payload) {
     ...(roles.length ? { roles } : {}),
     subscriberActive,
     customerTier,
-    pricing,
+    pricing: {
+      ...pricing,
+      priorityServiceFee: priorityServicePrice,
+      priorityPaymentTotal
+    },
     fullName,
     phoneNumber,
     serviceType,
@@ -2724,10 +2767,15 @@ function normalizeServiceRequest(payload) {
     noRefundPolicyAccepted,
     dispatchOnlyLiabilityAccepted,
     liabilityNotice: AW_ROADSIDE_POLICY.platform.holdHarmless,
-    amount: {
-      currency_code: "USD",
-      value: priorityServicePrice.toFixed(2)
-    }
+    amount: priorityPaymentAmount,
+    purchase_units: [
+      {
+        ...(requestId ? { reference_id: requestId, custom_id: requestId } : {}),
+        description: `Priority roadside service - ${serviceType}`,
+        amount: priorityPaymentAmount,
+        items: priorityPaymentItems
+      }
+    ]
   };
 }
 
@@ -4119,7 +4167,11 @@ function isRequestEligibleForProvider(request, provider) {
 }
 
 function isSubscriberPriorityRequest(request) {
-  return resolveCustomerTier(request) === "SUBSCRIBER";
+  return (
+    resolveCustomerTier(request) === "SUBSCRIBER" ||
+    request?.priorityServiceRequested === true ||
+    ["AUTHORIZED", "CAPTURED", "PAID"].includes(readOptionalString(request?.priorityUpgradeStatus).toUpperCase())
+  );
 }
 
 function requestHasRecordedEta(request) {
@@ -8248,9 +8300,11 @@ async function applyLocalRequestAction(requestId, action, payload) {
       normalizedAction === "eta" ||
       normalizedAction === "soft-eta" ||
       normalizedAction === "hard-eta" ||
+      normalizedAction === "priority-eta" ||
       normalizedAction === "extend-eta" ||
       normalizedAction === "enroute" ||
       normalizedAction === "paused" ||
+      normalizedAction === "priority-unavailable" ||
       normalizedAction === "soft-contact" ||
       normalizedAction === "hard-contact" ||
       normalizedAction === "arrived" ||
@@ -8366,6 +8420,7 @@ async function applyLocalRequestAction(requestId, action, payload) {
       normalizedAction === "eta" ||
       normalizedAction === "soft-eta" ||
       normalizedAction === "hard-eta" ||
+      normalizedAction === "priority-eta" ||
       normalizedAction === "extend-eta" ||
       normalizedAction === "enroute"
     ) {
@@ -8386,9 +8441,20 @@ async function applyLocalRequestAction(requestId, action, payload) {
         next.etaUpdatedAt = now;
       }
       const wantsHardEta =
+        normalizedAction === "priority-eta" ||
         normalizedAction === "hard-eta" ||
         (normalizedAction === "extend-eta" && readOptionalString(request?.etaStage).toUpperCase() === "HARD") ||
         (normalizedAction === "eta" && isDirectCommunicationUnlocked(request));
+      if (
+        (normalizedAction === "priority-eta" || request?.priorityHardEtaRequired === true) &&
+        wantsHardEta &&
+        Number(nextEta) > priorityHardEtaMaxMinutes
+      ) {
+        const error = new Error(`Priority service requires a hard ETA under ${priorityHardEtaMaxMinutes} minutes. Release this request for reassignment if you cannot meet it.`);
+        error.statusCode = 409;
+        error.code = "priority-hard-eta-exceeded";
+        throw error;
+      }
       if (wantsHardEta) {
         next.providerActivatedAt = request.providerActivatedAt || now;
         next.exactLocationUnlockedAt = request.exactLocationUnlockedAt || now;
@@ -8399,6 +8465,12 @@ async function applyLocalRequestAction(requestId, action, payload) {
       if (wantsHardEta) {
         next.hardEtaMinutes = nextEta;
         next.etaStage = "HARD";
+        if (request?.priorityHardEtaRequired === true || normalizedAction === "priority-eta") {
+          next.priorityHardEtaAcceptedAt = now;
+          next.priorityRequiresReassignment = false;
+          next.priorityReassignmentReason = null;
+          next.priorityUpgradeStatus = request.priorityUpgradeStatus || "AUTHORIZED";
+        }
       } else {
         next.softEtaMinutes = nextEta;
         next.etaStage = "SOFT";
@@ -8406,6 +8478,29 @@ async function applyLocalRequestAction(requestId, action, payload) {
       if (normalizedAction === "extend-eta") {
         next.etaExtendedAt = now;
       }
+    } else if (normalizedAction === "priority-unavailable") {
+      if (request?.priorityHardEtaRequired !== true && request?.priorityServiceRequested !== true) {
+        const error = new Error("This request is not waiting for a priority ETA.");
+        error.statusCode = 409;
+        error.code = "priority-upgrade-not-active";
+        throw error;
+      }
+      next.status = "SUBMITTED";
+      next.assignedProviderId = null;
+      next.acceptedAt = null;
+      next.providerActivatedAt = null;
+      next.exactLocationUnlockedAt = null;
+      next.contactUnlockedAt = null;
+      next.locationDisclosureLevel = "MASKED";
+      next.contactDisclosureLevel = "LOCKED";
+      next.priorityRequiresReassignment = true;
+      next.priorityReassignmentReason =
+        readOptionalString(payload.note || payload.reason) ||
+        `Assigned provider could not meet the ${priorityHardEtaMaxMinutes} minute priority hard ETA.`;
+      next.priorityReleasedByProviderId = providerUserId;
+      next.priorityReleasedAt = now;
+      next.dispatchRequeueCount = Number(request.dispatchRequeueCount || 0) + 1;
+      next.providerPayoutStatus = "UNASSIGNED";
     } else if (normalizedAction === "paused") {
       next.status = "PAUSED";
       next.pausedAt = now;
