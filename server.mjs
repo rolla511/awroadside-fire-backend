@@ -716,6 +716,7 @@ function readPaypalEnvValue(name) {
 function resolvePaypalClientIdForMode(mode) {
   if (mode === "sandbox") {
     return (
+      readPaypalEnvValue("paypal_client_sandbox_id") ||
       readPaypalEnvValue("PAYPAL_CLIENT_ID_SANDBOX") ||
       readPaypalEnvValue("PAYPAL_CLIENT_ID_sandbox") ||
       readPaypalEnvValue("PAYPAL_CLIENT_ID")
@@ -727,6 +728,7 @@ function resolvePaypalClientIdForMode(mode) {
 function resolvePaypalClientSecretForMode(mode) {
   if (mode === "sandbox") {
     return (
+      readPaypalEnvValue("paypal_client_secret_sandbox_id") ||
       readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANDBOX") ||
       readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sandbox") ||
       readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANBOX") ||
@@ -752,7 +754,14 @@ const PAYPAL_WEBHOOK_IDS = Object.freeze({
   sandbox: "4RN22635Y61567938"
 });
 const paypalWebhookId =
-  (process.env.PAYPAL_WEBHOOK_ID || "").trim() || PAYPAL_WEBHOOK_IDS[paypalMode] || "";
+  (paypalMode === "sandbox"
+    ? readPaypalEnvValue("paypal_sandbox_webhooks_id") ||
+      readPaypalEnvValue("PAYPAL_WEBHOOK_ID_SANDBOX") ||
+      readPaypalEnvValue("PAYPAL_WEBHOOK_ID_sandbox") ||
+      readPaypalEnvValue("PAYPAL_WEBHOOK_ID")
+    : readPaypalEnvValue("PAYPAL_WEBHOOK_ID")) ||
+  PAYPAL_WEBHOOK_IDS[paypalMode] ||
+  "";
 const paypalClientModule = "paypal-client.mjs";
 const paypalWebhookModule = "paypal-webhooks.mjs";
 const paypalWebhookPath = `/${paypalWebhookModule}`;
