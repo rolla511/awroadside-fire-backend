@@ -34,10 +34,12 @@ export function createSmtpMailer({
         normalizedFrom
       );
     },
-    async sendTextEmail({ to, subject, text }) {
+    async sendTextEmail({ to, subject, text, from = "", replyTo = "" }) {
       const recipient = readString(to);
       const messageSubject = readString(subject);
       const messageText = readString(text);
+      const messageFrom = readString(from) || normalizedFrom;
+      const messageReplyTo = readString(replyTo) || normalizedReplyTo || messageFrom;
 
       if (!this.isConfigured()) {
         return {
@@ -68,13 +70,13 @@ export function createSmtpMailer({
           password: normalizedPassword
         });
 
-        await client.command(`MAIL FROM:<${normalizedFrom}>`, [250]);
+        await client.command(`MAIL FROM:<${messageFrom}>`, [250]);
         await client.command(`RCPT TO:<${recipient}>`, [250, 251]);
         await client.command("DATA", [354]);
         await client.writeRaw(buildMessage({
-          from: normalizedFrom,
+          from: messageFrom,
           to: recipient,
-          replyTo: normalizedReplyTo,
+          replyTo: messageReplyTo,
           subject: messageSubject,
           text: messageText,
           host: normalizedHost
