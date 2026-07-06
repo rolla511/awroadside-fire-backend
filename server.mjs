@@ -52,7 +52,7 @@ function loadInternalEnv() {
 loadInternalEnv();
 
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
-const WEB_ROOT_ENTRY_FILES = Object.freeze(["home.html", "index.html"]);
+const WEB_ROOT_ENTRY_FILES = Object.freeze(["home.html", "awroadside-fire-index.html"]);
 const runtimeFileRoot = path.resolve(__dirname);
 const blueprintPath = resolveBlueprintPath(runtimeFileRoot);
 console.log(`[DEBUG_LOG] Blueprint path resolved to: ${blueprintPath}`);
@@ -960,7 +960,7 @@ const server = http.createServer(async (req, res) => {
         ? [
             path.join(webRoot, "provider-info.html"),
             path.join(webRoot, "home.html"),
-            path.join(webRoot, "index.html")
+            path.join(webRoot, "awroadside-fire-index.html")
           ]
         : [];
       const providerInfoPath = providerInfoCompatibilityPaths.find((candidatePath) => existsSync(candidatePath));
