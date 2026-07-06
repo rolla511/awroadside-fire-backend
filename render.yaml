@@ -28,6 +28,8 @@ services:
         value: app/runtime
       - key: PAYPAL_ENV
         value: live
+      - key: AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES
+        value: "true"
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET
@@ -72,8 +74,8 @@ services:
     name: awroadside-fire-frontend
     env: static
     rootDir: .
-    buildCommand: echo "Static frontend ready"
-    staticPublishPath: web
+    buildCommand: node scripts/build-static-frontend.mjs
+    staticPublishPath: web-dist
     routes:
       - type: rewrite
         source: /*
