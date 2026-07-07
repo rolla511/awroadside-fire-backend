@@ -428,10 +428,16 @@ export async function setupSubscriber(payload, helpers, session = null) {
   const year = requireString(vehicle.year, "vehicle.year");
   const color = requireString(vehicle.color, "vehicle.color");
   const paymentMethodMasked = optionalString(payload.paymentMethodMasked) || optionalString(payload.paymentMethod);
+  const paypalSubscriptionId = optionalString(payload.paypalSubscriptionId || payload.subscriptionId);
+  const paypalPlanId = optionalString(payload.paypalPlanId || payload.planId);
+  const paypalStatus = optionalString(payload.paypalStatus || payload.subscriptionStatus) || (paypalSubscriptionId ? "APPROVED" : null);
   const paymentInfo = {
     paymentMethodMasked,
     billingZip: optionalString(payload.billingZip),
-    paymentProvider: optionalString(payload.paymentProvider) || null
+    paymentProvider: optionalString(payload.paymentProvider) || (paypalSubscriptionId ? "paypal" : null),
+    paypalSubscriptionId: paypalSubscriptionId || null,
+    paypalPlanId: paypalPlanId || null,
+    paypalStatus: paypalStatus || null
   };
   const users = await helpers.readUsers();
   const user = users.find((entry) => entry.id === resolveAuthenticatedUserId(payload, session));
@@ -459,10 +465,15 @@ export async function setupSubscriber(payload, helpers, session = null) {
     const existingPaymentInfo = existingProfile.paymentInfo && typeof existingProfile.paymentInfo === "object"
       ? existingProfile.paymentInfo
       : {};
-    const membershipStatus = mutableUser.subscriberActive ? "ACTIVE" : "PENDING_PAYMENT";
+    const hasPaypalSubscriptionApproval = Boolean(paypalSubscriptionId);
+    const membershipStatus = mutableUser.subscriberActive || hasPaypalSubscriptionApproval ? "ACTIVE" : "PENDING_PAYMENT";
 
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
+    mutableUser.subscriberActive = mutableUser.subscriberActive || hasPaypalSubscriptionApproval;
     mutableUser.subscriptionStatus = mutableUser.subscriberActive ? "ACTIVE" : "PENDING_PAYMENT";
+    if (hasPaypalSubscriptionApproval && !mutableUser.nextBillingDate) {
+      mutableUser.nextBillingDate = addDays(setupAt, 30);
+    }
     mutableUser.subscriberProfile = {
       ...existingProfile,
       membershipPrice: policy.subscriber.monthlyFee,
@@ -476,8 +487,14 @@ export async function setupSubscriber(payload, helpers, session = null) {
         ...paymentInfo,
         paymentMethodMasked: paymentMethodMasked || existingPaymentInfo.paymentMethodMasked || null,
         billingZip: paymentInfo.billingZip || existingPaymentInfo.billingZip || primaryAddress.postalCode || null,
-        paymentProvider: paymentInfo.paymentProvider || existingPaymentInfo.paymentProvider || null
+        paymentProvider: paymentInfo.paymentProvider || existingPaymentInfo.paymentProvider || null,
+        paypalSubscriptionId: paypalSubscriptionId || existingPaymentInfo.paypalSubscriptionId || null,
+        paypalPlanId: paypalPlanId || existingPaymentInfo.paypalPlanId || null,
+        paypalStatus: paypalStatus || existingPaymentInfo.paypalStatus || null
       },
+      paypalSubscriptionId: paypalSubscriptionId || existingProfile.paypalSubscriptionId || null,
+      paypalPlanId: paypalPlanId || existingProfile.paypalPlanId || null,
+      paypalStatus: paypalStatus || existingProfile.paypalStatus || null,
       membershipStatus,
       setupCompletedAt: setupAt,
       updatedAt: setupAt,
@@ -646,7 +663,8 @@ export async function applyProvider(payload, helpers, session = null) {
   const existingProviderProfile = user.providerProfile && typeof user.providerProfile === "object"
     ? user.providerProfile
     : {};
-  if (!existingProviderProfile.profileSubmittedAt && !hasCapturedProviderMembership(user)) {
+  const providerPaypalSubscription = normalizeProviderPaypalSubscription(payload, payload.providerInfo || {});
+  if (!existingProviderProfile.profileSubmittedAt && !hasCapturedProviderMembership(user) && !providerPaypalSubscription.subscriptionId) {
     throw new Error("Provider membership payment must be captured before provider profile submission.");
   }
 
@@ -705,12 +723,45 @@ export async function applyProvider(payload, helpers, session = null) {
     const existingProviderPayoutTerms = mutableUser.terms?.providerPayout && typeof mutableUser.terms.providerPayout === "object"
       ? mutableUser.terms.providerPayout
       : {};
+    const existingBilling = mutableProviderProfile.billing && typeof mutableProviderProfile.billing === "object"
+      ? mutableProviderProfile.billing
+      : {};
+    const existingPaypal = mutableProviderProfile.paypal && typeof mutableProviderProfile.paypal === "object"
+      ? mutableProviderProfile.paypal
+      : {};
     mutableUser.providerStatus = "PENDING_APPROVAL";
     mutableUser.accountState = mutableUser.accountState || "ACTIVE";
     mutableUser.available = false;
+    if (providerPaypalSubscription.subscriptionId && !mutableUser.nextBillingDate) {
+      mutableUser.nextBillingDate = addDays(submittedAt, 30);
+    }
     mutableUser.providerProfile = {
       ...mutableProviderProfile,
       providerInfo,
+      paypal: {
+        ...existingPaypal,
+        subscriptionId: providerPaypalSubscription.subscriptionId || existingPaypal.subscriptionId || null,
+        planId: providerPaypalSubscription.planId || existingPaypal.planId || null,
+        status: providerPaypalSubscription.status || existingPaypal.status || null,
+        paymentProvider: providerPaypalSubscription.subscriptionId ? "paypal" : existingPaypal.paymentProvider || null,
+        lastSubscriptionApprovalAt: providerPaypalSubscription.subscriptionId
+          ? submittedAt
+          : existingPaypal.lastSubscriptionApprovalAt || null
+      },
+      billing: {
+        ...existingBilling,
+        paymentProvider: providerPaypalSubscription.subscriptionId ? "paypal" : existingBilling.paymentProvider || null,
+        membershipStatus: providerPaypalSubscription.subscriptionId
+          ? "ACTIVE"
+          : existingBilling.membershipStatus || null,
+        lastBillingStatus: providerPaypalSubscription.subscriptionId
+          ? providerPaypalSubscription.status || "APPROVED"
+          : existingBilling.lastBillingStatus || null,
+        paypalSubscriptionId: providerPaypalSubscription.subscriptionId || existingBilling.paypalSubscriptionId || null,
+        paypalPlanId: providerPaypalSubscription.planId || existingBilling.paypalPlanId || null,
+        paypalStatus: providerPaypalSubscription.status || existingBilling.paypalStatus || null,
+        lastBillingAt: providerPaypalSubscription.subscriptionId ? submittedAt : existingBilling.lastBillingAt || null
+      },
       vehicleInfo: normalizedVehicleInfo,
       documents: storedDocuments,
       documentStatus,
@@ -1665,6 +1716,21 @@ function hasCapturedProviderMembership(user) {
   const lastBillingStatus = optionalString(billing.lastBillingStatus).toUpperCase();
   const nextBillingDate = optionalString(user?.nextBillingDate);
   return membershipStatus === "ACTIVE" || lastBillingStatus === "CAPTURED" || Boolean(nextBillingDate);
+}
+
+function normalizeProviderPaypalSubscription(payload = {}, providerInfo = {}) {
+  const subscriptionId = optionalString(
+    payload.paypalSubscriptionId ||
+      payload.subscriptionId ||
+      providerInfo.paypalSubscriptionId ||
+      providerInfo.subscriptionId
+  );
+  return {
+    subscriptionId,
+    planId: optionalString(payload.paypalPlanId || payload.planId || providerInfo.paypalPlanId || providerInfo.planId),
+    status: optionalString(payload.paypalStatus || payload.subscriptionStatus || providerInfo.paypalStatus || providerInfo.subscriptionStatus) ||
+      (subscriptionId ? "APPROVED" : null)
+  };
 }
 
 function normalizeHoursOfService(value) {

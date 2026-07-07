@@ -5406,6 +5406,9 @@ async function applyPaypalSubscriptionWebhook(webhookEvent, eventType) {
       note: "subscriber-not-found"
     };
   }
+  if (Array.isArray(matchedUser.roles) && matchedUser.roles.includes("PROVIDER")) {
+    return applyPaypalProviderSubscriptionWebhook(webhookEvent, eventType, resource, matchedUser);
+  }
 
   const now = new Date().toISOString();
   const subscriptionId = readOptionalString(resource.id);
@@ -5461,6 +5464,69 @@ async function applyPaypalSubscriptionWebhook(webhookEvent, eventType) {
     targetType: "user",
     targetId: String(updatedUser.id),
     note: subscriptionState.profileStatus
+  };
+}
+
+async function applyPaypalProviderSubscriptionWebhook(webhookEvent, eventType, resource, matchedProvider) {
+  const now = new Date().toISOString();
+  const subscriptionId = readOptionalString(resource.id);
+  const nextBillingDate = resolvePaypalNextBillingDate(resource);
+  const resourceStatus = readOptionalString(resource.status).toUpperCase();
+  const subscriptionState = mapPaypalSubscriptionState(eventType, resourceStatus);
+
+  const updatedProvider = await mutateUsers(async (users) => {
+    const provider = users.find((entry) => Number(entry.id) === Number(matchedProvider.id));
+    if (!provider) {
+      throw new Error(`Provider ${matchedProvider.id} was not found for PayPal subscription webhook processing.`);
+    }
+
+    const providerProfile = provider.providerProfile && typeof provider.providerProfile === "object"
+      ? provider.providerProfile
+      : {};
+    const billing = providerProfile.billing && typeof providerProfile.billing === "object"
+      ? providerProfile.billing
+      : {};
+    const paypalState = providerProfile.paypal && typeof providerProfile.paypal === "object"
+      ? providerProfile.paypal
+      : {};
+
+    provider.accountState = subscriptionState.accountState;
+    provider.nextBillingDate = nextBillingDate || provider.nextBillingDate || null;
+    provider.providerProfile = {
+      ...providerProfile,
+      billing: {
+        ...billing,
+        paymentProvider: "paypal",
+        membershipStatus: subscriptionState.active ? "ACTIVE" : subscriptionState.profileStatus,
+        lastBillingStatus: subscriptionState.profileStatus,
+        paypalSubscriptionId: subscriptionId || billing.paypalSubscriptionId || null,
+        paypalPlanId: readOptionalString(resource.plan_id) || billing.paypalPlanId || null,
+        paypalStatus: subscriptionState.profileStatus,
+        lastBillingEventType: eventType,
+        lastBillingEventId: readOptionalString(webhookEvent.id) || billing.lastBillingEventId || null,
+        lastBillingAt: now,
+        nextBillingDate: nextBillingDate || billing.nextBillingDate || null
+      },
+      paypal: {
+        ...paypalState,
+        subscriptionId: subscriptionId || paypalState.subscriptionId || null,
+        planId: readOptionalString(resource.plan_id) || paypalState.planId || null,
+        status: subscriptionState.profileStatus,
+        paymentProvider: "paypal",
+        lastWebhookEventId: readOptionalString(webhookEvent.id) || paypalState.lastWebhookEventId || null,
+        lastWebhookEventType: eventType,
+        lastWebhookAt: now
+      }
+    };
+    return provider;
+  });
+
+  return {
+    matched: true,
+    applied: true,
+    targetType: "user",
+    targetId: String(updatedProvider.id),
+    note: updatedProvider.providerProfile?.billing?.membershipStatus || "provider-subscription-updated"
   };
 }
 
@@ -6366,7 +6432,10 @@ async function findUserForPaypalSubscription(resource) {
 
   if (subscriptionId) {
     const bySubscriptionId = users.find(
-      (user) => readOptionalString(user?.subscriberProfile?.paypalSubscriptionId) === subscriptionId
+      (user) =>
+        readOptionalString(user?.subscriberProfile?.paypalSubscriptionId) === subscriptionId ||
+        readOptionalString(user?.providerProfile?.billing?.paypalSubscriptionId) === subscriptionId ||
+        readOptionalString(user?.providerProfile?.paypal?.subscriptionId) === subscriptionId
     );
     if (bySubscriptionId) {
       return bySubscriptionId;
