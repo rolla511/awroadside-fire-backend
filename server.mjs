@@ -4484,13 +4484,13 @@ function createServicePaymentQuote(request) {
   const etaMinutes = readNumericValue(request?.softEtaMinutes ?? request?.etaMinutes);
   const status = readOptionalString(request?.status).toUpperCase();
   if (etaMinutes === null) {
-    const error = new Error("Service payment is locked until a provider soft ETA is recorded.");
+    const error = new Error("Service payment unlocks after the provider gives the second confirmed ETA.");
     error.statusCode = 409;
     error.code = "hard-eta-required";
     throw error;
   }
   if (!request?.customerEtaAcceptedAt) {
-    const error = new Error("Service payment is locked until the customer accepts the soft ETA.");
+    const error = new Error("Service payment unlocks after you accept the second confirmed ETA and confirm the provider is on the way.");
     error.statusCode = 409;
     error.code = "customer-eta-acceptance-required";
     throw error;
@@ -4517,7 +4517,7 @@ function createServicePaymentQuote(request) {
     platformLiability: AW_ROADSIDE_POLICY.platform.liability,
     providerLiability: AW_ROADSIDE_POLICY.provider.liabilityStatement,
     terms:
-      "Service payment can be created only after the backend records a provider soft ETA and the customer accepts this backend quote."
+      "Service payment can be created only after the provider gives the second confirmed ETA and the customer accepts the service price."
   };
 }
 
@@ -4534,6 +4534,17 @@ function normalizeServicePaymentRequest(payload, request, quote) {
     error.code = "service-quote-mismatch";
     throw error;
   }
+  const requestedPaymentMethod = readOptionalString(
+    payload?.paymentMethodIntent ||
+    payload?.paymentMethod ||
+    request?.paymentMethodIntent ||
+    request?.paymentMethod ||
+    "paypal"
+  ).toLowerCase();
+  const paymentMethodIntent = PRE_SIGNUP_PAYMENT_METHODS.includes(requestedPaymentMethod)
+    ? requestedPaymentMethod
+    : "paypal";
+  const paymentMethodLabel = readOptionalString(payload?.paymentMethodLabel || request?.paymentMethodLabel) || paymentMethodIntent;
 
   return {
     fullName: readOptionalString(request.fullName) || "Roadside Customer",
@@ -4544,6 +4555,10 @@ function normalizeServicePaymentRequest(payload, request, quote) {
     amount: quote.amount,
     requestId: quote.requestId,
     paymentKind: "service",
+    paymentMethodIntent,
+    paymentMethod: paymentMethodIntent,
+    paymentMethodLabel,
+    paymentMethodMasked: readOptionalString(payload?.paymentMethodMasked) || paymentMethodLabel,
     quoteId: quote.quoteId
   };
 }
