@@ -814,6 +814,16 @@ const priorityHardEtaMaxMinutes = 30;
 const serviceBasePrice = 55;
 const guestServicePrice = 55;
 const subscriberServicePrice = 40;
+const servicePaypalHostedButtons = Object.freeze({
+  GUEST: {
+    id: "35QZ4WGANSM56",
+    url: "https://www.paypal.com/ncp/payment/35QZ4WGANSM56"
+  },
+  SUBSCRIBER: {
+    id: "EDN4243N8AGUC",
+    url: "https://www.paypal.com/ncp/payment/EDN4243N8AGUC"
+  }
+});
 const priorityAssignmentFee = 5.5;
 const assignmentFee = 2;
 const payoutPlatformFee = 2;
@@ -1186,13 +1196,43 @@ const server = http.createServer(async (req, res) => {
       try {
         const payload = await readJsonBody(req);
         const requestId = readRequiredString(payload?.requestId || payload?.request_id, "requestId");
-        const hostedButtonId = readRequiredString(payload?.hostedButtonId || payload?.hosted_button_id, "hostedButtonId");
+        const request = await getServiceRequestById(requestId);
+        const quote = createServicePaymentQuote(request);
+        if (payload?.quoteAccepted !== true) {
+          const error = new Error("Customer must accept the backend service quote before service payment.");
+          error.statusCode = 409;
+          error.code = "service-quote-not-accepted";
+          throw error;
+        }
+        if (readOptionalString(payload?.quoteId) !== quote.quoteId) {
+          const error = new Error("Service payment quote does not match the current backend quote.");
+          error.statusCode = 409;
+          error.code = "service-quote-mismatch";
+          throw error;
+        }
+        const customerRole = readOptionalString(payload?.customerRole || payload?.customer_role).toUpperCase() === "SUBSCRIBER"
+          ? "SUBSCRIBER"
+          : "GUEST";
+        const hostedButton = servicePaypalHostedButtons[customerRole];
+        const hostedButtonId = readOptionalString(payload?.hostedButtonId || payload?.hosted_button_id) || hostedButton.id;
+        if (hostedButtonId !== hostedButton.id) {
+          const error = new Error("Hosted PayPal button does not match the backend service payment role.");
+          error.statusCode = 400;
+          error.code = "hosted-button-role-mismatch";
+          throw error;
+        }
         const paymentIntentAt = new Date().toISOString();
         const updatedRequest = await updateRequestRecord(requestId, (request) => ({
           lastPaymentHostedButtonId: hostedButtonId,
+          lastPaymentHostedButtonUrl: hostedButton.url,
           lastPaymentHostedButtonIntentAt: paymentIntentAt,
-          lastPaymentHostedButtonRole: readOptionalString(payload?.customerRole || payload?.customer_role) || null,
+          lastPaymentHostedButtonRole: customerRole,
           lastPaymentHostedButtonServiceType: readOptionalString(payload?.serviceType || payload?.service_type || request.serviceType) || null,
+          lastServicePaymentQuoteId: quote.quoteId,
+          servicePaymentAmount: Number.parseFloat(quote.amount.value),
+          amountDue: Number.parseFloat(quote.amount.value),
+          servicePaymentCurrency: quote.amount.currency_code,
+          servicePaymentPricing: quote.pricing,
           paymentProvider: "paypal-hosted-button",
           paymentStatus: readOptionalString(request.paymentStatus).toUpperCase() === "CAPTURED" ? request.paymentStatus : "PROMPTED"
         }));
@@ -1200,12 +1240,20 @@ const server = http.createServer(async (req, res) => {
           event: "hosted-button-intent",
           requestId: updatedRequest.requestId || updatedRequest.id,
           hostedButtonId,
+          hostedButtonUrl: hostedButton.url,
+          customerRole,
+          quoteId: quote.quoteId,
+          amount: quote.amount,
           status: updatedRequest.paymentStatus,
           createdAt: paymentIntentAt
         });
         sendJson(res, 200, {
           requestId: updatedRequest.requestId || updatedRequest.id,
           hostedButtonId,
+          hostedButtonUrl: hostedButton.url,
+          customerRole,
+          quoteId: quote.quoteId,
+          amount: quote.amount,
           paymentStatus: updatedRequest.paymentStatus,
           intentRecordedAt: paymentIntentAt
         });
