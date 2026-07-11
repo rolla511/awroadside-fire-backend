@@ -1222,20 +1222,51 @@ const server = http.createServer(async (req, res) => {
           throw error;
         }
         const paymentIntentAt = new Date().toISOString();
-        const updatedRequest = await updateRequestRecord(requestId, (request) => ({
-          lastPaymentHostedButtonId: hostedButtonId,
-          lastPaymentHostedButtonUrl: hostedButton.url,
-          lastPaymentHostedButtonIntentAt: paymentIntentAt,
-          lastPaymentHostedButtonRole: customerRole,
-          lastPaymentHostedButtonServiceType: readOptionalString(payload?.serviceType || payload?.service_type || request.serviceType) || null,
-          lastServicePaymentQuoteId: quote.quoteId,
-          servicePaymentAmount: Number.parseFloat(quote.amount.value),
-          amountDue: Number.parseFloat(quote.amount.value),
-          servicePaymentCurrency: quote.amount.currency_code,
-          servicePaymentPricing: quote.pricing,
-          paymentProvider: "paypal-hosted-button",
-          paymentStatus: readOptionalString(request.paymentStatus).toUpperCase() === "CAPTURED" ? request.paymentStatus : "PROMPTED"
-        }));
+        const updatedRequest = await updateRequestRecord(requestId, (request) => {
+          const next = {
+            lastPaymentHostedButtonId: hostedButtonId,
+            lastPaymentHostedButtonUrl: hostedButton.url,
+            lastPaymentHostedButtonIntentAt: paymentIntentAt,
+            lastPaymentHostedButtonRole: customerRole,
+            lastPaymentHostedButtonServiceType: readOptionalString(payload?.serviceType || payload?.service_type || request.serviceType) || null,
+            lastServicePaymentQuoteId: quote.quoteId,
+            servicePaymentAmount: Number.parseFloat(quote.amount.value),
+            amountDue: Number.parseFloat(quote.amount.value),
+            servicePaymentCurrency: quote.amount.currency_code,
+            servicePaymentPricing: quote.pricing,
+            paymentProvider: "paypal-hosted-button",
+            paymentStatus: readOptionalString(request.paymentStatus).toUpperCase() === "CAPTURED" ? request.paymentStatus : "PROMPTED"
+          };
+          const receiptTarget = {
+            ...request,
+            ...next,
+            digitalReceipts: Array.isArray(request.digitalReceipts) ? [...request.digitalReceipts] : [],
+            latestDigitalReceipt: request.latestDigitalReceipt || null,
+            digitalReceiptUpdatedAt: request.digitalReceiptUpdatedAt || null
+          };
+          appendDigitalReceiptEvent(receiptTarget, "service-cost", {
+            createdAt: paymentIntentAt,
+            quoteId: quote.quoteId,
+            amountDue: quote.amount.value,
+            currency: quote.amount.currency_code,
+            pricing: quote.pricing,
+            title: "Service charge created",
+            message: "Customer service charge was created from the approved backend quote."
+          });
+          appendDigitalReceiptEvent(receiptTarget, "payment-prompted", {
+            createdAt: paymentIntentAt,
+            quoteId: quote.quoteId,
+            amountDue: quote.amount.value,
+            currency: quote.amount.currency_code,
+            pricing: quote.pricing,
+            title: "PayPal payment prompt created",
+            message: "PayPal service payment button was released for this request."
+          });
+          next.digitalReceipts = receiptTarget.digitalReceipts;
+          next.latestDigitalReceipt = receiptTarget.latestDigitalReceipt;
+          next.digitalReceiptUpdatedAt = receiptTarget.digitalReceiptUpdatedAt;
+          return next;
+        });
         await appendPaymentLog({
           event: "hosted-button-intent",
           requestId: updatedRequest.requestId || updatedRequest.id,
@@ -3947,6 +3978,11 @@ function buildSubscriberRequestHistory(user, requests, users = []) {
       paymentPromptedAt: request.paymentPromptedAt || null,
       amountCharged: Number(request.amountCharged || 0),
       amountCollected: Number(request.amountCollected || 0),
+      amountDue: readCurrencyNumber(request.amountDue ?? request.servicePaymentAmount),
+      servicePaymentCurrency: request.servicePaymentCurrency || "USD",
+      digitalReceipts: Array.isArray(request.digitalReceipts) ? request.digitalReceipts : [],
+      latestDigitalReceipt: request.latestDigitalReceipt || null,
+      digitalReceiptUpdatedAt: request.digitalReceiptUpdatedAt || null,
       customerFeedback: normalizeRequestCustomerFeedback(request.customerFeedback)
     }))
     .sort((left, right) => {
@@ -6430,6 +6466,26 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       next.contactUnlockedAt = request.contactUnlockedAt || paymentEventAt;
       next.locationDisclosureLevel = "EXACT";
       next.contactDisclosureLevel = "UNLOCKED";
+      const receiptTarget = {
+        ...request,
+        ...next,
+        digitalReceipts: Array.isArray(request.digitalReceipts) ? [...request.digitalReceipts] : [],
+        latestDigitalReceipt: request.latestDigitalReceipt || null,
+        digitalReceiptUpdatedAt: request.digitalReceiptUpdatedAt || null
+      };
+      appendDigitalReceiptEvent(receiptTarget, "payment-confirmed", {
+        createdAt: paymentEventAt,
+        amountCollected: next.amountCollected,
+        currency: readOptionalString(resource?.amount?.currency_code) || readOptionalString(resource?.amount?.currency) || "USD",
+        paypalOrderId: orderId,
+        paypalCaptureId: captureId,
+        paymentStatus: next.paymentStatus,
+        title: "Payment confirmed",
+        message: "PayPal confirmed receipt of the service payment."
+      });
+      next.digitalReceipts = receiptTarget.digitalReceipts;
+      next.latestDigitalReceipt = receiptTarget.latestDigitalReceipt;
+      next.digitalReceiptUpdatedAt = receiptTarget.digitalReceiptUpdatedAt;
     } else if (eventType === "PAYMENT.CAPTURE.PENDING" || eventType === "PAYMENT.SALE.PENDING") {
       next.paymentStatus = "PENDING_CAPTURE";
     } else if (
@@ -8164,6 +8220,16 @@ async function createServiceRequest(serviceRequest) {
     pricing,
     policyVersion: AW_ROADSIDE_POLICY.termsVersion
   };
+  appendDigitalReceiptEvent(savedRequest, "service-requested", {
+    createdAt: now,
+    title: "Service requested",
+    message: "Customer service request was received by dispatch."
+  });
+  appendDigitalReceiptEvent(savedRequest, "service-created", {
+    createdAt: now,
+    title: "Service record created",
+    message: "Dispatch service record was created and is waiting for an eligible provider."
+  });
 
   await fs.mkdir(requestsRoot, { recursive: true });
   await fs.appendFile(requestLogPath, `${JSON.stringify(savedRequest)}\n`);
@@ -8328,6 +8394,68 @@ async function updateRequestRecord(requestId, updater) {
     };
     return requests[index];
   });
+}
+
+function appendDigitalReceiptEvent(request, eventType, details = {}) {
+  if (!request || typeof request !== "object") {
+    return null;
+  }
+  const requestId = readOptionalString(request.requestId || request.id) || "pending";
+  const createdAt = readOptionalString(details.createdAt) || new Date().toISOString();
+  const sequence = Array.isArray(request.digitalReceipts) ? request.digitalReceipts.length + 1 : 1;
+  const receipt = {
+    id: `receipt_${requestId}_${sequence}_${eventType}`.replace(/[^a-zA-Z0-9_-]/g, "_"),
+    sequence,
+    eventType,
+    title: readOptionalString(details.title) || labelDigitalReceiptEvent(eventType),
+    message: readOptionalString(details.message) || null,
+    requestId,
+    serviceType: readOptionalString(details.serviceType || request.serviceType) || null,
+    status: readOptionalString(details.status || request.status) || null,
+    paymentStatus: readOptionalString(details.paymentStatus || request.paymentStatus) || null,
+    assignedProviderId: details.assignedProviderId ?? request.assignedProviderId ?? null,
+    etaMinutes: readNumericValue(details.etaMinutes ?? request.etaMinutes),
+    softEtaMinutes: readNumericValue(details.softEtaMinutes ?? request.softEtaMinutes),
+    hardEtaMinutes: readNumericValue(details.hardEtaMinutes ?? request.hardEtaMinutes),
+    etaStage: readOptionalString(details.etaStage || request.etaStage) || null,
+    quoteId: readOptionalString(details.quoteId || request.lastServicePaymentQuoteId) || null,
+    amountDue: readCurrencyNumber(details.amountDue ?? request.amountDue ?? request.servicePaymentAmount),
+    amountCollected: readCurrencyNumber(details.amountCollected ?? request.amountCollected),
+    servicePaymentCurrency: readOptionalString(details.currency || request.servicePaymentCurrency) || "USD",
+    servicePaymentPricing: details.pricing || request.servicePaymentPricing || request.pricing || null,
+    paypalOrderId: readOptionalString(details.paypalOrderId || request.lastPaymentOrderId) || null,
+    paypalCaptureId: readOptionalString(details.paypalCaptureId || request.lastPaymentCaptureId) || null,
+    customerVisible: details.customerVisible !== false,
+    createdAt
+  };
+  const receipts = Array.isArray(request.digitalReceipts) ? [...request.digitalReceipts] : [];
+  receipts.push(receipt);
+  request.digitalReceipts = receipts.slice(-100);
+  request.latestDigitalReceipt = receipt;
+  request.digitalReceiptUpdatedAt = createdAt;
+  return receipt;
+}
+
+function labelDigitalReceiptEvent(eventType) {
+  const labels = {
+    "service-requested": "Service requested",
+    "service-created": "Service record created",
+    "service-approved": "Service approved",
+    "provider-assigned": "Provider assigned",
+    "eta-shared": "ETA shared",
+    "service-cost": "Service cost approved",
+    "payment-prompted": "Payment prompt created",
+    "payment-confirmed": "Payment confirmed",
+    "arrival-confirmed": "Provider arrival recorded",
+    "service-completed": "Service completion recorded",
+    "service-cancelled": "Service cancelled"
+  };
+  return labels[eventType] || eventType;
+}
+
+function readCurrencyNumber(value) {
+  const parsed = Number.parseFloat(String(value ?? ""));
+  return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : null;
 }
 
 function normalizeSupportedServiceType(value, fieldName = "serviceType") {
@@ -8555,6 +8683,12 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.assignedProviderId = payload.providerUserId ?? request.assignedProviderId ?? null;
       next.acceptedAt = now;
       next.providerPayoutStatus = request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus;
+      appendDigitalReceiptEvent(next, "provider-assigned", {
+        createdAt: now,
+        assignedProviderId: next.assignedProviderId,
+        title: "Provider assigned",
+        message: "A provider accepted the service request."
+      });
     } else if (
       normalizedAction === "eta" ||
       normalizedAction === "soft-eta" ||
@@ -8617,6 +8751,17 @@ async function applyLocalRequestAction(requestId, action, payload) {
       if (normalizedAction === "extend-eta") {
         next.etaExtendedAt = now;
       }
+      appendDigitalReceiptEvent(next, "eta-shared", {
+        createdAt: now,
+        etaMinutes: nextEta,
+        softEtaMinutes: next.softEtaMinutes,
+        hardEtaMinutes: next.hardEtaMinutes,
+        etaStage: next.etaStage,
+        title: wantsHardEta ? "Hard ETA shared" : "Soft ETA shared",
+        message: wantsHardEta
+          ? "Provider gave the second confirmed ETA. Customer payment approval can now be prepared."
+          : "Provider gave an initial ETA. Final payment remains locked until the confirmed ETA stage."
+      });
     } else if (normalizedAction === "priority-unavailable") {
       if (request?.priorityHardEtaRequired !== true && request?.priorityServiceRequested !== true) {
         const error = new Error("This request is not waiting for a priority ETA.");
@@ -8664,6 +8809,11 @@ async function applyLocalRequestAction(requestId, action, payload) {
     } else if (normalizedAction === "arrived" || normalizedAction === "force-arrived") {
       next.status = "ARRIVED";
       next.arrivedAt = now;
+      appendDigitalReceiptEvent(next, "arrival-confirmed", {
+        createdAt: now,
+        title: "Provider arrival recorded",
+        message: "Provider marked arrival at the service location."
+      });
     } else if (
       normalizedAction === "completed" ||
       normalizedAction === "force-complete" ||
@@ -8674,20 +8824,65 @@ async function applyLocalRequestAction(requestId, action, payload) {
       next.completedAt = now;
       next.providerPayoutStatus =
         request.providerPayoutStatus === "UNASSIGNED" ? "PENDING" : request.providerPayoutStatus || "PENDING";
+      appendDigitalReceiptEvent(next, "service-completed", {
+        createdAt: now,
+        title: "Service completed",
+        message: "Provider marked the service request completed."
+      });
     } else if (normalizedAction === "subscriber-accept-eta" || normalizedAction === "customer-accept-eta") {
       if (readNumericValue(request.etaMinutes) === null) {
         throw new Error("A hard ETA must be recorded before customer ETA acceptance.");
       }
       next.customerEtaAcceptedAt = now;
       next.completionStatus = request.completionStatus || "OPEN";
+      let quote = null;
+      try {
+        quote = createServicePaymentQuote(next);
+      } catch {
+        quote = null;
+      }
+      appendDigitalReceiptEvent(next, "service-approved", {
+        createdAt: now,
+        quoteId: quote?.quoteId || null,
+        amountDue: quote?.amount?.value || next.amountDue || next.servicePaymentAmount || null,
+        currency: quote?.amount?.currency_code || next.servicePaymentCurrency || "USD",
+        pricing: quote?.pricing || next.servicePaymentPricing || next.pricing || null,
+        title: "Service approved",
+        message: "Customer accepted the confirmed ETA and approved the service price stage."
+      });
     } else if (normalizedAction === "confirm-arrived" || normalizedAction === "subscriber-arrived-confirm") {
       next.arrivalConfirmedAt = now;
+      appendDigitalReceiptEvent(next, "arrival-confirmed", {
+        createdAt: now,
+        title: "Customer confirmed arrival",
+        message: "Customer confirmed that the provider arrived."
+      });
     } else if (normalizedAction === "confirm-completion" || normalizedAction === "subscriber-completion-confirm") {
       next.completionConfirmedAt = now;
       next.completionStatus = "CONFIRMED_BY_CUSTOMER";
+      appendDigitalReceiptEvent(next, "service-completed", {
+        createdAt: now,
+        title: "Customer confirmed completion",
+        message: "Customer confirmed service completion."
+      });
     } else if (normalizedAction === "prompt-payment") {
       next.paymentPromptedAt = now;
       next.paymentStatus = request.paymentStatus === "CAPTURED" ? request.paymentStatus : "PROMPTED";
+      let quote = null;
+      try {
+        quote = createServicePaymentQuote(next);
+      } catch {
+        quote = null;
+      }
+      appendDigitalReceiptEvent(next, "payment-prompted", {
+        createdAt: now,
+        quoteId: quote?.quoteId || null,
+        amountDue: quote?.amount?.value || next.amountDue || next.servicePaymentAmount || null,
+        currency: quote?.amount?.currency_code || next.servicePaymentCurrency || "USD",
+        pricing: quote?.pricing || next.servicePaymentPricing || next.pricing || null,
+        title: "Payment prompt created",
+        message: "Approved service payment prompt was created for the customer."
+      });
     } else if (normalizedAction === "cancel-service") {
       const currentStatus = readOptionalString(request?.status).toUpperCase();
       if (["COMPLETED", "CANCELLED", "EXPIRED"].includes(currentStatus)) {
@@ -8708,6 +8903,11 @@ async function applyLocalRequestAction(requestId, action, payload) {
         next.cancelNoRefundVerification = "ACCOUNT_PASSWORD";
         next.cancelPasswordVerifiedAt = now;
       }
+      appendDigitalReceiptEvent(next, "service-cancelled", {
+        createdAt: now,
+        title: "Service cancelled",
+        message: "Service request was cancelled."
+      });
       if (readOptionalString(request.paymentStatus).toUpperCase() === "PROMPTED") {
         next.paymentStatus = "CANCELLED";
       }
