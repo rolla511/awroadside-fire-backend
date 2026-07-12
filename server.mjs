@@ -750,8 +750,7 @@ const sandboxManualTestFixturesEnabled =
   readBooleanEnv(process.env.AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES, false);
 const paypalClientId = resolvePaypalClientIdForMode(paypalMode);
 const paypalClientSecret = resolvePaypalClientSecretForMode(paypalMode);
-const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "P-24R12418JB726551MNI3SOVA").trim();
-const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "P-5MA53832KU627993ENI3STPA").trim();
+const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
 const PAYPAL_WEBHOOK_IDS = Object.freeze({
   live: "27268198X79844346",
@@ -1419,97 +1418,6 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/customer/partner-referrals`) {
-      if (!isAdmin(req)) {
-        sendForbidden(res);
-        return;
-      }
-
-      if (req.method !== "POST") {
-        sendMethodNotAllowed(res, "POST");
-        return;
-      }
-
-      try {
-        const payload = await readJsonBody(req);
-        const result = await paypalCaptureController.createPartnerReferralForPayload({
-          payload,
-          context: { req }
-        });
-        sendJson(res, 201, result);
-      } catch (error) {
-        console.error('[ERROR] Create Partner Referral Route Failed:', error);
-        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-        sendJson(res, statusCode, {
-          error: error?.code || "paypal-partner-referral-create-failed",
-          message: error.message
-        });
-      }
-      return;
-    }
-
-    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/customer/partner-referrals/`)) {
-      if (!isAdmin(req)) {
-        sendForbidden(res);
-        return;
-      }
-
-      const referralId = normalizedRawApiPath.split("/").pop();
-      if (req.method !== "GET") {
-        sendMethodNotAllowed(res, "GET");
-        return;
-      }
-
-      try {
-        const result = await paypalCaptureController.getPartnerReferralForPayload({
-          id: referralId,
-          context: { req }
-        });
-        sendJson(res, 200, result);
-      } catch (error) {
-        console.error('[ERROR] Get Partner Referral Route Failed:', error);
-        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-        sendJson(res, statusCode, {
-          error: error?.code || "paypal-partner-referral-get-failed",
-          message: error.message
-        });
-      }
-      return;
-    }
-
-    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/customer/partners/`) && normalizedRawApiPath.includes("/merchant-integrations/")) {
-      if (!isAdmin(req)) {
-        sendForbidden(res);
-        return;
-      }
-
-      const parts = normalizedRawApiPath.split("/");
-      const partnerId = parts[parts.indexOf("partners") + 1];
-      const merchantId = parts[parts.indexOf("merchant-integrations") + 1];
-
-      if (req.method !== "GET") {
-        sendMethodNotAllowed(res, "GET");
-        return;
-      }
-
-      try {
-        const result = await paypalCaptureController.getMerchantIntegrationStatusForPayload({
-          partnerId,
-          merchantId,
-          context: { req }
-        });
-        sendJson(res, 200, result);
-      } catch (error) {
-        console.error('[ERROR] Get Merchant Integration Status Route Failed:', error);
-        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-        sendJson(res, statusCode, {
-          error: error?.code || "paypal-merchant-integration-status-get-failed",
-          message: error.message
-        });
-      }
-      return;
-    }
-
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/create-order`) {
       if (req.method !== "POST") {
         sendMethodNotAllowed(res, "POST");
@@ -1531,7 +1439,7 @@ const server = http.createServer(async (req, res) => {
           payload: {
             ...payload,
             application_context: {
-              brand_name: payload.brand_name || "awroadside",
+              brand_name: payload.brand_name || "AW Roadside",
               shipping_preference: "NO_SHIPPING",
               user_action: "PAY_NOW",
               ...payload.application_context
@@ -1606,172 +1514,6 @@ const server = http.createServer(async (req, res) => {
         const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
         sendJson(res, statusCode, {
           error: error?.code || (req.method === "GET" ? "paypal-get-order-failed" : "paypal-patch-order-failed"),
-          message: error.message
-        });
-      }
-      return;
-    }
-
-    if (normalizedRawApiPath.startsWith(`${RAW_API_BASE_PATH}/payments/billing/subscriptions/`)) {
-      const parts = normalizedRawApiPath.split("/");
-      const lastPart = parts[parts.length - 1];
-      const subscriptionId = ["activate", "suspend", "revise", "transactions"].includes(lastPart) ? parts[parts.length - 2] : lastPart;
-      const action = ["activate", "suspend", "revise", "transactions"].includes(lastPart) ? lastPart : "get_or_patch";
-
-      if (action === "activate" || action === "suspend" || action === "revise" || action === "transactions") {
-        const allowedMethod = action === "transactions" ? "GET" : "POST";
-        if (req.method !== allowedMethod) {
-          sendMethodNotAllowed(res, allowedMethod);
-          return;
-        }
-
-        try {
-          const payload = (action === "transactions") ? {} : await readJsonBody(req).catch(() => ({}));
-          let result;
-          if (action === "activate") {
-            result = await paypalCaptureController.activateSubscriptionForPayload({
-              id: subscriptionId,
-              payload,
-              context: { req }
-            });
-          } else if (action === "suspend") {
-            result = await paypalCaptureController.suspendSubscriptionForPayload({
-              id: subscriptionId,
-              payload,
-              context: { req }
-            });
-          } else if (action === "revise") {
-            result = await paypalCaptureController.reviseSubscriptionForPayload({
-              id: subscriptionId,
-              payload,
-              context: { req }
-            });
-          } else if (action === "transactions") {
-            const url = new URL(req.url, `http://${req.headers.host}`);
-            const query = Object.fromEntries(url.searchParams);
-            result = await paypalCaptureController.listSubscriptionTransactionsForPayload({
-              id: subscriptionId,
-              payload: query,
-              context: { req }
-            });
-          }
-
-          if (action === "revise" || action === "transactions") {
-            sendJson(res, 200, result);
-          } else {
-            sendJson(res, 204, result);
-          }
-        } catch (error) {
-          console.error(`[ERROR] ${action.charAt(0).toUpperCase() + action.slice(1)} Subscription Route Failed:`, error);
-          const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-          sendJson(res, statusCode, {
-            error: error?.code || `paypal-subscription-${action}-failed`,
-            message: error.message
-          });
-        }
-        return;
-      } else if (action === "get_or_patch") {
-        if (req.method === "PATCH") {
-          try {
-            const payload = await readJsonBody(req);
-            const result = await paypalCaptureController.patchSubscriptionForPayload({
-              id: subscriptionId,
-              payload,
-              context: { req }
-            });
-            sendJson(res, 204, result);
-          } catch (error) {
-            console.error('[ERROR] Patch Subscription Route Failed:', error);
-            const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-            sendJson(res, statusCode, {
-              error: error?.code || "paypal-subscription-patch-failed",
-              message: error.message
-            });
-          }
-          return;
-        } else if (req.method === "GET") {
-          try {
-            const url = new URL(req.url, `http://${req.headers.host}`);
-            const query = Object.fromEntries(url.searchParams);
-            const result = await paypalCaptureController.getSubscriptionForPayload({
-              id: subscriptionId,
-              payload: query,
-              context: { req }
-            });
-            sendJson(res, 200, result);
-          } catch (error) {
-            console.error('[ERROR] Get Subscription Route Failed:', error);
-            const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-            sendJson(res, statusCode, {
-              error: error?.code || "paypal-subscription-get-failed",
-              message: error.message
-            });
-          }
-          return;
-        }
-      }
-    }
-
-    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/billing/subscriptions`) {
-      if (req.method !== "POST") {
-        sendMethodNotAllowed(res, "POST");
-        return;
-      }
-
-      if (!paypalClientId || !paypalClientSecret) {
-        sendJson(res, 503, {
-          error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating subscriptions."
-        });
-        return;
-      }
-
-      try {
-        const payload = await readJsonBody(req);
-        const result = await paypalCaptureController.createSubscriptionForPayload({
-          payload,
-          context: { req }
-        });
-        sendJson(res, 201, result);
-      } catch (error) {
-        console.error('[ERROR] Create Subscription Route Failed:', error);
-        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-        sendJson(res, statusCode, {
-          error: error?.code || "paypal-subscription-create-failed",
-          message: error.message
-        });
-      }
-      return;
-    }
-
-    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/payments/invoicing/invoices`) {
-      if (req.method !== "GET") {
-        sendMethodNotAllowed(res, "GET");
-        return;
-      }
-
-      const session = resolveUserSession(req);
-      if (!session || session.role !== "ADMIN") {
-        sendJson(res, 403, {
-          error: "forbidden",
-          message: "Only administrators can list invoices."
-        });
-        return;
-      }
-
-      try {
-        const url = new URL(req.url, `http://${req.headers.host}`);
-        const query = Object.fromEntries(url.searchParams);
-        const result = await paypalCaptureController.listInvoicesForPayload({
-          payload: query,
-          context: { req }
-        });
-        sendJson(res, 200, result);
-      } catch (error) {
-        console.error('[ERROR] List Invoices Route Failed:', error);
-        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
-        sendJson(res, statusCode, {
-          error: error?.code || "paypal-list-invoices-failed",
           message: error.message
         });
       }
@@ -1956,7 +1698,7 @@ const server = http.createServer(async (req, res) => {
             ...payload,
             plan_id: planId,
             application_context: {
-              brand_name: payload.brand_name || "awroadside",
+              brand_name: payload.brand_name || "AW Roadside",
               shipping_preference: "NO_SHIPPING",
               user_action: "SUBSCRIBE_NOW",
               ...payload.application_context
@@ -2871,31 +2613,25 @@ function createPaypalSampleCheckoutOrderPayload(payload = {}) {
     payload.amount?.currency_code ||
     payload.amount?.currencyCode
   ) || "USD";
-
-  // Use values from payload if provided, otherwise use defaults
   const amountValue = normalizeAmountString(
     payload.value ||
     payload.amount?.value ||
     firstItem.value ||
     firstItem.amount ||
-    payload.priorityPaymentAmount ||
-    "100.00"
+    "100"
   );
-  
-  const quantity = readOptionalString(firstItem.quantity || payload.quantity) || "1";
-  const itemName = readOptionalString(firstItem.name || firstItem.id || payload.itemName) || "Priority Roadside Service";
-  const itemDescription = readOptionalString(firstItem.description || payload.description || payload.itemDescription) || "AW Roadside priority service payment";
-  const sku = readOptionalString(firstItem.sku || firstItem.id || payload.sku) || "priority-service";
-  const referenceId = readOptionalString(payload.requestId || payload.referenceId || payload.reference_id) || `priority-${Date.now()}`;
+  const quantity = readOptionalString(firstItem.quantity) || "1";
+  const itemName = readOptionalString(firstItem.name || firstItem.id) || "Priority Roadside Service";
+  const itemDescription = readOptionalString(firstItem.description) || "AW Roadside priority service payment";
+  const sku = readOptionalString(firstItem.sku || firstItem.id) || "priority-service";
+  const referenceId = readOptionalString(payload.requestId || payload.referenceId || payload.reference_id) || `paypal-sample-${Date.now()}`;
   const customId = readOptionalString(payload.customId || payload.custom_id) || referenceId;
   const intent = readOptionalString(payload.intent).toUpperCase() === "AUTHORIZE" ? "AUTHORIZE" : "CAPTURE";
-
-  const serviceType = readOptionalString(payload.serviceType || payload.service_type) || "PRIORITY_SERVICE";
 
   return {
     paymentKind: "priority",
     intent,
-    serviceType,
+    serviceType: readOptionalString(payload.serviceType || payload.service_type) || "PRIORITY_SERVICE",
     description: readOptionalString(payload.description) || itemDescription,
     customId,
     referenceId,
@@ -2933,7 +2669,7 @@ function createPaypalSampleCheckoutOrderPayload(payload = {}) {
       }
     ],
     application_context: {
-      brand_name: "awroadside",
+      brand_name: "AW Roadside",
       shipping_preference: "NO_SHIPPING",
       user_action: "PAY_NOW",
       ...payload.application_context
@@ -3705,9 +3441,8 @@ async function getPaymentConfigPayload() {
     webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
-    subscriptionEnabled: Boolean(paypalClientId && paypalClientSecret && (paypalSubscriberPlanId || paypalProviderPlanId)),
+    subscriptionEnabled: Boolean(paypalClientId && paypalClientSecret && paypalSubscriberPlanId),
     subscriberPlanId: paypalSubscriberPlanId || null,
-    providerPlanId: paypalProviderPlanId || null,
     subscriberActivationMode: "PENDING_ACTIVATION",
     mode: paypalMode,
     priorityServicePrice,
@@ -5063,16 +4798,6 @@ function validateProviderDocumentByType(docType, fileName, contentType, fallback
 
 async function createPaypalOrder(serviceRequest) {
   const paymentKind = readOptionalString(serviceRequest?.paymentKind).toLowerCase();
-  
-  // Use price from serviceRequest if available, otherwise use defaults based on kind
-  let amountValue = serviceRequest?.amount?.value || serviceRequest?.amount;
-  if (!amountValue) {
-    if (paymentKind === "membership") amountValue = subscriberMonthlyFee;
-    else if (paymentKind === "provider-membership") amountValue = providerMonthlyFee;
-    else if (paymentKind === "pre-signup") amountValue = preSignupAccessFee;
-    else amountValue = 100.00; // Default fallback
-  }
-
   const description =
     paymentKind === "service"
       ? `Roadside service payment - ${serviceRequest.serviceType}`
@@ -5083,11 +4808,10 @@ async function createPaypalOrder(serviceRequest) {
           : paymentKind === "provider-suspension"
             ? `AW Roadside provider suspension fee - ${serviceRequest.serviceType || "reinstatement"}`
             : `Priority roadside service - ${serviceRequest.serviceType}`;
-            
   return paypal.createOrder({
     ...serviceRequest,
     description: serviceRequest.description || description,
-    amount: amountValue,
+    amount: serviceRequest.amount,
     customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`,
     referenceId: serviceRequest.referenceId || serviceRequest.requestId || undefined
   });
@@ -5369,8 +5093,8 @@ function extractPaypalVerificationResult(resource) {
     authentication_result: authenticationResult ? {
       liability_shift: readOptionalString(authenticationResult.liability_shift),
       three_d_secure: authenticationResult.three_d_secure ? {
-         authentication_status: readOptionalString(authenticationResult.three_d_secure.authentication_status),
-         enrollment_status: readOptionalString(authenticationResult.three_d_secure.enrollment_status)
+        authentication_status: readOptionalString(authenticationResult.three_d_secure.authentication_status),
+        enrollment_status: readOptionalString(authenticationResult.three_d_secure.enrollment_status)
       } : null
     } : null
   };
@@ -6086,7 +5810,7 @@ function extractPaypalPayoutIdentifiers(resource) {
   };
 }
 
-export function normalizeProviderPaypalProfile(value) {
+function normalizeProviderPaypalProfile(value) {
   const paypal = value && typeof value === "object" ? value : {};
   return {
     providerAccountId: readOptionalString(paypal.providerAccountId) || readOptionalString(paypal.merchantId) || null,
@@ -6118,13 +5842,7 @@ export function normalizeProviderPaypalProfile(value) {
     lastAccountUpdateAt: optionalIsoString(paypal.lastAccountUpdateAt),
     lastAccountLimitEventAt: optionalIsoString(paypal.lastAccountLimitEventAt),
     lastCapabilityUpdateAt: optionalIsoString(paypal.lastCapabilityUpdateAt),
-    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt),
-    oauthThirdParty: Array.isArray(paypal.oauth_third_party || paypal.oauthThirdParty)
-      ? (paypal.oauth_third_party || paypal.oauthThirdParty)
-      : [],
-    integrationType: readOptionalString(paypal.integration_type || paypal.integrationType) || null,
-    integrationMethod: readOptionalString(paypal.integration_method || paypal.integrationMethod) || null,
-    status: readOptionalString(paypal.status) || null
+    lastRequirementsUpdateAt: optionalIsoString(paypal.lastRequirementsUpdateAt)
   };
 }
 
@@ -6300,8 +6018,6 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
   );
   const authorizationId = eventType.startsWith("PAYMENT.AUTHORIZATION.") ? readOptionalString(resource.id) : "";
   const captureId = eventType.startsWith("PAYMENT.AUTHORIZATION.") ? "" : readOptionalString(resource.id);
-  const verificationResult = extractPaypalVerificationResult(resource);
-  const statusDetails = resource.status_details;
   const orderId =
     readOptionalString(resource?.supplementary_data?.related_ids?.order_id) ||
     readOptionalString(resource.parent_payment) ||
@@ -6321,9 +6037,7 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString(),
-          status_details: statusDetails,
-          ...verificationResult
+          paidAt: new Date().toISOString()
         });
       } else {
         const membershipStatus =
@@ -6354,9 +6068,7 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           subscriptionStatus,
           subscriberActive: membershipStatus === "REFUNDED" || membershipStatus === "PAYMENT_FAILED" || membershipStatus === "CANCELLED"
             ? false
-            : matchedSubscriber.subscriberActive,
-          status_details: statusDetails,
-          ...verificationResult
+            : matchedSubscriber.subscriberActive
         });
       }
 
@@ -6388,9 +6100,7 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString(),
-          status_details: statusDetails,
-          ...verificationResult
+          paidAt: new Date().toISOString()
         });
       } else {
         updatedProvider = await recordProviderSuspensionFeeCaptureByUserId(matchedProviderPayment.user.id, {
@@ -6400,9 +6110,7 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
           paymentAmount: amountValue,
           paymentProvider: "paypal",
           paymentEventType: eventType,
-          paidAt: new Date().toISOString(),
-          status_details: statusDetails,
-          ...verificationResult
+          paidAt: new Date().toISOString()
         });
       }
     } else {
@@ -6456,9 +6164,7 @@ async function applyPaypalPaymentWebhook(webhookEvent, eventType) {
       lastPaymentEventType: eventType,
       lastPaymentAuthorizationId: authorizationId || request.lastPaymentAuthorizationId || null,
       lastPaymentAuthorizationValidUntil: optionalIsoString(resource.valid_until) || request.lastPaymentAuthorizationValidUntil || null,
-      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null,
-      lastPaymentStatusDetails: statusDetails || request.lastPaymentStatusDetails || null,
-      ...verificationResult
+      lastPaymentCaptureId: captureId || request.lastPaymentCaptureId || null
     };
 
     if (eventType === "PAYMENT.AUTHORIZATION.CREATED") {
