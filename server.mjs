@@ -751,6 +751,7 @@ const sandboxManualTestFixturesEnabled =
 const paypalClientId = resolvePaypalClientIdForMode(paypalMode);
 const paypalClientSecret = resolvePaypalClientSecretForMode(paypalMode);
 const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "").trim();
+const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
 const PAYPAL_WEBHOOK_IDS = Object.freeze({
   live: "27268198X79844346",
@@ -3698,8 +3699,9 @@ async function getPaymentConfigPayload() {
     webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
     currency: "USD",
     intent: "CAPTURE",
-    subscriptionEnabled: Boolean(paypalClientId && paypalClientSecret && paypalSubscriberPlanId),
+    subscriptionEnabled: Boolean(paypalClientId && paypalClientSecret && (paypalSubscriberPlanId || paypalProviderPlanId)),
     subscriberPlanId: paypalSubscriberPlanId || null,
+    providerPlanId: paypalProviderPlanId || null,
     subscriberActivationMode: "PENDING_ACTIVATION",
     mode: paypalMode,
     priorityServicePrice,
