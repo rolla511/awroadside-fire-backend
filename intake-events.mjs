@@ -608,9 +608,14 @@ function requireCapturedPayment(payment, payload) {
     throw error;
   }
 
-  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (orderId && (status === "CAPTURED" || status === "PENDING_CAPTURE")));
+  const hasEvidence = Boolean(payment?.captureId || payment?.subscriptionId || (orderId && (status === "CAPTURED" || status === "PENDING_CAPTURE" || status === "APPROVED" || status === "ACTIVE")));
   
   if ((status === "CAPTURED" || status === "APPROVED" || status === "ACTIVE" || status === "PENDING_CAPTURE") && hasEvidence) {
+    return;
+  }
+
+  // Special handling for subscriptions that might not have a captureId yet but have a subscriptionId
+  if (payment?.subscriptionId && (status === "ACTIVE" || status === "APPROVED" || status === "PENDING_CAPTURE")) {
     return;
   }
 

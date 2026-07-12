@@ -1531,7 +1531,7 @@ const server = http.createServer(async (req, res) => {
           payload: {
             ...payload,
             application_context: {
-              brand_name: payload.brand_name || "AW Roadside",
+              brand_name: payload.brand_name || "awroadside",
               shipping_preference: "NO_SHIPPING",
               user_action: "PAY_NOW",
               ...payload.application_context
@@ -1956,7 +1956,7 @@ const server = http.createServer(async (req, res) => {
             ...payload,
             plan_id: planId,
             application_context: {
-              brand_name: payload.brand_name || "AW Roadside",
+              brand_name: payload.brand_name || "awroadside",
               shipping_preference: "NO_SHIPPING",
               user_action: "SUBSCRIBE_NOW",
               ...payload.application_context
@@ -2933,7 +2933,7 @@ function createPaypalSampleCheckoutOrderPayload(payload = {}) {
       }
     ],
     application_context: {
-      brand_name: "AW Roadside",
+      brand_name: "awroadside",
       shipping_preference: "NO_SHIPPING",
       user_action: "PAY_NOW",
       ...payload.application_context

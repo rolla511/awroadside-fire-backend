@@ -11,7 +11,7 @@ const PAYPAL_WEBHOOK_IDS = Object.freeze({
   sandbox: "4RN22635Y61567938"
 });
 const PAYPAL_WEBHOOK_ID = resolvePaypalWebhookIdForMode(PAYPAL_ENV);
-const PAYPAL_BRAND_NAME = readEnv("PAYPAL_BRAND_NAME") || "AW Roadside";
+const PAYPAL_BRAND_NAME = readEnv("PAYPAL_BRAND_NAME") || "awroadside";
 const PAYPAL_SOFT_DESCRIPTOR = toSoftDescriptor(readEnv("PAYPAL_SOFT_DESCRIPTOR") || "AWROADSIDE");
 const PAYPAL_PARTNER_ATTRIBUTION_ID = readEnv("PAYPAL_PARTNER_ATTRIBUTION_ID");
 const PAYPAL_PROXY_URL = readEnv("PAYPAL_PROXY_URL");
