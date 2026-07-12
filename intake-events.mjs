@@ -52,7 +52,7 @@ export function createPreSignupIntakeController({
           paypalCapture: {
             configured: Boolean(paymentsConfigured()),
             required: true,
-            serverCapture: "Send capturePaypal: true with orderId to capture on the backend. Intake is stored only after a captured payment."
+            serverCapture: "Send an approved PayPal subscriptionId from the browser subscription flow, or send capturePaypal: true with orderId for server order capture. Intake is stored only after approved payment evidence."
           },
           storage: typeof helpers.getStorageStatus === "function" ? helpers.getStorageStatus() : null
         });
@@ -202,7 +202,7 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
   const zip = requireString(payload?.zip || payload?.billingZip || payload?.serviceZip, "zip");
   const vehicle = normalizeVehicle(payload?.vehicle || payload?.vehicleInfo || {});
   const createdAt = new Date().toISOString();
-  const payment = await resolvePayment(payload, helpers, context);
+  const payment = await resolvePayment(payload, role, helpers, context);
   requireCapturedPayment(payment, payload);
   const electronicSignature = normalizeElectronicSignature(payload);
   
@@ -269,7 +269,7 @@ async function buildPreSignupEntry(payload, role, req, helpers, context) {
   };
 }
 
-async function resolvePayment(payload, helpers, context) {
+async function resolvePayment(payload, role, helpers, context) {
   const paypal = payload?.paypal && typeof payload.paypal === "object" ? payload.paypal : {};
   const payment = payload?.payment && typeof payload.payment === "object" ? payload.payment : {};
   const orderId = optionalString(payload?.orderId || payload?.paypalOrderId || paypal.orderId || paypal.paypalOrderId || payment.orderId);
@@ -306,18 +306,28 @@ async function resolvePayment(payload, helpers, context) {
   const cardId = optionalString(payload?.paymentToken || payload?.cardId || payment.cardId);
 
   const captureStatus = optionalString(capture?.status || payload?.captureStatus || paypal.status || payment.status || (subscriptionId ? "APPROVED" : "") || (cardId ? "CAPTURED" : ""));
+  const paymentKind = optionalString(payload?.paymentKind || payment.type || paypal.type);
 
   return {
     provider: cardId ? "card" : "paypal",
     orderId: orderId || null,
     subscriptionId: subscriptionId || null,
     captureId: captureId || cardId || null,
+    paymentKind: normalizePreSignupPaymentKind(paymentKind, role, Boolean(subscriptionId)),
     status: normalizePaymentStatus(captureStatus, Boolean(captureId || cardId)),
     amount: normalizeAmount(payload?.amount || payment.amount || paypal.amount),
     capturedAt: capture ? new Date().toISOString() : optionalString(payload?.capturedAt || payment.capturedAt) || null,
     serverCaptured: Boolean(shouldCapture && capture),
     capture: sanitizeValue(capture)
   };
+}
+
+function normalizePreSignupPaymentKind(paymentKind, role, hasSubscriptionId) {
+  const normalized = optionalString(paymentKind).toLowerCase();
+  if (hasSubscriptionId) {
+    return role === "PROVIDER" ? "provider-webhook-subscription" : "subscriber-webhook-subscription";
+  }
+  return normalized || "pre-signup";
 }
 
 async function syncIntakeToUserAccount(entry, helpers) {
@@ -328,15 +338,15 @@ async function syncIntakeToUserAccount(entry, helpers) {
 
   let user = null;
   await helpers.mutateUsers(async (users) => {
+    const now = new Date().toISOString();
     const existing = users.find((u) => u.email.toLowerCase() === entry.contact.email.toLowerCase());
     if (existing) {
-      console.log(`[INTAKE] User already exists for ${entry.contact.email}, skipping auto-creation.`);
-      user = existing;
+      user = mergePreSignupEntryIntoExistingUser(existing, entry, now);
+      console.log(`[INTAKE] Updated existing user ${existing.id} for pre-signup ${entry.id}`);
       return;
     }
 
     const userId = helpers.allocateUserId(users);
-    const now = new Date().toISOString();
     user = {
       id: userId,
       fullName: entry.contact.fullName,
@@ -384,6 +394,78 @@ async function syncIntakeToUserAccount(entry, helpers) {
     console.log(`[INTAKE] Created user ${userId} for pre-signup ${entry.id}`);
   });
   return user;
+}
+
+function mergePreSignupEntryIntoExistingUser(existing, entry, now) {
+  const roles = Array.isArray(existing.roles) ? existing.roles : [];
+  if (!roles.includes(entry.role)) {
+    roles.push(entry.role);
+  }
+
+  existing.fullName = existing.fullName || entry.contact.fullName;
+  existing.username = existing.username || entry.contact.email;
+  existing.email = existing.email || entry.contact.email;
+  existing.phoneNumber = existing.phoneNumber || entry.contact.phoneNumber;
+  existing.roles = roles;
+  existing.termsAccepted = existing.termsAccepted || entry.terms.accepted;
+  existing.preSignupIntakeId = existing.preSignupIntakeId || entry.id;
+  existing.accountState = existing.accountState || "PENDING_APPROVAL";
+  existing.updatedAt = now;
+
+  if (entry.role === "SUBSCRIBER") {
+    const currentProfile = existing.subscriberProfile && typeof existing.subscriberProfile === "object"
+      ? existing.subscriberProfile
+      : {};
+    const currentPaymentInfo = currentProfile.paymentInfo && typeof currentProfile.paymentInfo === "object"
+      ? currentProfile.paymentInfo
+      : {};
+    existing.subscriberActive = true;
+    existing.subscriptionStatus = "ACTIVE";
+    existing.subscriberProfile = {
+      ...currentProfile,
+      membershipPrice: Number(currentProfile.membershipPrice || 10.99),
+      vehicle: currentProfile.vehicle || entry.vehicle,
+      savedVehicles: Array.isArray(currentProfile.savedVehicles) && currentProfile.savedVehicles.length
+        ? currentProfile.savedVehicles
+        : [entry.vehicle],
+      membershipStatus: "ACTIVE",
+      paymentInfo: {
+        ...currentPaymentInfo,
+        paymentProvider: "paypal",
+        paypalOrderId: entry.payment.orderId || currentPaymentInfo.paypalOrderId || null,
+        paypalSubscriptionId: entry.payment.subscriptionId || currentPaymentInfo.paypalSubscriptionId || null,
+        paypalCaptureId: entry.payment.captureId || currentPaymentInfo.paypalCaptureId || null,
+        status: entry.payment.status || currentPaymentInfo.status || null
+      },
+      paypalSubscriptionId: entry.payment.subscriptionId || currentProfile.paypalSubscriptionId || null,
+      updatedAt: now
+    };
+  }
+
+  if (entry.role === "PROVIDER") {
+    const currentProfile = existing.providerProfile && typeof existing.providerProfile === "object"
+      ? existing.providerProfile
+      : {};
+    const currentPaypal = currentProfile.paypal && typeof currentProfile.paypal === "object"
+      ? currentProfile.paypal
+      : {};
+    existing.providerStatus = existing.providerStatus || "PENDING_APPROVAL";
+    existing.providerProfile = {
+      ...currentProfile,
+      serviceArea: currentProfile.serviceArea || entry.logistics.serviceArea,
+      services: Array.isArray(currentProfile.services) && currentProfile.services.length
+        ? currentProfile.services
+        : entry.provider?.services || [],
+      paypal: {
+        ...currentPaypal,
+        payoutEmail: currentPaypal.payoutEmail || entry.provider?.payoutEmail || entry.contact.email,
+        subscriptionId: entry.payment.subscriptionId || currentPaypal.subscriptionId || null
+      },
+      updatedAt: now
+    };
+  }
+
+  return existing;
 }
 
 async function persistPreSignupEntry(entry, helpers, paths) {
