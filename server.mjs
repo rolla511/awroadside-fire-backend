@@ -750,8 +750,8 @@ const sandboxManualTestFixturesEnabled =
   readBooleanEnv(process.env.AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES, false);
 const paypalClientId = resolvePaypalClientIdForMode(paypalMode);
 const paypalClientSecret = resolvePaypalClientSecretForMode(paypalMode);
-const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "").trim();
-const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "").trim();
+const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "P-24R12418JB726551MNI3SOVA").trim();
+const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "P-5MA53832KU627993ENI3STPA").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
 const PAYPAL_WEBHOOK_IDS = Object.freeze({
   live: "27268198X79844346",
@@ -2871,25 +2871,31 @@ function createPaypalSampleCheckoutOrderPayload(payload = {}) {
     payload.amount?.currency_code ||
     payload.amount?.currencyCode
   ) || "USD";
+
+  // Use values from payload if provided, otherwise use defaults
   const amountValue = normalizeAmountString(
     payload.value ||
     payload.amount?.value ||
     firstItem.value ||
     firstItem.amount ||
-    "100"
+    payload.priorityPaymentAmount ||
+    "100.00"
   );
-  const quantity = readOptionalString(firstItem.quantity) || "1";
-  const itemName = readOptionalString(firstItem.name || firstItem.id) || "Priority Roadside Service";
-  const itemDescription = readOptionalString(firstItem.description) || "AW Roadside priority service payment";
-  const sku = readOptionalString(firstItem.sku || firstItem.id) || "priority-service";
-  const referenceId = readOptionalString(payload.requestId || payload.referenceId || payload.reference_id) || `paypal-sample-${Date.now()}`;
+  
+  const quantity = readOptionalString(firstItem.quantity || payload.quantity) || "1";
+  const itemName = readOptionalString(firstItem.name || firstItem.id || payload.itemName) || "Priority Roadside Service";
+  const itemDescription = readOptionalString(firstItem.description || payload.description || payload.itemDescription) || "AW Roadside priority service payment";
+  const sku = readOptionalString(firstItem.sku || firstItem.id || payload.sku) || "priority-service";
+  const referenceId = readOptionalString(payload.requestId || payload.referenceId || payload.reference_id) || `priority-${Date.now()}`;
   const customId = readOptionalString(payload.customId || payload.custom_id) || referenceId;
   const intent = readOptionalString(payload.intent).toUpperCase() === "AUTHORIZE" ? "AUTHORIZE" : "CAPTURE";
+
+  const serviceType = readOptionalString(payload.serviceType || payload.service_type) || "PRIORITY_SERVICE";
 
   return {
     paymentKind: "priority",
     intent,
-    serviceType: readOptionalString(payload.serviceType || payload.service_type) || "PRIORITY_SERVICE",
+    serviceType,
     description: readOptionalString(payload.description) || itemDescription,
     customId,
     referenceId,
@@ -5057,6 +5063,16 @@ function validateProviderDocumentByType(docType, fileName, contentType, fallback
 
 async function createPaypalOrder(serviceRequest) {
   const paymentKind = readOptionalString(serviceRequest?.paymentKind).toLowerCase();
+  
+  // Use price from serviceRequest if available, otherwise use defaults based on kind
+  let amountValue = serviceRequest?.amount?.value || serviceRequest?.amount;
+  if (!amountValue) {
+    if (paymentKind === "membership") amountValue = subscriberMonthlyFee;
+    else if (paymentKind === "provider-membership") amountValue = providerMonthlyFee;
+    else if (paymentKind === "pre-signup") amountValue = preSignupAccessFee;
+    else amountValue = 100.00; // Default fallback
+  }
+
   const description =
     paymentKind === "service"
       ? `Roadside service payment - ${serviceRequest.serviceType}`
@@ -5067,10 +5083,11 @@ async function createPaypalOrder(serviceRequest) {
           : paymentKind === "provider-suspension"
             ? `AW Roadside provider suspension fee - ${serviceRequest.serviceType || "reinstatement"}`
             : `Priority roadside service - ${serviceRequest.serviceType}`;
+            
   return paypal.createOrder({
     ...serviceRequest,
     description: serviceRequest.description || description,
-    amount: serviceRequest.amount,
+    amount: amountValue,
     customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`,
     referenceId: serviceRequest.referenceId || serviceRequest.requestId || undefined
   });
