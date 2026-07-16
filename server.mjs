@@ -713,43 +713,67 @@ function readPaypalEnvValue(name) {
   return (process.env[name] || "").trim();
 }
 
-function resolvePaypalClientIdForMode(mode) {
-  if (mode === "sandbox") {
-    return (
-      readPaypalEnvValue("paypal_client_sandbox_id") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_ID_SANDBOX") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_ID_sandbox") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_ID")
-    );
+const PAYPAL_CLIENT_SECRET_ENV_HINT = "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET (or SECRET_KEY_1) before using PayPal.";
+
+function resolveFirstPaypalEnv(names) {
+  for (const name of names) {
+    const value = readPaypalEnvValue(name);
+    if (value) {
+      return { value, source: name };
+    }
   }
-  return readPaypalEnvValue("PAYPAL_CLIENT_ID");
+  return { value: "", source: "" };
+}
+
+function resolvePaypalClientIdForMode(mode) {
+  return resolvePaypalClientIdEntryForMode(mode).value;
+}
+
+function resolvePaypalClientIdEntryForMode(mode) {
+  return resolveFirstPaypalEnv(
+    mode === "sandbox"
+      ? [
+          "paypal_client_sandbox_id",
+          "PAYPAL_CLIENT_ID_SANDBOX",
+          "PAYPAL_CLIENT_ID_sandbox",
+          "PAYPAL_CLIENT_ID"
+        ]
+      : ["PAYPAL_CLIENT_ID"]
+  );
 }
 
 function resolvePaypalClientSecretForMode(mode) {
-  if (mode === "sandbox") {
-    return (
-      readPaypalEnvValue("paypal_client_secret_sandbox_id") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANDBOX") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sandbox") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_SANBOX") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_SECRET_sanbox") ||
-      readPaypalEnvValue("PAYPAL_CLIENT_SECRET") ||
-      readPaypalEnvValue("SECRET_KEY_1") ||
-      readPaypalEnvValue("PAYPAL_SECRET_KEY_1")
-    );
-  }
-  return (
-    readPaypalEnvValue("PAYPAL_CLIENT_SECRET") ||
-    readPaypalEnvValue("SECRET_KEY_1") ||
-    readPaypalEnvValue("PAYPAL_SECRET_KEY_1")
+  return resolvePaypalClientSecretEntryForMode(mode).value;
+}
+
+function resolvePaypalClientSecretEntryForMode(mode) {
+  return resolveFirstPaypalEnv(
+    mode === "sandbox"
+      ? [
+          "paypal_client_secret_sandbox_id",
+          "PAYPAL_CLIENT_SECRET_SANDBOX",
+          "PAYPAL_CLIENT_SECRET_sandbox",
+          "PAYPAL_CLIENT_SECRET_SANBOX",
+          "PAYPAL_CLIENT_SECRET_sanbox",
+          "PAYPAL_CLIENT_SECRET",
+          "SECRET_KEY_1",
+          "PAYPAL_SECRET_KEY_1"
+        ]
+      : [
+          "PAYPAL_CLIENT_SECRET",
+          "SECRET_KEY_1",
+          "PAYPAL_SECRET_KEY_1"
+        ]
   );
 }
 const paypalMode = (process.env.PAYPAL_ENV || "sandbox").toLowerCase() === "live" ? "live" : "sandbox";
 const sandboxManualTestFixturesEnabled =
   paypalMode === "sandbox" ||
   readBooleanEnv(process.env.AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES, false);
-const paypalClientId = resolvePaypalClientIdForMode(paypalMode);
-const paypalClientSecret = resolvePaypalClientSecretForMode(paypalMode);
+const paypalClientIdEntry = resolvePaypalClientIdEntryForMode(paypalMode);
+const paypalClientSecretEntry = resolvePaypalClientSecretEntryForMode(paypalMode);
+const paypalClientId = paypalClientIdEntry.value;
+const paypalClientSecret = paypalClientSecretEntry.value;
 const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "P-24R12418JB726551MNI3SOVA").trim();
 const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "P-5MA53832KU627993ENI3STPA").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
@@ -1055,6 +1079,7 @@ const server = http.createServer(async (req, res) => {
       getPaypalOrderStatus,
       updatePaypalOrder,
       capturePaypalOrder,
+      getPaypalSubscription,
       extractPaypalCapturedAmount: (capture) => extractPaypalCapturedAmount(capture),
       extractPaypalCaptureId: (capture) => extractPaypalCaptureId(capture),
       createPaypalPaymentOrder: ({ payload, session = null, route = null } = {}) =>
@@ -1311,7 +1336,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot create orders.`
         });
         return;
       }
@@ -1348,7 +1373,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot capture orders.`
         });
         return;
       }
@@ -1519,7 +1544,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot create orders.`
         });
         return;
       }
@@ -1578,7 +1603,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before reading or patching orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot read or patch orders.`
         });
         return;
       }
@@ -1721,7 +1746,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating subscriptions."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot create subscriptions.`
         });
         return;
       }
@@ -1787,7 +1812,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before introspecting tokens."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot introspect tokens.`
         });
         return;
       }
@@ -1819,7 +1844,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before revoking tokens."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot revoke tokens.`
         });
         return;
       }
@@ -1935,7 +1960,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating subscriptions."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot create subscriptions.`
         });
         return;
       }
@@ -1996,7 +2021,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before capturing orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot capture orders.`
         });
         return;
       }
@@ -2066,7 +2091,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before authorizing orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot authorize orders.`
         });
         return;
       }
@@ -2109,7 +2134,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before confirming orders."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot confirm orders.`
         });
         return;
       }
@@ -2150,7 +2175,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating order tracking."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot create order tracking.`
         });
         return;
       }
@@ -2191,7 +2216,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before using vaulted payment tokens."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot use vaulted payment tokens.`
         });
         return;
       }
@@ -2239,7 +2264,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before creating setup tokens."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot create setup tokens.`
         });
         return;
       }
@@ -2275,7 +2300,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: `Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before ${req.method === "DELETE" ? "deleting" : "getting"} payment tokens.`
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot ${req.method === "DELETE" ? "delete" : "get"} payment tokens.`
         });
         return;
       }
@@ -2316,7 +2341,7 @@ const server = http.createServer(async (req, res) => {
       if (!paypalClientId || !paypalClientSecret) {
         sendJson(res, 503, {
           error: "paypal-not-configured",
-          message: "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET before getting setup tokens."
+          message: `${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot get setup tokens.`
         });
         return;
       }
@@ -3699,8 +3724,10 @@ async function getPaymentConfigPayload() {
     clientId: paypalClientId || null,
     credentials: {
       mode: paypalMode,
+      clientIdSource: paypalClientIdEntry.source || null,
       clientIdPreview: maskCredential(paypalClientId),
       clientIdLength: paypalClientId ? paypalClientId.length : 0,
+      secretSource: paypalClientSecretEntry.source || null,
       secretConfigured: Boolean(paypalClientSecret),
       secretLength: paypalClientSecret ? paypalClientSecret.length : 0
     },
@@ -5512,7 +5539,9 @@ function isPaypalProviderWebhookEvent(eventType) {
     eventType.startsWith("CUSTOMER.PARTNER-") ||
     eventType.startsWith("PAYMENT.PAYOUTSBATCH.") ||
     eventType.startsWith("PAYMENT.PAYOUTS-ITEM.") ||
-    eventType.startsWith("PAYMENTS.CUSTOMER-PAYOUTS.")
+    eventType.startsWith("PAYMENTS.CUSTOMER-PAYOUTS.") ||
+    eventType.startsWith("MERCHANT.ONBOARDING.") ||
+    eventType.startsWith("MERCHANT.PARTNER-CONSENT.")
   );
 }
 
