@@ -18,6 +18,10 @@ import {
   PAYPAL_CAPTURE_PAYMENT_KINDS,
   PAYPAL_WEBHOOK_EVENT_FAMILIES
 } from "./paypal-capture.mjs";
+import {
+  liveWebhookEvents,
+  sandboxWebhookEvents
+} from "./scripts/paypal-webhook-events.mjs";
 import {createWatchdog} from "./watchdog.mjs";
 import {createLocationService} from "./location-service.mjs";
 import {createProviderWalletPayload} from "./provider-wallet-controller.mjs";
@@ -803,6 +807,9 @@ const paypalWebhookPaths = Object.freeze([
   "/paypal-webhook",
   "/paypal-webhooks"
 ]);
+const paypalWebhookEventCatalog = Object.freeze(
+  paypalMode === "live" ? liveWebhookEvents : sandboxWebhookEvents
+);
 const handlePaypalWebhookRoute = createPaypalWebhookRouteHandler({
   paypal,
   paypalClientId,
@@ -2569,7 +2576,8 @@ async function createRuntimeStatus() {
       provider: "paypal",
       mode: paypalMode,
       configured: Boolean(paypalClientId && paypalClientSecret),
-      webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId)
+      webhookConfigured: Boolean(paypalClientId && paypalClientSecret && paypalWebhookId),
+      webhookEventCatalog: paypalWebhookEventCatalog
     },
     database: typeof awRoadsideDbConfig.getPublicStatus === "function"
       ? {
@@ -3764,6 +3772,7 @@ async function getPaymentConfigPayload() {
     payoutPlatformFee,
     supportedPaymentKinds: paymentCoverage.paymentKinds,
     supportedWebhookEventFamilies: paymentCoverage.webhookEventFamilies,
+    supportedWebhookEvents: paypalWebhookEventCatalog,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
     dispatchOnlyLiability: AW_ROADSIDE_POLICY.platform.liability,
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
@@ -4585,6 +4594,7 @@ async function getFrontendConfigPayload(req = null) {
     subscriberDispatchFee,
     supportedPaymentKinds: paymentCoverage.paymentKinds,
     supportedWebhookEventFamilies: paymentCoverage.webhookEventFamilies,
+    supportedWebhookEvents: paypalWebhookEventCatalog,
     noRefundPolicy: AW_ROADSIDE_POLICY.financial.noRefundsAfterPayment,
     walletDisplayTerms: AW_ROADSIDE_POLICY.financial.walletDisplayTerms,
     uiEventMap: AW_ROADSIDE_POLICY.uiEventMap,
