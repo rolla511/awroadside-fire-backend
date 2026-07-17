@@ -21,7 +21,7 @@ import {
 import {
   liveWebhookEvents,
   sandboxWebhookEvents
-} from "./scripts/paypal-webhook-events.mjs";
+} from "./paypal-webhook-events.mjs";
 import {createWatchdog} from "./watchdog.mjs";
 import {createLocationService} from "./location-service.mjs";
 import {createProviderWalletPayload} from "./provider-wallet-controller.mjs";
