@@ -85,16 +85,23 @@ export function createAwRoadsideDbConfig({
   const configuredHost = normalizeString(env.DB_HOST || env.AW_DB_HOST);
   const databaseId = normalizeString(env.db_id);
   const configuredDatabaseName = normalizeString(env.AW_DB_NAME);
-  const userAccessEntry = normalizeString(env.USDB_ENTRY);
-  const configHandle = normalizeString(env.USDB_CONFIG_HANDLE);
-  const configuredUser = normalizeString(env.DB_USER || env.AW_DB_USER);
-  const password = normalizeString(env.DB_PASSWORD || env.AW_DB_PASSWORD);
+  const userAccessEntry = normalizeString(env.Usdb_entry || env.USDB_ENTRY);
+  const configHandle = normalizeString(env.config || env.USDB_CONFIG_HANDLE);
+  const configuredUser = normalizeString(env.config || env.DB_USER || env.AW_DB_USER);
+  const password = normalizeString(env.Usdb_entry || env.DB_PASSWORD || env.AW_DB_PASSWORD);
   const configuredPort = Number.parseInt(
     normalizeString(env.DB_PORT || env.AW_DB_PORT || `${DEFAULT_POSTGRES_PORT}`),
     10
   );
   const ssl = readBooleanEnv(env.DB_SSL || env.AW_DB_SSL || env.PGSSLMODE, false);
-  const connectionString = normalizeString(env.internal_db_url);
+  const connectionString = normalizeString(
+    env.internal_db_url ||
+      env.INTERNAL_DB_URL ||
+      env.DATABASE_URL ||
+      env.DATABASE_INTERNAL_URL ||
+      env.RENDER_DATABASE_URL ||
+      env.POSTGRES_URL
+  );
   const parsedConnection = parseConnectionString(connectionString);
   const host = configuredHost || parsedConnection.host;
   const database = configuredDatabaseName || parsedConnection.database;
