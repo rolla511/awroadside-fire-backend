@@ -1041,7 +1041,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive"
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Location-Zone, X-2FA-Verified, X-WP-Nonce"
       });
       res.write(": ok\n\n");
       const client = { req, res };
@@ -1448,6 +1451,83 @@ const server = http.createServer(async (req, res) => {
       }
 
       sendMethodNotAllowed(res, "GET, POST");
+      return;
+    }
+
+    const rawRequestMatch = normalizedRawApiPath.match(new RegExp(`^${RAW_API_BASE_PATH}/requests/([^/]+)$`));
+    if (rawRequestMatch) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      try {
+        const requestId = decodeURIComponent(rawRequestMatch[1]);
+        const request = await getServiceRequestById(requestId);
+        const session = resolveUserSession(req);
+        const phoneNumber = readOptionalString(url.searchParams.get("phoneNumber"));
+        const ownsGuestRequest =
+          !session &&
+          phoneNumber &&
+          readOptionalString(request.phoneNumber) === phoneNumber;
+        if (!session && !ownsGuestRequest) {
+          sendJson(res, 403, {
+            error: "request-owner-required",
+            message: "A matching customer phone number or signed-in session is required to view this request."
+          });
+          return;
+        }
+        sendJson(res, 200, {
+          requestId: request.requestId || request.id,
+          request: await presentRequestForSession(request, session || {
+            actorRole: "GUEST",
+            roles: ["GUEST"],
+            ownsRequest: true
+          })
+        });
+      } catch (error) {
+        sendJson(res, Number.isInteger(error?.statusCode) ? error.statusCode : 404, {
+          error: error?.code || "request-not-found",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/provider/workflow`) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      const session = resolveUserSession(req);
+      if (!session?.roles?.includes("PROVIDER")) {
+        sendJson(res, 403, {
+          error: "provider-session-required",
+          message: "A provider session is required to load the provider workflow."
+        });
+        return;
+      }
+
+      const requests = await readDispatchRequestLog();
+      const filteredRequests = await filterRequestsForSession(requests, session);
+      const presentedRequests = await presentRequestsForSession(filteredRequests, {
+        ...session,
+        actorRole: "PROVIDER"
+      });
+      const active = presentedRequests.find((request) => {
+        const status = readOptionalString(request?.status).toUpperCase();
+        return ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(status);
+      }) || presentedRequests[0] || null;
+      sendJson(res, 200, {
+        providerUserId: session.userId,
+        queue: {
+          all: presentedRequests,
+          active,
+          open: presentedRequests.filter((request) => readOptionalString(request?.status).toUpperCase() === "SUBMITTED"),
+          assigned: presentedRequests.filter((request) => ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(readOptionalString(request?.status).toUpperCase()))
+        }
+      });
       return;
     }
 
