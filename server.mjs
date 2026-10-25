@@ -717,6 +717,14 @@ function readPaypalEnvValue(name) {
   return (process.env[name] || "").trim();
 }
 
+function readCsvEnv(name, fallback = []) {
+  const values = readPaypalEnvValue(name)
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return values.length ? values : [...fallback];
+}
+
 const PAYPAL_CLIENT_SECRET_ENV_HINT = "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET (or SECRET_KEY_1) before using PayPal.";
 
 function resolveFirstPaypalEnv(names) {
@@ -781,6 +789,13 @@ const paypalClientSecret = paypalClientSecretEntry.value;
 const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "P-24R12418JB726551MNI3SOVA").trim();
 const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "P-5MA53832KU627993ENI3STPA").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
+const paypalPartnerAttributionId = readPaypalEnvValue("PAYPAL_PARTNER_ATTRIBUTION_ID");
+const paypalProviderOnboardingProducts = Object.freeze(
+  readCsvEnv("PAYPAL_PROVIDER_ONBOARDING_PRODUCTS", ["EXPRESS_CHECKOUT"])
+);
+const paypalProviderOnboardingFeatures = Object.freeze(
+  readCsvEnv("PAYPAL_PROVIDER_ONBOARDING_FEATURES", ["PAYMENT", "REFUND"])
+);
 const PAYPAL_WEBHOOK_IDS = Object.freeze({
   live: "27268198X79844346",
   sandbox: "4RN22635Y61567938"
@@ -1182,7 +1197,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const normalizedRawApiPath = normalizeRawApiPath(pathname);
+    const normalizedRawApiPath = normalizeRawApiPath(pathname) || "";
 
     if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/health`) {
       res.setHeader("Content-Type", "application/json");
@@ -1528,6 +1543,59 @@ const server = http.createServer(async (req, res) => {
           assigned: presentedRequests.filter((request) => ["ASSIGNED", "EN_ROUTE", "ARRIVED", "PAUSED"].includes(readOptionalString(request?.status).toUpperCase()))
         }
       });
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/providers/paypal-connect`) {
+      if (req.method !== "POST") {
+        sendMethodNotAllowed(res, "POST");
+        return;
+      }
+
+      try {
+        const session = resolveUserSession(req);
+        if (!session?.roles?.includes("PROVIDER")) {
+          sendJson(res, 403, {
+            error: "provider-session-required",
+            message: "A provider session is required to start PayPal wallet onboarding."
+          });
+          return;
+        }
+
+        const result = await createProviderPaypalOnboarding(session.userId, req);
+        sendJson(res, 201, result);
+      } catch (error) {
+        const statusCode = Number.isInteger(error?.statusCode) ? error.statusCode : 500;
+        sendJson(res, statusCode, {
+          error: error?.code || "provider-paypal-onboarding-failed",
+          message: error.message
+        });
+      }
+      return;
+    }
+
+    if (normalizedRawApiPath === `${RAW_API_BASE_PATH}/providers/paypal-onboarding/return`) {
+      if (req.method !== "GET") {
+        sendMethodNotAllowed(res, "GET");
+        return;
+      }
+
+      try {
+        const result = await recordProviderPaypalOnboardingReturn(url.searchParams);
+        const redirectUrl = new URL(resolveProviderPaypalReturnRedirectUrl(req));
+        redirectUrl.searchParams.set("paypalOnboarding", result.onboardingStatus || "RETURNED");
+        if (result.providerUserId) {
+          redirectUrl.searchParams.set("providerUserId", String(result.providerUserId));
+        }
+        res.writeHead(302, { Location: redirectUrl.toString() });
+        res.end();
+      } catch (error) {
+        const redirectUrl = new URL(resolveProviderPaypalReturnRedirectUrl(req));
+        redirectUrl.searchParams.set("paypalOnboarding", "ERROR");
+        redirectUrl.searchParams.set("message", error.message);
+        res.writeHead(302, { Location: redirectUrl.toString() });
+        res.end();
+      }
       return;
     }
 
@@ -4365,7 +4433,7 @@ function isRequestEligibleForProvider(request, provider) {
   }
 
   const providerId = Number(provider?.id);
-  const assignedProviderId = Number(request?.assignedProviderId);
+  const assignedProviderId = readNumericValue(request?.assignedProviderId);
   if (Number.isInteger(assignedProviderId)) {
     if (assignedProviderId !== providerId) {
       return false;
@@ -4842,7 +4910,7 @@ function resolveRequestBaseUrl(req = null) {
 }
 
 function resolvePublicBaseUrl() {
-  const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "https://awroadside-fire-backend.orender.com").trim().replace(/\/$/, "");
+  const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "https://awroadside-fire-backend.onrender.com").trim().replace(/\/$/, "");
   if (configuredBaseUrl) {
     return configuredBaseUrl;
   }
@@ -5543,6 +5611,210 @@ async function getPaypalMerchantIntegrationStatus(partnerId, merchantId, req = n
   return paypal.getMerchantIntegrationStatus(partnerId, merchantId);
 }
 
+async function createProviderPaypalOnboarding(providerUserId, req = null) {
+  if (!paypalClientId || !paypalClientSecret) {
+    const error = new Error(`${PAYPAL_CLIENT_SECRET_ENV_HINT} Cannot start provider PayPal wallet onboarding.`);
+    error.statusCode = 503;
+    error.code = "paypal-not-configured";
+    throw error;
+  }
+  if (!paypalPartnerAttributionId) {
+    const error = new Error("Set PAYPAL_PARTNER_ATTRIBUTION_ID before starting provider PayPal wallet onboarding.");
+    error.statusCode = 503;
+    error.code = "paypal-partner-attribution-missing";
+    throw error;
+  }
+
+  const users = await readUsers();
+  const provider = users.find((entry) => Number(entry.id) === Number(providerUserId));
+  if (!provider || !Array.isArray(provider.roles) || !provider.roles.includes("PROVIDER")) {
+    const error = new Error("A valid provider account is required to start PayPal wallet onboarding.");
+    error.statusCode = 403;
+    error.code = "provider-account-required";
+    throw error;
+  }
+
+  const trackingId = `aw_provider_${providerUserId}_${crypto.randomBytes(32).toString("base64url")}`;
+  const referralPayload = buildProviderPaypalPartnerReferralPayload(provider, trackingId, req);
+  const referral = await createPaypalPartnerReferral(referralPayload, req);
+  const actionUrl = getPaypalResponseLink(referral, "action_url");
+  if (!actionUrl) {
+    const error = new Error("PayPal did not return an onboarding action_url for this provider.");
+    error.statusCode = 502;
+    error.code = "paypal-onboarding-action-url-missing";
+    throw error;
+  }
+
+  const referralId = readOptionalString(referral.partner_referral_id || referral.id) || extractIdFromPaypalLink(referral, "self");
+  const now = new Date().toISOString();
+  const updatedProvider = await mutateUsers(async (records) => {
+    const user = records.find((entry) => Number(entry.id) === Number(providerUserId));
+    if (!user) {
+      throw new Error(`Provider ${providerUserId} was not found while saving PayPal onboarding state.`);
+    }
+    const providerProfile = user.providerProfile && typeof user.providerProfile === "object" ? user.providerProfile : {};
+    const paypalState = normalizeProviderPaypalProfile(providerProfile.paypal);
+    user.providerProfile = {
+      ...providerProfile,
+      paypal: {
+        ...paypalState,
+        trackingId,
+        partnerReferralId: referralId || paypalState.partnerReferralId || null,
+        actionUrl,
+        onboardingStatus: "ACTION_REQUIRED",
+        consentStatus: paypalState.consentStatus || "PENDING",
+        integrationType: "FIRST_PARTY",
+        integrationMethod: "PAYPAL",
+        products: paypalProviderOnboardingProducts,
+        features: paypalProviderOnboardingFeatures,
+        onboardingStartedAt: now,
+        lastReferralCreatedAt: now
+      }
+    };
+    return user;
+  });
+
+  return {
+    providerUserId: Number(updatedProvider.id),
+    trackingId,
+    partnerReferralId: referralId || null,
+    actionUrl,
+    paypalMode,
+    onboardingStatus: updatedProvider.providerProfile?.paypal?.onboardingStatus || "ACTION_REQUIRED"
+  };
+}
+
+function buildProviderPaypalPartnerReferralPayload(provider, trackingId, req = null) {
+  const returnUrl = resolveProviderPaypalOnboardingReturnUrl(req);
+  return {
+    tracking_id: trackingId,
+    operations: [
+      {
+        operation: "API_INTEGRATION",
+        api_integration_preference: {
+          rest_api_integration: {
+            integration_method: "PAYPAL",
+            integration_type: "FIRST_PARTY",
+            first_party_details: {
+              features: paypalProviderOnboardingFeatures,
+              seller_nonce: trackingId
+            }
+          }
+        }
+      }
+    ],
+    products: paypalProviderOnboardingProducts,
+    partner_config_override: {
+      return_url: returnUrl
+    },
+    legal_consents: [
+      {
+        type: "SHARE_DATA_CONSENT",
+        granted: true
+      }
+    ]
+  };
+}
+
+async function recordProviderPaypalOnboardingReturn(searchParams) {
+  const values = Object.fromEntries(searchParams.entries());
+  const trackingId = readOptionalString(values.tracking_id || values.trackingId || values.merchantId);
+  const merchantIdInPayPal = readOptionalString(values.merchantIdInPayPal || values.merchant_id_in_paypal);
+  if (!trackingId && !merchantIdInPayPal) {
+    const error = new Error("PayPal onboarding return did not include tracking or merchant identifiers.");
+    error.statusCode = 400;
+    error.code = "paypal-onboarding-return-missing-identifiers";
+    throw error;
+  }
+
+  const now = new Date().toISOString();
+  const updatedProvider = await mutateUsers(async (records) => {
+    const provider = records.find((entry) => {
+      const paypalState = normalizeProviderPaypalProfile(entry?.providerProfile?.paypal);
+      return (
+        (trackingId && readOptionalString(paypalState.trackingId) === trackingId) ||
+        (merchantIdInPayPal && readOptionalString(paypalState.providerAccountId) === merchantIdInPayPal)
+      );
+    });
+    if (!provider) {
+      throw new Error("Provider account was not found for the PayPal onboarding return.");
+    }
+
+    const providerProfile = provider.providerProfile && typeof provider.providerProfile === "object" ? provider.providerProfile : {};
+    const paypalState = normalizeProviderPaypalProfile(providerProfile.paypal);
+    const permissionsGranted = parsePaypalReturnBoolean(values.permissionsGranted);
+    const consentGranted = parsePaypalReturnBoolean(values.consentStatus);
+    const isEmailConfirmed = parsePaypalReturnBoolean(values.isEmailConfirmed);
+    const onboardingStatus = permissionsGranted && consentGranted
+      ? "RETURNED_GRANTED"
+      : "RETURNED_ACTION_REQUIRED";
+
+    provider.providerProfile = {
+      ...providerProfile,
+      paypal: {
+        ...paypalState,
+        trackingId: trackingId || paypalState.trackingId || null,
+        providerAccountId: merchantIdInPayPal || paypalState.providerAccountId || null,
+        merchantIdInPayPal: merchantIdInPayPal || paypalState.merchantIdInPayPal || null,
+        onboardingStatus,
+        consentStatus: consentGranted ? "GRANTED" : "PENDING",
+        permissionsGranted,
+        accountStatus: readOptionalString(values.accountStatus) || paypalState.accountStatus || null,
+        productIntentId: readOptionalString(values.productIntentID || values.productIntentId) || paypalState.productIntentId || null,
+        isEmailConfirmed,
+        returnMessage: readOptionalString(values.returnMessage) || null,
+        lastReturnAt: now
+      }
+    };
+    return provider;
+  });
+
+  return {
+    providerUserId: Number(updatedProvider.id),
+    onboardingStatus: updatedProvider.providerProfile?.paypal?.onboardingStatus || "RETURNED"
+  };
+}
+
+function resolveProviderPaypalOnboardingReturnUrl(req = null) {
+  const configured = readPaypalEnvValue("PAYPAL_PROVIDER_ONBOARDING_RETURN_URL");
+  if (configured) {
+    return configured;
+  }
+  return `${resolveRequestBaseUrl(req)}${RAW_API_BASE_PATH}/providers/paypal-onboarding/return`;
+}
+
+function resolveProviderPaypalReturnRedirectUrl(req = null) {
+  const configured = readPaypalEnvValue("PUBLIC_FRONTEND_BASE_URL").replace(/\/$/, "");
+  if (configured) {
+    return `${configured}/provider-wallet.html`;
+  }
+  return `${resolveRequestBaseUrl(req)}/provider-wallet.html`;
+}
+
+function getPaypalResponseLink(payload, rel) {
+  const normalizedRel = readOptionalString(rel).toLowerCase();
+  const links = Array.isArray(payload?.links) ? payload.links : [];
+  return links.find((link) => readOptionalString(link?.rel).toLowerCase() === normalizedRel)?.href || "";
+}
+
+function extractIdFromPaypalLink(payload, rel) {
+  const href = getPaypalResponseLink(payload, rel);
+  if (!href) {
+    return "";
+  }
+  try {
+    const parsed = new URL(href);
+    return decodeURIComponent(parsed.pathname.split("/").filter(Boolean).pop() || "");
+  } catch {
+    return "";
+  }
+}
+
+function parsePaypalReturnBoolean(value) {
+  const normalized = readOptionalString(value).toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
 const paypalCaptureController = createPaypalCaptureController({
   readOptionalString,
   normalizeServiceRequest,
@@ -6211,12 +6483,20 @@ export function normalizeProviderPaypalProfile(value) {
   const paypal = value && typeof value === "object" ? value : {};
   return {
     providerAccountId: readOptionalString(paypal.providerAccountId) || readOptionalString(paypal.merchantId) || null,
+    merchantIdInPayPal: readOptionalString(paypal.merchantIdInPayPal) || readOptionalString(paypal.merchant_id_in_paypal) || null,
     accountId: readOptionalString(paypal.accountId) || null,
     trackingId: readOptionalString(paypal.trackingId) || null,
+    partnerReferralId: readOptionalString(paypal.partnerReferralId) || readOptionalString(paypal.partner_referral_id) || null,
+    actionUrl: readOptionalString(paypal.actionUrl || paypal.action_url) || null,
     payerId: readOptionalString(paypal.payerId) || null,
     email: readOptionalString(paypal.email) || null,
     onboardingStatus: readOptionalString(paypal.onboardingStatus) || null,
     consentStatus: readOptionalString(paypal.consentStatus) || null,
+    permissionsGranted: paypal.permissionsGranted === true,
+    accountStatus: readOptionalString(paypal.accountStatus) || null,
+    productIntentId: readOptionalString(paypal.productIntentId || paypal.productIntentID) || null,
+    isEmailConfirmed: paypal.isEmailConfirmed === true,
+    returnMessage: readOptionalString(paypal.returnMessage) || null,
     accountLifecycleStatus: readOptionalString(paypal.accountLifecycleStatus) || null,
     accountLimits: paypal.accountLimits && typeof paypal.accountLimits === "object" ? paypal.accountLimits : {},
     capabilities: paypal.capabilities && typeof paypal.capabilities === "object" ? paypal.capabilities : {},
@@ -6233,6 +6513,9 @@ export function normalizeProviderPaypalProfile(value) {
     lastWebhookEventId: readOptionalString(paypal.lastWebhookEventId) || null,
     lastWebhookEventType: readOptionalString(paypal.lastWebhookEventType) || null,
     lastWebhookAt: optionalIsoString(paypal.lastWebhookAt),
+    onboardingStartedAt: optionalIsoString(paypal.onboardingStartedAt),
+    lastReferralCreatedAt: optionalIsoString(paypal.lastReferralCreatedAt),
+    lastReturnAt: optionalIsoString(paypal.lastReturnAt),
     onboardingCompletedAt: optionalIsoString(paypal.onboardingCompletedAt),
     partnerConsentRevokedAt: optionalIsoString(paypal.partnerConsentRevokedAt),
     accountCreatedAt: optionalIsoString(paypal.accountCreatedAt),
