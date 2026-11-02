@@ -1193,13 +1193,13 @@ function normalizeEnvironment(value) {
 
 function resolvePaypalClientId() {
   return resolveFirstPaypalEnv(PAYPAL_ENV === "sandbox"
-    ? ["paypal_client_sandbox_id", "PAYPAL_CLIENT_ID_SANDBOX", "PAYPAL_CLIENT_ID_sandbox", "PAYPAL_CLIENT_ID"]
+    ? ["PAYPAL_CLIENT_ID_SANDBOX", "paypal_client_sandbox_id", "PAYPAL_CLIENT_ID_sandbox", "PAYPAL_CLIENT_ID"]
     : ["PAYPAL_CLIENT_ID"]);
 }
 
 function resolvePaypalClientSecret() {
   return resolveFirstPaypalEnv(PAYPAL_ENV === "sandbox"
-    ? ["paypal_client_secret_sandbox_id", "PAYPAL_CLIENT_SECRET_SANDBOX", "PAYPAL_CLIENT_SECRET_sandbox", "PAYPAL_CLIENT_SECRET_SANBOX", "PAYPAL_CLIENT_SECRET_sanbox", "PAYPAL_CLIENT_SECRET", "SECRET_KEY_1", "PAYPAL_SECRET_KEY_1"]
+    ? ["PAYPAL_CLIENT_SECRET_SANDBOX", "paypal_client_secret_sandbox_id", "PAYPAL_CLIENT_SECRET_sandbox", "PAYPAL_CLIENT_SECRET_SANBOX", "PAYPAL_CLIENT_SECRET_sanbox", "PAYPAL_CLIENT_SECRET", "SECRET_KEY_1", "PAYPAL_SECRET_KEY_1"]
     : ["PAYPAL_CLIENT_SECRET", "SECRET_KEY_1", "PAYPAL_SECRET_KEY_1"]);
 }
 
@@ -1216,8 +1216,8 @@ function resolveFirstPaypalEnv(names) {
 function resolvePaypalWebhookIdForMode(mode) {
   if (mode === "sandbox") {
     return (
-      readEnv("paypal_sandbox_webhooks_id") ||
       readEnv("PAYPAL_WEBHOOK_ID_SANDBOX") ||
+      readEnv("paypal_sandbox_webhooks_id") ||
       readEnv("PAYPAL_WEBHOOK_ID_sandbox") ||
       readEnv("PAYPAL_WEBHOOK_ID") ||
       PAYPAL_WEBHOOK_IDS[mode] ||

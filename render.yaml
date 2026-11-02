@@ -46,6 +46,12 @@ services:
         sync: false
       - key: PAYPAL_WEBHOOK_ID
         sync: false
+      - key: PAYPAL_CLIENT_ID_SANDBOX
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET_SANDBOX
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID_SANDBOX
+        sync: false
       - key: PAYPAL_PARTNER_ATTRIBUTION_ID
         sync: false
       - key: PAYPAL_PROVIDER_ONBOARDING_RETURN_URL

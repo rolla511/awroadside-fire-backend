@@ -727,65 +727,12 @@ function readCsvEnv(name, fallback = []) {
 
 const PAYPAL_CLIENT_SECRET_ENV_HINT = "Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET (or SECRET_KEY_1) before using PayPal.";
 
-function resolveFirstPaypalEnv(names) {
-  for (const name of names) {
-    const value = readPaypalEnvValue(name);
-    if (value) {
-      return { value, source: name };
-    }
-  }
-  return { value: "", source: "" };
-}
-
-function resolvePaypalClientIdForMode(mode) {
-  return resolvePaypalClientIdEntryForMode(mode).value;
-}
-
-function resolvePaypalClientIdEntryForMode(mode) {
-  return resolveFirstPaypalEnv(
-    mode === "sandbox"
-      ? [
-          "paypal_client_sandbox_id",
-          "PAYPAL_CLIENT_ID_SANDBOX",
-          "PAYPAL_CLIENT_ID_sandbox",
-          "PAYPAL_CLIENT_ID"
-        ]
-      : ["PAYPAL_CLIENT_ID"]
-  );
-}
-
-function resolvePaypalClientSecretForMode(mode) {
-  return resolvePaypalClientSecretEntryForMode(mode).value;
-}
-
-function resolvePaypalClientSecretEntryForMode(mode) {
-  return resolveFirstPaypalEnv(
-    mode === "sandbox"
-      ? [
-          "paypal_client_secret_sandbox_id",
-          "PAYPAL_CLIENT_SECRET_SANDBOX",
-          "PAYPAL_CLIENT_SECRET_sandbox",
-          "PAYPAL_CLIENT_SECRET_SANBOX",
-          "PAYPAL_CLIENT_SECRET_sanbox",
-          "PAYPAL_CLIENT_SECRET",
-          "SECRET_KEY_1",
-          "PAYPAL_SECRET_KEY_1"
-        ]
-      : [
-          "PAYPAL_CLIENT_SECRET",
-          "SECRET_KEY_1",
-          "PAYPAL_SECRET_KEY_1"
-        ]
-  );
-}
-const paypalMode = readPaypalEnvValue("PAYPAL_ENV").toLowerCase() === "sandbox" ? "sandbox" : "live";
+const paypalMode = paypal.paypalConfig.mode;
 const sandboxManualTestFixturesEnabled =
   paypalMode === "sandbox" ||
   readBooleanEnv(process.env.AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES, false);
-const paypalClientIdEntry = resolvePaypalClientIdEntryForMode(paypalMode);
-const paypalClientSecretEntry = resolvePaypalClientSecretEntryForMode(paypalMode);
-const paypalClientId = paypalClientIdEntry.value;
-const paypalClientSecret = paypalClientSecretEntry.value;
+const paypalClientId = paypal.paypalConfig.clientId;
+const paypalClientSecret = paypal.paypalConfig.clientSecret;
 const paypalSubscriberPlanId = (process.env.PAYPAL_SUBSCRIBER_PLAN_ID || process.env.PAYPAL_PLAN_ID || "P-24R12418JB726551MNI3SOVA").trim();
 const paypalProviderPlanId = (process.env.PAYPAL_PROVIDER_PLAN_ID || "P-5MA53832KU627993ENI3STPA").trim();
 const paypalPlatformId = process.env.PAYPAL_PLATFORM_ID || "";
@@ -796,19 +743,7 @@ const paypalProviderOnboardingProducts = Object.freeze(
 const paypalProviderOnboardingFeatures = Object.freeze(
   readCsvEnv("PAYPAL_PROVIDER_ONBOARDING_FEATURES", ["PAYMENT", "REFUND"])
 );
-const PAYPAL_WEBHOOK_IDS = Object.freeze({
-  live: "27268198X79844346",
-  sandbox: "4RN22635Y61567938"
-});
-const paypalWebhookId =
-  (paypalMode === "sandbox"
-    ? readPaypalEnvValue("paypal_sandbox_webhooks_id") ||
-      readPaypalEnvValue("PAYPAL_WEBHOOK_ID_SANDBOX") ||
-      readPaypalEnvValue("PAYPAL_WEBHOOK_ID_sandbox") ||
-      readPaypalEnvValue("PAYPAL_WEBHOOK_ID")
-    : readPaypalEnvValue("PAYPAL_WEBHOOK_ID")) ||
-  PAYPAL_WEBHOOK_IDS[paypalMode] ||
-  "";
+const paypalWebhookId = paypal.paypalConfig.webhookId;
 const paypalClientModule = "paypal-client.mjs";
 const paypalWebhookModule = "paypal-webhooks.mjs";
 const paypalWebhookPath = `/${paypalWebhookModule}`;
@@ -3880,10 +3815,10 @@ async function getPaymentConfigPayload() {
     clientId: paypalClientId || null,
     credentials: {
       mode: paypalMode,
-      clientIdSource: paypalClientIdEntry.source || null,
+      clientIdSource: paypal.paypalConfig.clientIdSource || null,
       clientIdPreview: maskCredential(paypalClientId),
       clientIdLength: paypalClientId ? paypalClientId.length : 0,
-      secretSource: paypalClientSecretEntry.source || null,
+      secretSource: paypal.paypalConfig.clientSecretSource || null,
       secretConfigured: Boolean(paypalClientSecret),
       secretLength: paypalClientSecret ? paypalClientSecret.length : 0
     },
