@@ -33,9 +33,9 @@ services:
       - key: AW_DB_MODE
         value: internal-db
       - key: AW_DB_STRICT
-        value: "true"
+        value: "false"
       - key: PAYPAL_ENV
-        value: live
+        sync: false
       - key: AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES
         value: "false"
       - key: PAYPAL_CLIENT_ID
@@ -45,6 +45,12 @@ services:
       - key: SECRET_KEY_1
         sync: false
       - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: PAYPAL_PARTNER_ATTRIBUTION_ID
+        sync: false
+      - key: PAYPAL_PROVIDER_ONBOARDING_RETURN_URL
+        sync: false
+      - key: PUBLIC_FRONTEND_BASE_URL
         sync: false
       - key: db_id
         sync: false

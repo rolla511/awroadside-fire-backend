@@ -778,7 +778,7 @@ function resolvePaypalClientSecretEntryForMode(mode) {
         ]
   );
 }
-const paypalMode = (process.env.PAYPAL_ENV || "live").toLowerCase() === "sandbox" ? "sandbox" : "live";
+const paypalMode = readPaypalEnvValue("PAYPAL_ENV").toLowerCase() === "sandbox" ? "sandbox" : "live";
 const sandboxManualTestFixturesEnabled =
   paypalMode === "sandbox" ||
   readBooleanEnv(process.env.AW_ENABLE_SANDBOX_MANUAL_TEST_FIXTURES, false);
