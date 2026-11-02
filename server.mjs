@@ -7,7 +7,6 @@ import {fileURLToPath} from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import * as paypal from "./paypal-client.mjs";
 import { createPaypalWebhookRouteHandler } from "./paypal-webhooks.mjs";
 import {createAdminController} from "./admin-controller.mjs";
 import {createAwRoadsideSecurityController} from "./aw-roadside-security.mjs";
@@ -54,6 +53,7 @@ function loadInternalEnv() {
   }
 }
 loadInternalEnv();
+const paypal = await import("./paypal-client.mjs");
 
 const BLUEPRINT_RELATIVE_PATH = "aw.backend.yaml";
 const WEB_ROOT_ENTRY_FILES = Object.freeze(["home.html", "awroadside-fire-index.html"]);
