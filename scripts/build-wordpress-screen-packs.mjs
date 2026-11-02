@@ -19,10 +19,10 @@ const screens = [
   { id: "security", title: "Security" }
 ];
 
-const html = await fs.readFile(path.join(webRoot, "index.html"), "utf8");
+const html = await fs.readFile(path.join(webRoot, "awroadside-fire-index.html"), "utf8");
 const bodyMatch = html.match(/<body>([\s\S]*?)<\/body>/i);
 if (!bodyMatch) {
-  throw new Error("Unable to extract app markup from web/index.html.");
+  throw new Error("Unable to extract app markup from web/awroadside-fire-index.html.");
 }
 
 const bodyContent = bodyMatch[1]

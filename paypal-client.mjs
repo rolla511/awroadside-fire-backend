@@ -4,13 +4,24 @@ import crypto from "crypto";
 const PAYPAL_ENV = normalizeEnvironment(process.env.PAYPAL_ENV);
 const PAYPAL_API_BASE_URL =
   PAYPAL_ENV === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
-const PAYPAL_CLIENT_ID = resolvePaypalClientId();
-const PAYPAL_CLIENT_SECRET = resolvePaypalClientSecret();
+const paypalClientIdEntry = resolvePaypalClientId();
+const paypalClientSecretEntry = resolvePaypalClientSecret();
+const PAYPAL_CLIENT_ID = paypalClientIdEntry.value;
+const PAYPAL_CLIENT_SECRET = paypalClientSecretEntry.value;
 const PAYPAL_WEBHOOK_IDS = Object.freeze({
   live: "27268198X79844346",
   sandbox: "4RN22635Y61567938"
 });
 const PAYPAL_WEBHOOK_ID = resolvePaypalWebhookIdForMode(PAYPAL_ENV);
+export const paypalConfig = Object.freeze({
+  mode: PAYPAL_ENV,
+  apiBaseUrl: PAYPAL_API_BASE_URL,
+  clientId: PAYPAL_CLIENT_ID,
+  clientSecret: PAYPAL_CLIENT_SECRET,
+  clientIdSource: paypalClientIdEntry.source,
+  clientSecretSource: paypalClientSecretEntry.source,
+  webhookId: PAYPAL_WEBHOOK_ID
+});
 const PAYPAL_BRAND_NAME = readEnv("PAYPAL_BRAND_NAME") || "awroadside";
 const PAYPAL_SOFT_DESCRIPTOR = toSoftDescriptor(readEnv("PAYPAL_SOFT_DESCRIPTOR") || "AWROADSIDE");
 const PAYPAL_PARTNER_ATTRIBUTION_ID = readEnv("PAYPAL_PARTNER_ATTRIBUTION_ID");
@@ -1173,39 +1184,33 @@ function requireCredentials() {
 }
 
 function normalizeEnvironment(value) {
-  return readEnvValue(value).toLowerCase() === "sandbox" ? "sandbox" : "live";
+  const mode = readEnvValue(value).toLowerCase() || "live";
+  if (mode !== "sandbox" && mode !== "live") {
+    throw new Error("PAYPAL_ENV must be sandbox or live.");
+  }
+  return mode;
 }
 
 function resolvePaypalClientId() {
-  if (PAYPAL_ENV === "sandbox") {
-    return (
-      readEnv("paypal_client_sandbox_id") ||
-      readEnv("PAYPAL_CLIENT_ID_SANDBOX") ||
-      readEnv("PAYPAL_CLIENT_ID_sandbox") ||
-      readEnv("PAYPAL_CLIENT_ID")
-    );
-  }
-  return readEnv("PAYPAL_CLIENT_ID");
+  return resolveFirstPaypalEnv(PAYPAL_ENV === "sandbox"
+    ? ["paypal_client_sandbox_id", "PAYPAL_CLIENT_ID_SANDBOX", "PAYPAL_CLIENT_ID_sandbox", "PAYPAL_CLIENT_ID"]
+    : ["PAYPAL_CLIENT_ID"]);
 }
 
 function resolvePaypalClientSecret() {
-  if (PAYPAL_ENV === "sandbox") {
-    return (
-      readEnv("paypal_client_secret_sandbox_id") ||
-      readEnv("PAYPAL_CLIENT_SECRET_SANDBOX") ||
-      readEnv("PAYPAL_CLIENT_SECRET_sandbox") ||
-      readEnv("PAYPAL_CLIENT_SECRET_SANBOX") ||
-      readEnv("PAYPAL_CLIENT_SECRET_sanbox") ||
-      readEnv("PAYPAL_CLIENT_SECRET") ||
-      readEnv("SECRET_KEY_1") ||
-      readEnv("PAYPAL_SECRET_KEY_1")
-    );
+  return resolveFirstPaypalEnv(PAYPAL_ENV === "sandbox"
+    ? ["paypal_client_secret_sandbox_id", "PAYPAL_CLIENT_SECRET_SANDBOX", "PAYPAL_CLIENT_SECRET_sandbox", "PAYPAL_CLIENT_SECRET_SANBOX", "PAYPAL_CLIENT_SECRET_sanbox", "PAYPAL_CLIENT_SECRET", "SECRET_KEY_1", "PAYPAL_SECRET_KEY_1"]
+    : ["PAYPAL_CLIENT_SECRET", "SECRET_KEY_1", "PAYPAL_SECRET_KEY_1"]);
+}
+
+function resolveFirstPaypalEnv(names) {
+  for (const name of names) {
+    const value = readEnv(name);
+    if (value) {
+      return Object.freeze({ value, source: name });
+    }
   }
-  return (
-    readEnv("PAYPAL_CLIENT_SECRET") ||
-    readEnv("SECRET_KEY_1") ||
-    readEnv("PAYPAL_SECRET_KEY_1")
-  );
+  return Object.freeze({ value: "", source: "" });
 }
 
 function resolvePaypalWebhookIdForMode(mode) {

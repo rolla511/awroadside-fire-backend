@@ -18,10 +18,10 @@ await fs.copyFile(path.join(webRoot, "styles.css"), path.join(outputRoot, "asset
 await fs.copyFile(path.join(webRoot, "app.js"), path.join(outputRoot, "assets", "fire-app.js"));
 await copyDir(path.join(webRoot, "assets"), path.join(outputRoot, "assets", "images"));
 
-const html = await fs.readFile(path.join(webRoot, "index.html"), "utf8");
+const html = await fs.readFile(path.join(webRoot, "awroadside-fire-index.html"), "utf8");
 const bodyMatch = html.match(/<body>([\s\S]*?)<\/body>/i);
 if (!bodyMatch) {
-  throw new Error("Unable to extract fire UI markup from web/index.html.");
+  throw new Error("Unable to extract fire UI markup from web/awroadside-fire-index.html.");
 }
 
 const bodyContent = bodyMatch[1]

@@ -1,4 +1,4 @@
-import { getAccessToken } from "../backend/paypal-client.mjs";
+import { getAccessToken, paypalConfig } from "../paypal-client.mjs";
 import { sandboxWebhookEvents } from "./paypal-webhook-events.mjs";
 
 const DEFAULT_WEBHOOK_PATH = "/api/paypal/webhook";
@@ -15,11 +15,14 @@ async function main() {
     printSandboxEvents();
     return;
   }
+  if (paypalConfig.mode !== "sandbox") {
+    throw new Error("Webhook simulation requires PAYPAL_ENV=sandbox.");
+  }
 
   const targetBaseUrl = resolveTargetBaseUrl(options);
   const targetWebhookUrl = resolveTargetWebhookUrl(targetBaseUrl, options.path);
   const eventType = options.eventType || DEFAULT_EVENT_TYPE;
-  const webhookId = options.webhookId || readOptionalEnv("PAYPAL_WEBHOOK_ID");
+  const webhookId = options.webhookId || paypalConfig.webhookId;
   const resourceVersion = options.resourceVersion || undefined;
   const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
 
@@ -30,6 +33,9 @@ async function main() {
 
   const config = await fetchRuntimePaymentConfig(targetBaseUrl);
   if (config) {
+    if (config.mode !== "sandbox") {
+      throw new Error("Target backend must report sandbox mode before webhook simulation.");
+    }
     console.log(
       `[webhook-sim] runtime webhook config: path=${config.webhookPath || "unknown"} configured=${String(config.webhookConfigured)} mode=${config.mode || "unknown"}`
     );
@@ -159,8 +165,7 @@ function resolveTargetWebhookUrl(baseUrl, path) {
 }
 
 function resolvePaypalApiBaseUrl() {
-  const env = String(process.env.PAYPAL_ENV || "sandbox").trim().toLowerCase();
-  return env === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+  return paypalConfig.apiBaseUrl;
 }
 
 async function fetchRuntimePaymentConfig(baseUrl) {
