@@ -570,9 +570,15 @@ function buildAuthorityDescriptor(req = null) {
 }
 
 function normalizeProtectedApiPath(pathname) {
-  for (const aliasPath of PROTECTED_API_ALIAS_PATHS) {
+  for (const aliasPath of [PROTECTED_API_BASE_PATH, ...PROTECTED_API_ALIAS_PATHS]) {
     if (pathname === aliasPath || pathname.startsWith(`${aliasPath}/`)) {
       const suffix = pathname.slice(aliasPath.length);
+      if (["/auth/password/forgot", "/auth/password/reset", "/auth/password/change", "/auth/subscriber/profile", "/auth/subscriber/cancel"].includes(suffix)) {
+        return `/subscription-controller.mjs${suffix}`;
+      }
+      if (["/payments/authorize-order", "/payments/hosted-button-intent", "/payments/create-subscription", "/providers/paypal-connect", "/providers/paypal-onboarding/return"].includes(suffix)) {
+        return `${RAW_API_BASE_PATH}${suffix}`;
+      }
       return `${PROTECTED_API_BASE_PATH}${suffix}`;
     }
   }
@@ -3338,7 +3344,10 @@ async function getServiceRequestById(requestId) {
   const requests = await readDispatchRequestLog();
   const request = requests.find((entry) => String(entry.requestId || entry.id || "") === normalizedRequestId) || null;
   if (!request) {
-    throw new Error(`Request ${normalizedRequestId} was not found.`);
+    const error = new Error(`Request ${normalizedRequestId} was not found.`);
+    error.statusCode = 404;
+    error.code = "request-not-found";
+    throw error;
   }
   return request;
 }
@@ -5209,7 +5218,11 @@ async function createPaypalOrder(serviceRequest) {
   return paypal.createOrder({
     ...serviceRequest,
     description: serviceRequest.description || description,
-    amount: amountValue,
+    amount: {
+      ...(serviceRequest.amount && typeof serviceRequest.amount === "object" ? serviceRequest.amount : {}),
+      currency_code: serviceRequest.amount?.currency_code || serviceRequest.amount?.currencyCode || "USD",
+      value: normalizeAmountString(amountValue)
+    },
     customId: serviceRequest.customId || serviceRequest.requestId || `${serviceRequest.phoneNumber}:${serviceRequest.serviceType}`,
     referenceId: serviceRequest.referenceId || serviceRequest.requestId || undefined
   });
@@ -5223,30 +5236,16 @@ async function getPaypalOrderStatus(orderId) {
   return paypal.getOrderStatus(orderId);
 }
 
-async function capturePaypalOrder(orderId, req = null) {
-  // If request is provided, we might need to resolve a session or perform other checks
-  // before capturing, as specified in the issue description regarding tokens.
-  const session = req ? resolveUserSession(req) : null;
-  if (req && !session) {
-    console.log(`[DEBUG_LOG] capturePaypalOrder called with request but no session for order ${orderId}`);
-  }
-  return paypal.captureOrder(orderId);
+async function capturePaypalOrder(orderId, captureDetails = {}) {
+  return paypal.captureOrder(orderId, captureDetails);
 }
 
-async function authorizePaypalOrder(orderId, req = null) {
-  const session = req ? resolveUserSession(req) : null;
-  if (req && !session) {
-    console.log(`[DEBUG_LOG] authorizePaypalOrder called with request but no session for order ${orderId}`);
-  }
-  return paypal.authorizeOrder(orderId);
+async function authorizePaypalOrder(orderId, authorizationDetails = {}) {
+  return paypal.authorizeOrder(orderId, authorizationDetails);
 }
 
-async function confirmPaypalOrder(orderId, req = null) {
-  const session = req ? resolveUserSession(req) : null;
-  if (req && !session) {
-    console.log(`[DEBUG_LOG] confirmPaypalOrder called with request but no session for order ${orderId}`);
-  }
-  return paypal.confirmOrder(orderId);
+async function confirmPaypalOrder(orderId, confirmationDetails = {}) {
+  return paypal.confirmOrder(orderId, confirmationDetails);
 }
 
 async function createPaypalOrderTracking(orderId, trackingDetails = {}, req = null) {
@@ -8739,7 +8738,10 @@ async function updateRequestRecord(requestId, updater) {
   return mutateRequests(async (requests) => {
     const index = requests.findIndex((entry) => String(entry.id || entry.requestId) === String(requestId));
     if (index === -1) {
-      throw new Error(`Request ${requestId} was not found.`);
+      const error = new Error(`Request ${requestId} was not found.`);
+      error.statusCode = 404;
+      error.code = "request-not-found";
+      throw error;
     }
 
     const current = requests[index];
